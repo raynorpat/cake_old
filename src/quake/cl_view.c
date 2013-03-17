@@ -613,7 +613,6 @@ void V_CalcBlend (void)
 V_UpdatePalette
 =============
 */
-#ifdef	GLQUAKE
 void V_UpdatePalette (void)
 {
 	int		i, j;
@@ -686,93 +685,7 @@ void V_UpdatePalette (void)
 
 	VID_SetDeviceGammaRamp ((unsigned short *) ramps);
 }
-#else	// !GLQUAKE
-/*
-=============
-V_UpdatePalette
-=============
-*/
-void V_UpdatePalette (void)
-{
-	int		i, j;
-	qbool	new;
-	byte	*basepal, *newpal;
-//	byte	pal[768];
-	int		r,g,b;
-	qbool	force;
-	static cshift_t	prev_cshifts[NUM_CSHIFTS];
 
-	if (cls.state != ca_active) {
-		cl.cshifts[CSHIFT_CONTENTS].percent = 0;
-		cl.cshifts[CSHIFT_POWERUP].percent = 0;
-		cl.cshifts[CSHIFT_CUSTOM].percent = 0;
-	}
-	else
-		V_CalcPowerupCshift ();
-	
-	new = false;
-	
-	for (i=0 ; i<NUM_CSHIFTS ; i++)
-	{
-		if (cl.cshifts[i].percent != prev_cshifts[i].percent)
-		{
-			new = true;
-			prev_cshifts[i].percent = cl.cshifts[i].percent;
-		}
-		for (j=0 ; j<3 ; j++)
-			if (cl.cshifts[i].destcolor[j] != prev_cshifts[i].destcolor[j])
-			{
-				new = true;
-				prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
-			}
-	}
-
-// drop the damage value
-	cl.cshifts[CSHIFT_DAMAGE].percent -= cls.frametime * (150 * FLASHSPEEDADJUST);
-	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
-
-// drop the bonus value
-	cl.cshifts[CSHIFT_BONUS].percent -= cls.frametime * (100 * FLASHSPEEDADJUST);
-	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
-		cl.cshifts[CSHIFT_BONUS].percent = 0;
-
-	force = V_CheckGamma ();
-	if (!new && !force)
-		return;
-			
-	basepal = host_basepal;
-//	newpal = pal;
-	newpal = current_pal;	// Tonik: so we can use current_pal
-							// for screenshots
-	
-	for (i=0 ; i<256 ; i++)
-	{
-		r = basepal[0];
-		g = basepal[1];
-		b = basepal[2];
-		basepal += 3;
-	
-		for (j=0 ; j<NUM_CSHIFTS ; j++)	
-		{
-			if (j == CSHIFT_CUSTOM && cl.cshifts[CSHIFT_CONTENTS].percent)
-				continue;	// bug-to-bug compatibility with id code
-
-			r += (int)(cl.cshifts[j].percent*(cl.cshifts[j].destcolor[0]-r)) >> 8;
-			g += (int)(cl.cshifts[j].percent*(cl.cshifts[j].destcolor[1]-g)) >> 8;
-			b += (int)(cl.cshifts[j].percent*(cl.cshifts[j].destcolor[2]-b)) >> 8;
-		}
-		
-		newpal[0] = gammatable[r];
-		newpal[1] = gammatable[g];
-		newpal[2] = gammatable[b];
-		newpal += 3;
-	}
-
-	VID_ShiftPalette (current_pal);	
-}
-
-#endif	// !GLQUAKE
 
 /* 
 ============================================================================== 

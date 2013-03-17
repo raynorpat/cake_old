@@ -35,51 +35,41 @@ typedef struct vrect_s
 
 typedef struct
 {
-	pixel_t			*buffer;		// invisible buffer
 	pixel_t			*colormap;		// 256 * VID_GRADES size
-	unsigned short	*colormap16;	// 256 * VID_GRADES size
-	int				rowbytes;		// may be > width if displayed in a window
+	int				numpages;
+
 	int				width;
 	int				height;
-	float			aspect;			// width / height -- < 0 is taller than wide
-	int				numpages;
-	int				realwidth;		// pixel width of GL window
-	int				realheight;		// pixel height of GL window
-	pixel_t			*direct;		// direct drawing to framebuffer, if not
-									//  NULL
+
+	// these are set with VID_GetWindowSize and can change from frame to frame
+	int				realx;
+	int				realy;
+	int				realwidth;
+	int				realheight;
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state
 extern	unsigned	d_8to24table[256];
-extern void (*vid_menudrawfn)(void);
-extern void (*vid_menukeyfn)(int key);
+
+extern int vid_hidden;
+extern int vid_activewindow;
+
+extern cvar_t vid_fullscreen;
+extern cvar_t vid_width;
+extern cvar_t vid_height;
 
 void	VID_SetPalette (unsigned char *palette);
 // called at startup and after any gamma correction
 
-void	VID_ShiftPalette (unsigned char *palette);
-// called for bonus and pain flashes, and for underwater color changes
-
-void	VID_Init (unsigned char *palette);
-// Called at startup to set up translation tables, takes 256 8 bit RGB values
-// the palette data will go away after the call, so it must be copied off if
-// the video driver will need it again
+void	VID_InitCvars(void);
+void	VID_Init (void);
+int		VID_Mode(int fullscreen, int width, int height);
+// Called at startup
 
 void	VID_Shutdown (void);
 // Called at shutdown
 
-void	VID_Update (vrect_t *rects);
-// flushes the given rectangles from the view buffer to the screen
-
-int VID_SetMode (int modenum, unsigned char *palette);
-// sets the mode; only used by the Quake engine for resetting to mode 0 (the
-// base mode) on memory allocation failures
-
-void VID_HandlePause (qbool pause);
-// called only on Win32, when pause happens, so the mouse can be released
-
-void VID_LockBuffer (void);
-void VID_UnlockBuffer (void);
+void VID_GetWindowSize (int *x, int *y, int *width, int *height);
 
 void VID_SetCaption (char *text);
 

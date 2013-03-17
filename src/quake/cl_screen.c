@@ -345,6 +345,8 @@ void SCR_CalcRefdef (void)
 
 	size /= 100.0;
 
+	VID_GetWindowSize (&vid.realx, &vid.realy, &vid.realwidth, &vid.realheight);
+
 	scr_vrect.width = (int)(vid.width * size + 1.0) & ~1;
 	if (scr_vrect.width < 96) {
 		size = 96.0 / scr_vrect.width;
@@ -863,9 +865,6 @@ void SCR_TileClear (int	y, int height)
 	}
 }
 
-#ifdef GLQUAKE
-
-
 /*
 ==================
 SCR_UpdateScreen
@@ -892,15 +891,6 @@ void SCR_UpdateScreen (void)
 		else
 			return;
 	}
-
-#ifdef _WIN32
-	{	// don't suck up any cpu if minimized
-		extern int Minimized;
-
-		if (Minimized)
-			return;
-	}
-#endif
 
 	vid.numpages = 2 + gl_triplebuffer.value;
 
@@ -984,167 +974,3 @@ void SCR_UpdateScreen (void)
 
 	GL_EndRendering ();
 }
-
-#else
-// !GLQUAKE
-
-/*
-==================
-SCR_UpdateScreen
-
-This is called every frame, and can also be called explicitly to flush
-text to the screen.
-
-WARNING: be very careful calling this from elsewhere, because the refresh
-needs almost the entire 256k of stack space!
-==================
-*/
-void SCR_UpdateScreen (void)
-{
-	if (!scr_initialized)
-		return;
-
-	if (scr_skipupdate || block_drawing)
-		return;
-
-	if (scr_disabled_for_loading)
-	{
-		if (cls.realtime - scr_disabled_time > 20)
-			scr_disabled_for_loading = false;
-		else
-			return;
-	}
-
-#ifdef _WIN32
-	{	// don't suck up any cpu if minimized
-		extern int Minimized;
-
-		if (Minimized)
-			return;
-	}
-#endif
-
-	scr_copytop = 0;
-	scr_copyeverything = 0;
-
-	SCR_CalcRefdef ();
-
-	//
-	// do 3D refresh drawing, and then update the screen
-	//
-	D_EnableBackBufferAccess ();
-
-	if (scr_fullupdate++ < vid.numpages || scr_drawall.value)
-	{	// clear the entire screen
-		scr_copyeverything = 1;
-		// R_DrawTile (0, 0, vid.width, vid.height, scr_backtile);
-		SCR_TileClear (0, vid.height - sb_lines);
-		Sbar_Changed ();
-	}
-	else
-	{
-		if (scr_viewsize.value < 100)
-		{
-			// clear background for counters
-			if (show_speed.value)
-				R_DrawTile (vid.width - 4*8 - 8, 8, 4*8, 8, scr_backtile);
-			if (show_fps.value)
-				R_DrawTile (vid.width - 8*8 - 8, 0, 8*8, 8, scr_backtile);
-			if (scr_clock.value)
-			{
-				if (scr_clock_y.value < 0)
-					R_DrawTile (8 * scr_clock_x.value, vid.height - sb_lines + 8*scr_clock_y.value, 8*8, 8, scr_backtile);
-				else
-					R_DrawTile (8 * scr_clock_x.value, 8*scr_clock_y.value, 8*8, 8, scr_backtile);
-			}
-		}
-	}
-
-	SCR_SetUpToDrawConsole ();
-	SCR_EraseCenterString ();
-	
-	V_RenderView ();
-
-	if (scr_drawloading)
-	{
-		SCR_DrawLoading ();
-		Sbar_Draw ();
-	}
-	else
-	{
-		if (cl.intermission == 1 && key_dest != key_menu)
-		{
-			Sbar_IntermissionOverlay ();
-			Con_ClearNotify ();
-		}
-		else if (cl.intermission == 2 && key_dest != key_menu)
-		{
-			Sbar_FinaleOverlay ();
-			SCR_CheckDrawCenterString ();
-			Con_ClearNotify ();
-		}
-
-		if (cls.state == ca_active)
-		{
-			SCR_DrawRam ();
-			SCR_DrawNet ();
-			SCR_DrawTurtle ();
-			SCR_DrawPause ();
-			if (!cl.intermission) {
-				if (key_dest != key_menu)
-					Draw_Crosshair ();
-				SCR_CheckDrawCenterString ();
-				SCR_DrawSpeed ();
-				SCR_DrawClock ();
-				SCR_DrawFPS ();
-				Sbar_Draw ();
-			}
-		}
-
-		SCR_DrawConsole ();	
-		M_Draw ();
-	}
-
-	D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
-									//  for linear writes all the time
-	V_UpdatePalette ();
-
-//
-// update one of three areas
-//
-	if (scr_copyeverything)
-	{
-		vrect_t		vrect;
-		vrect.x = 0;
-		vrect.y = 0;
-		vrect.width = vid.width;
-		vrect.height = vid.height;
-		vrect.pnext = 0;
-	
-		VID_Update (&vrect);
-	}
-	else if (scr_copytop)
-	{
-		vrect_t		vrect;
-		vrect.x = 0;
-		vrect.y = 0;
-		vrect.width = vid.width;
-		vrect.height = vid.height - sb_lines;
-		vrect.pnext = 0;
-	
-		VID_Update (&vrect);
-	}	
-	else
-	{
-		vrect_t		vrect;
-		vrect.x = scr_vrect.x;
-		vrect.y = scr_vrect.y;
-		vrect.width = scr_vrect.width;
-		vrect.height = scr_vrect.height;
-		vrect.pnext = 0;
-	
-		VID_Update (&vrect);
-	}	
-}
-
-#endif // !GLQUAKE

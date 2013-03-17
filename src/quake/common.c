@@ -22,11 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 #include "crc.h"
 
-
-void R_BeginDisc (void);
-void R_EndDisc (void);
-
-
 #define MAX_NUM_ARGVS	50
 
 usercmd_t nullcmd; // guaranteed to be zero
@@ -773,15 +768,8 @@ byte *FS_LoadFile (char *path, int usehunk)
 		Sys_Error ("FS_LoadFile: not enough space for %s", path);
 		
 	((byte *)buf)[len] = 0;
-#ifndef SERVERONLY
-	R_BeginDisc ();
-#endif
 	fread (buf, 1, len, h);
 	fclose (h);
-#ifndef SERVERONLY
-	R_EndDisc ();
-#endif
-
 	return buf;
 }
 

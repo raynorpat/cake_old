@@ -126,9 +126,6 @@
     <ClCompile Include="..\host.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\in_win.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\keys.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -238,6 +235,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\zone.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vid_shared.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

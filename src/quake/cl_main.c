@@ -855,16 +855,30 @@ void CL_Init (void)
 
 	V_Init ();
 
+	VID_InitCvars();
+
 #ifdef __linux__
 	IN_Init ();
 #endif
 
-	VID_Init (host_basepal);
+	VID_Init();
+	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
+	{
+		if (vid_fullscreen.value)
+		{
+			if (!VID_Mode(true, 640, 480))
+				if (!VID_Mode(false, 640, 480))
+					Sys_Error("Video modes failed\n");
+		}
+		else
+		{
+			Sys_Error("Requested windowed video mode failed\n");
+		}
+	}
 
 #ifndef __linux__
 	IN_Init ();
 #endif
-
 
 	R_Init (host_basepal);
 

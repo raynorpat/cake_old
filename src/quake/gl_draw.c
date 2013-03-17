@@ -26,7 +26,6 @@ static void	OnChange_gl_smoothfont (cvar_t *var, char *string, qbool *cancel);
 cvar_t		gl_smoothfont = {"gl_smoothfont", "0", 0, OnChange_gl_smoothfont};
 
 byte		*draw_chars;				// 8*8 graphic characters
-static mpic_t	*draw_disc;
 
 int			translate_texture;
 int			char_texture;
@@ -373,16 +372,12 @@ void R_FlushPics (void)
 	scrap_dirty = false;
 
 	draw_chars = NULL;
-	draw_disc = NULL;
 
 	// load a new gfx.wad
 	W_LoadWadFile ("gfx.wad");
 
 	// load the charset by hand
 	R_LoadCharset ();
-
-	// the disc access monitor pic
-	draw_disc = R_CachePic_impl ("disc", true, false);
 }
 
 
@@ -416,9 +411,6 @@ void R_Draw_Init (void)
 
 	// load the charset by hand
 	R_LoadCharset ();
-
-	// the disc access monitor pic
-	draw_disc = R_CachePic_impl ("disc", true, false);
 }
 
 
@@ -540,21 +532,6 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 		R_DrawChar (x - 4, y - 4, '+');
 	}
 }
-
-
-/*
-================
-R_DrawDebugChar
-
-Draws a single character directly to the upper right corner of the screen.
-This is for debugging lockups by drawing different chars in different parts
-of the code.
-================
-*/
-void R_DrawDebugChar (char num)
-{
-}
-
 
 void R_DrawPic (int x, int y, mpic_t *pic)
 {
@@ -769,36 +746,6 @@ void R_FadeScreen (void)
 }
 
 //=============================================================================
-
-/*
-================
-R_BeginDisc
-
-Draws the little blue disc in the corner of the screen.
-Call before beginning any disc IO.
-================
-*/
-void R_BeginDisc (void)
-{
-	if (!draw_disc)
-		return;
-	glDrawBuffer  (GL_FRONT);
-	R_DrawPic (vid.width - 24, 0, draw_disc);
-	glDrawBuffer  (GL_BACK);
-}
-
-
-/*
-================
-R_EndDisc
-
-Erases the disc icon.
-Call after completing any disc IO
-================
-*/
-void R_EndDisc (void)
-{
-}
 
 /*
 ================

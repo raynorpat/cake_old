@@ -38,7 +38,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PAUSE_SLEEP		50				// sleep time on pause or minimization
 #define NOT_FOCUS_SLEEP	20				// sleep time when not focus
 
-qbool		ActiveApp, Minimized;
 qbool		WinNT;
 
 #ifndef SERVERONLY
@@ -612,12 +611,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 		else
 		{
-			if ((cl.paused && (!ActiveApp && !DDActive)) || Minimized || block_drawing)
+			if ((cl.paused && (!vid_activewindow && !DDActive)) || vid_hidden || block_drawing)
 			{
 				SleepUntilInput (PAUSE_SLEEP);
 				scr_skipupdate = 1;		// no point in bothering to draw
 			}
-			else if (!ActiveApp && !DDActive)
+			else if (!vid_activewindow && !DDActive)
 				SleepUntilInput (NOT_FOCUS_SLEEP);
 		}
 

@@ -36,9 +36,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/stat.h>
 #endif
 
-void (*vid_menudrawfn)(void);
-void (*vid_menukeyfn)(int key);
-
 enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer,
 	m_setup, m_options, m_video, m_keys, m_help, m_quit,
 	m_gameoptions, m_fps, m_demos} m_state;
@@ -474,9 +471,9 @@ void M_Options_Draw (void)
 	p = R_CachePic ("gfx/p_option.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
 
-	M_Print (16, 32, "    Customize controls");
-	M_Print (16, 40, "         Go to console");
-	M_Print (16, 48, "     Reset to defaults");
+	M_PrintWhite (16, 32, "    Customize controls");
+	M_PrintWhite (16, 40, "         Go to console");
+	M_PrintWhite (16, 48, "     Reset to defaults");
 
 	M_Print (16, 56, "           Screen size");
 	r = (scr_viewsize.value - 30) / (120 - 30);
@@ -520,20 +517,12 @@ void M_Options_Draw (void)
 	M_Print (16, 144, "      HUD on left side");
 	M_DrawCheckbox (220, 144, cl_hudswap.value);
 
-	M_Print (16, 152, "          FPS settings");
+	M_PrintWhite (16, 152, "          FPS settings");
 
-	if (vid_menudrawfn)
-		M_Print (16, 160, "           Video Modes");
+	M_PrintWhite (16, 160, "         Video Options");
 
-#ifdef _WIN32
-	if (modestate == MS_WINDOWED)
-	{
-#endif
-		M_Print (16, 168, "             Use Mouse");
-		M_DrawCheckbox (220, 168, _windowed_mouse.value);
-#ifdef _WIN32
-	}
-#endif
+	M_Print (16, 168, "             Use Mouse");
+	M_DrawCheckbox (220, 168, _windowed_mouse.value);
 
 // cursor
 	M_DrawChar (200, 32 + options_cursor*8, 12+((int)(curtime*4)&1));
@@ -569,8 +558,7 @@ void M_Options_Key (int k)
 			M_Menu_Fps_f ();
 			break;
 		case 16:
-			if (vid_menudrawfn)
-				M_Menu_Video_f ();
+			M_Menu_Video_f ();
 			break;
 		default:
 			M_AdjustSliders (1);
@@ -612,26 +600,6 @@ void M_Options_Key (int k)
 		M_AdjustSliders (1);
 		break;
 	}
-
-	if (options_cursor == 16 && vid_menudrawfn == NULL)
-	{
-		if (k == K_UPARROW || k == K_END || k == K_PGDN)
-			//options_cursor = 15;
-			options_cursor--;
-		else
-			//options_cursor = 0;
-			options_cursor++;
-	}
-
-#ifdef _WIN32
-	if ((options_cursor == 17) && (modestate != MS_WINDOWED))
-	{
-		if (k == K_UPARROW || k == K_END || k == K_PGDN)
-			options_cursor = 16;
-		else
-			options_cursor = 0;
-	}
-#endif
 }
 
 
@@ -843,7 +811,7 @@ void M_Keys_Key (int k)
 //=============================================================================
 /* FPS SETTINGS MENU */
 
-#define	FPS_ITEMS	15
+#define	FPS_ITEMS	14
 
 int		fps_cursor = 0;
 
@@ -929,8 +897,8 @@ void M_Fps_Key (int k)
 	case K_UPARROW:
 		S_LocalSound ("misc/menu1.wav");
 		fps_cursor--;
-		if (fps_cursor == 12)
-			fps_cursor = 11;
+		if (fps_cursor == 11)
+			fps_cursor = 10;
 		if (fps_cursor < 0)
 			fps_cursor = FPS_ITEMS - 1;
 		break;
@@ -938,8 +906,8 @@ void M_Fps_Key (int k)
 	case K_DOWNARROW:
 		S_LocalSound ("misc/menu1.wav");
 		fps_cursor++;
-		if (fps_cursor == 12)
-			fps_cursor = 13;
+		if (fps_cursor == 11)
+			fps_cursor = 12;
 		if (fps_cursor >= FPS_ITEMS)
 			fps_cursor = 0;
 		break;
@@ -1008,7 +976,7 @@ void M_Fps_Key (int k)
 			break;
 
 		// fast
-		case 13:
+		case 12:
 			Cvar_SetValue (&cl_explosion, 3);
 			Cvar_SetValue (&cl_muzzleflash, 2);
 			Cvar_SetValue (&cl_gibfilter, 1);
@@ -1020,7 +988,7 @@ void M_Fps_Key (int k)
 			break;
 
 		// high quality
-		case 14:
+		case 13:
 			Cvar_SetValue (&cl_explosion, 0);
 			Cvar_SetValue (&cl_muzzleflash, 1);
 			Cvar_SetValue (&cl_gibfilter, 0);
@@ -1037,21 +1005,143 @@ void M_Fps_Key (int k)
 //=============================================================================
 /* VIDEO MENU */
 
+#define VIDEO_ITEMS 3
+
+int video_cursor = 0;
+int video_cursor_table[] = {56, 68, 80};
+// note: if modes are added to the beginning of this list, update the
+// video_resolution = x; in M_Menu_Video_f below
+unsigned short video_resolutions[][2] = {{320,240}, {400,300}, {512,384}, {640,480}, {800,600}, {1024,768}, {1152,864}, {1280,960}, {1280,1024}, {1600,1200}, {1792,1344}, {1920,1440}, {2048,1536}};
+int video_resolution;
+
+extern int current_vid_fullscreen;
+extern int current_vid_width;
+extern int current_vid_height;
+
 void M_Menu_Video_f (void)
 {
 	M_EnterMenu (m_video);
-}
 
+	// Look for the current resolution
+	for (video_resolution = 0; video_resolution < (int) (sizeof (video_resolutions) / sizeof (video_resolutions[0])); video_resolution++)
+	{
+		if (video_resolutions[video_resolution][0] == current_vid_width &&
+			video_resolutions[video_resolution][1] == current_vid_height)
+			break;
+	}
+
+	// Default to 800x600 if we didn't find it
+	if (video_resolution == sizeof (video_resolutions) / sizeof (video_resolutions[0]))
+	{
+		// may need to update this number if mode list changes
+		video_resolution = 4;
+		Cvar_SetValue (&vid_width, video_resolutions[video_resolution][0]);
+		Cvar_SetValue (&vid_height, video_resolutions[video_resolution][1]);
+	}
+}
 
 void M_Video_Draw (void)
 {
-	(*vid_menudrawfn) ();
+	mpic_t	*p;
+	char	*string;
+
+	M_DrawPic(16, 4, R_CachePic("gfx/qplaque.lmp"));
+	p = R_CachePic("gfx/vidmodes.lmp");
+	M_DrawPic((320-p->width)/2, 4, p);
+
+	// resolution
+	M_Print(16, video_cursor_table[0], "            Resolution");
+	string = va("%dx%d", video_resolutions[video_resolution][0], video_resolutions[video_resolution][1]);
+	M_Print (220, video_cursor_table[0], string);
+
+	// fullscreen
+	M_Print(16, video_cursor_table[1], "            Fullscreen");
+	M_DrawCheckbox(220, video_cursor_table[1], vid_fullscreen.value);
+
+	// "Apply" button
+	M_PrintWhite(220, video_cursor_table[2], "Apply");
+
+	// cursor
+	M_DrawChar(200, video_cursor_table[video_cursor], 12+((int)(curtime*4)&1));
 }
 
+void M_Menu_Video_AdjustSliders (int dir)
+{
+	S_LocalSound ("misc/menu3.wav");
+
+	switch (video_cursor)
+	{
+		// Resolution
+		case 0:
+		{
+			int new_resolution = video_resolution + dir;
+			if (new_resolution < 0)
+				video_resolution = sizeof (video_resolutions) / sizeof (video_resolutions[0]) - 1;
+			else if (new_resolution > (int) (sizeof (video_resolutions) / sizeof (video_resolutions[0]) - 1))
+				video_resolution = 0;
+			else
+				video_resolution = new_resolution;
+
+			Cvar_SetValue (&vid_width, video_resolutions[video_resolution][0]);
+			Cvar_SetValue (&vid_height, video_resolutions[video_resolution][1]);
+			break;
+		}
+
+		// Fullscreen
+		case 1:
+			Cvar_SetValue (&vid_fullscreen, !vid_fullscreen.value);
+			break;
+	}
+}
 
 void M_Video_Key (int key)
 {
-	(*vid_menukeyfn) (key);
+	switch (key)
+	{
+		case K_ESCAPE:
+			Cvar_SetValue(&vid_fullscreen, current_vid_fullscreen);
+			Cvar_SetValue(&vid_width, current_vid_width);
+			Cvar_SetValue(&vid_height, current_vid_height);
+
+			S_LocalSound ("misc/menu1.wav");
+			M_Menu_Options_f ();
+			break;
+
+		case K_ENTER:
+			m_entersound = true;
+			switch (video_cursor)
+			{
+				case 4:
+					Cbuf_AddText ("vid_restart\n");
+					M_Menu_Options_f ();
+					break;
+				default:
+					M_Menu_Video_AdjustSliders (1);
+			}
+			break;
+
+		case K_UPARROW:
+			S_LocalSound ("misc/menu1.wav");
+			video_cursor--;
+			if (video_cursor < 0)
+				video_cursor = VIDEO_ITEMS-1;
+			break;
+
+		case K_DOWNARROW:
+			S_LocalSound ("misc/menu1.wav");
+			video_cursor++;
+			if (video_cursor >= VIDEO_ITEMS)
+				video_cursor = 0;
+			break;
+
+		case K_LEFTARROW:
+			M_Menu_Video_AdjustSliders (-1);
+			break;
+
+		case K_RIGHTARROW:
+			M_Menu_Video_AdjustSliders (1);
+			break;
+	}
 }
 
 //=============================================================================

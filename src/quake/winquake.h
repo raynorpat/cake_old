@@ -53,13 +53,7 @@ void S_UnblockSound (void);
 // video
 //
 extern qbool		DDActive;
-
-typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
-
-extern modestate_t	modestate;
-
 extern HWND			mainwindow;
-extern qbool		ActiveApp, Minimized;
 
 //
 // input
@@ -71,11 +65,8 @@ void IN_ActivateMouse (void);
 void IN_RestoreOriginalMouseState (void);
 void IN_SetQuakeMouseState (void);
 void IN_MouseEvent (int mstate);
-void IN_UpdateClipCursor (void);
 
 extern int		window_center_x, window_center_y;
-extern RECT		window_rect;
-
 extern qbool	dinput;
 
 enum { MWHEEL_UNKNOWN, MWHEEL_DINPUT, MWHEEL_WINDOWMSG };

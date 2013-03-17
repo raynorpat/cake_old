@@ -261,7 +261,6 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Com_Printf ("%4.1f megs RAM used.\n", host_memsize / (1024*1024.0));
 	Com_Printf ("\n========= " PROGRAM " Initialized =========\n");
 
-
 	if (dedicated)
 	{
 		Cbuf_AddText ("exec server.cfg\n");
