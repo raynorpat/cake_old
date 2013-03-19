@@ -52,7 +52,6 @@ void S_UnblockSound (void);
 //
 // video
 //
-extern qbool		DDActive;
 extern HWND			mainwindow;
 
 //

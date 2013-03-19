@@ -114,7 +114,6 @@ double			connect_time = 0;		// for connection retransmits
 
 static qbool	host_skipframe;			// used in demo playback
 
-byte		*host_basepal;
 byte		*host_colormap;
 
 cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
@@ -151,12 +150,14 @@ int CL_Stat_TotalMonsters (void) { return cl.stats[STAT_TOTALMONSTERS]; }
 
 /*
 */
+extern void TexMgr_Flush (void);
 void CL_GamedirChanged (void)
 {
 	if (dedicated || !cls.initialized)
 		return;
 
 	// free old data and load a new gfx.wad
+	TexMgr_Flush ();
 	R_FlushPics ();
 
 	// register the pics we need
@@ -332,9 +333,7 @@ void CL_ClearState (void)
 	Com_DPrintf ("Clearing memory\n");
 
 	if (!com_serveractive)
-	{
 		Host_ClearMemory ();
-	}
 
 	CL_ClearTEnts ();
 	CL_ClearDlights ();
@@ -844,9 +843,6 @@ void CL_Init (void)
 
 	CL_CheckGfxWad ();
 
-	host_basepal = (byte *)FS_LoadHunkFile ("gfx/palette.lmp");
-	if (!host_basepal)
-		Sys_Error ("Couldn't load gfx/palette.lmp");
 	host_colormap = (byte *)FS_LoadHunkFile ("gfx/colormap.lmp");
 	if (!host_colormap)
 		Sys_Error ("Couldn't load gfx/colormap.lmp");
@@ -855,32 +851,12 @@ void CL_Init (void)
 
 	V_Init ();
 
-	VID_InitCvars();
-
-#ifdef __linux__
-	IN_Init ();
-#endif
-
+	VID_Shared_Init();
 	VID_Init();
-	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
-	{
-		if (vid_fullscreen.value)
-		{
-			if (!VID_Mode(true, 640, 480))
-				if (!VID_Mode(false, 640, 480))
-					Sys_Error("Video modes failed\n");
-		}
-		else
-		{
-			Sys_Error("Requested windowed video mode failed\n");
-		}
-	}
 
-#ifndef __linux__
-	IN_Init ();
-#endif
+	R_Init ();
 
-	R_Init (host_basepal);
+	VID_Open();
 
 	S_Init ();
 	CDAudio_Init ();
@@ -899,10 +875,8 @@ void CL_Init (void)
 
 	NET_ClientConfig (true);
 
-#if 0
 	// bring up the main menu
 	M_Menu_Main_f ();
-#endif
 
 	cls.initialized = true;
 }
@@ -927,7 +901,6 @@ void CL_BeginLocalConnection (void)
 		CL_Disconnect ();
 	}
 }
-
 
 extern void SV_TogglePause (const char *msg);
 extern cvar_t sv_paused;
@@ -1117,7 +1090,6 @@ void CL_Shutdown (void)
 
 	CDAudio_Shutdown ();
 	S_Shutdown();
-	IN_Shutdown ();
-	if (host_basepal)
-		VID_Shutdown();
+
+	VID_Close();
 }

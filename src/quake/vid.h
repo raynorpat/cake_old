@@ -58,10 +58,8 @@ extern cvar_t vid_fullscreen;
 extern cvar_t vid_width;
 extern cvar_t vid_height;
 
-void	VID_SetPalette (unsigned char *palette);
-// called at startup and after any gamma correction
+void	VID_Shared_Init(void);
 
-void	VID_InitCvars(void);
 void	VID_Init (void);
 int		VID_Mode(int fullscreen, int width, int height);
 // Called at startup
@@ -73,13 +71,14 @@ void VID_GetWindowSize (int *x, int *y, int *width, int *height);
 
 void VID_SetCaption (char *text);
 
+void VID_Restart_f(void);
+
+void VID_Open (void);
+void VID_Close (void);
+
 // oldman: gamma variables for glx linux
 void VID_SetDeviceGammaRamp (unsigned short *ramps);
 extern qbool vid_hwgamma_enabled;
-
-#ifdef GLQUAKE
-qbool VID_Is8bit(void);
-#endif
 
 #ifdef _WIN32
 void VID_SetDeviceGammaRamp (unsigned short *ramps);

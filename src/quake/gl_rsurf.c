@@ -21,23 +21,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
-int		skytexturenum;
-
-float	wateralpha;		// 1 if watervis is disabled by server,
-						// otherwise equal to r_wateralpha.value
-
-int		lightmap_bytes;		// 1, 2, or 4
-
-int		lightmap_textures;
+float	wateralpha;		// 1 if watervis is disabled by server, otherwise equal to r_wateralpha.value
 
 #define	BLOCK_WIDTH		128
 #define	BLOCK_HEIGHT	128
 
-#define MAX_LIGHTMAP_SIZE	4096
-#define	MAX_LIGHTMAPS		64
+#define MAX_LIGHTMAP_SIZE 4096
+#define	MAX_LIGHTMAPS	64
 
 unsigned int	blocklights[MAX_LIGHTMAP_SIZE*3];
-
 
 typedef struct glRect_s {
 	unsigned char l,t,w,h;
@@ -46,6 +38,9 @@ typedef struct glRect_s {
 glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
 qbool		lightmap_modified[MAX_LIGHTMAPS];
 glRect_t	lightmap_rectchange[MAX_LIGHTMAPS];
+
+int			lightmap_textures[MAX_LIGHTMAPS];
+int			lightmap_bytes;		// 1, 2, or 4
 
 int			allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
 
@@ -61,13 +56,14 @@ msurface_t	*worldchain = NULL;
 
 void R_RenderDynamicLightmaps (msurface_t *fa);
 
-glpoly_t	*fullbright_polys[MAX_GLTEXTURES];
+glpoly_t	*fullbright_polys[4096];
 qbool		drawfullbrights = false;
 
 void DrawGLPoly (glpoly_t *p);
 
 void R_RenderFullbrights (void)
 {
+/*
 	int         i;
 	glpoly_t   *p;
 
@@ -114,6 +110,7 @@ void R_RenderFullbrights (void)
 	glDepthMask (GL_TRUE);
 	if (gl_fb_depthhack.value)
 		glDepthRange (gldepthmin, gldepthmax);
+*/
 
 	drawfullbrights = false;
 }
@@ -573,7 +570,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 	if (s->flags & SURF_DRAWTURB)
 	{
 		GL_DisableMultitexture ();
-		GL_Bind (s->texinfo->texture->gl_texturenum);
+		GL_Bind (s->texinfo->texture->gl_texture->texnum);
 		EmitWaterPolys (s);
 		return;
 	}
@@ -590,12 +587,12 @@ void R_DrawSequentialPoly (msurface_t *s)
 
 		// Binds world to texture env 0
 		GL_SelectTexture (GL_TEXTURE0_ARB);
-		GL_Bind (t->gl_texturenum);
+		GL_Bind (t->gl_texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
 		// Binds lightmap to texenv 1
 		GL_EnableMultitexture (); // Same as SelectTexture (TEXTURE1)
-		GL_Bind (lightmap_textures + lnum);
+		GL_Bind (lightmap_textures[lnum]);
 
 		if (lightmap_modified[lnum])
 			R_UploadLightMap (lnum);
@@ -616,7 +613,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 		t = R_TextureAnimation (s->texinfo->texture);
 		lnum = s->lightmaptexturenum;
 
-		GL_Bind (t->gl_texturenum);
+		GL_Bind (t->gl_texture->texnum);
 		glBegin (GL_POLYGON);
 		v = p->verts[0];
 		for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
@@ -626,7 +623,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 		}
 		glEnd ();
 
-		GL_Bind (lightmap_textures + lnum);
+		GL_Bind (lightmap_textures[lnum]);
 
 		if (lightmap_modified[lnum])
 			R_UploadLightMap (lnum);
@@ -645,9 +642,9 @@ void R_DrawSequentialPoly (msurface_t *s)
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 
-	if (t->fb_texturenum) {
-		s->polys->fb_chain = fullbright_polys[t->fb_texturenum];
-		fullbright_polys[t->fb_texturenum] = s->polys;
+	if (t->fb_texture) {
+		s->polys->fb_chain = fullbright_polys[t->fb_texture->texnum];
+		fullbright_polys[t->fb_texture->texnum] = s->polys;
 		drawfullbrights = true;
 	}
 }
@@ -702,7 +699,7 @@ void R_BlendLightmaps (void)
 		p = lightmap_polys[i];
 		if (!p)
 			continue;
-		GL_Bind(lightmap_textures+i);
+		GL_Bind(lightmap_textures[i]);
 		if (lightmap_modified[i])
 			R_UploadLightMap (i);
 
@@ -749,7 +746,7 @@ void R_RenderBrushPoly (msurface_t *fa)
 	}
 		
 	t = R_TextureAnimation (fa->texinfo->texture);
-	GL_Bind (t->gl_texturenum);
+	GL_Bind (t->gl_texture->texnum);
 
 	if (fa->flags & SURF_DRAWTURB)
 	{	// warp texture, no lightmaps
@@ -763,9 +760,9 @@ void R_RenderBrushPoly (msurface_t *fa)
 	fa->polys->chain = lightmap_polys[fa->lightmaptexturenum];
 	lightmap_polys[fa->lightmaptexturenum] = fa->polys;
 
-	if (t->fb_texturenum) {
-		fa->polys->fb_chain = fullbright_polys[t->fb_texturenum];
-		fullbright_polys[t->fb_texturenum] = fa->polys;
+	if (t->fb_texture) {
+		fa->polys->fb_chain = fullbright_polys[t->fb_texture->texnum];
+		fullbright_polys[t->fb_texture->texnum] = fa->polys;
 		drawfullbrights = true;
 	}
 
@@ -826,7 +823,7 @@ void R_DrawWaterSurfaces (void)
 			return;
 
 		for (s=waterchain ; s ; s=s->texturechain) {
-			GL_Bind (s->texinfo->texture->gl_texturenum);
+			GL_Bind (s->texinfo->texture->gl_texture->texnum);
 			EmitWaterPolys (s);
 		}
 		
@@ -846,7 +843,7 @@ void R_DrawWaterSurfaces (void)
 
 			// set modulate mode explicitly
 			
-			GL_Bind (t->gl_texturenum);
+			GL_Bind (t->gl_texture->texnum);
 
 			for ( ; s ; s=s->texturechain)
 				EmitWaterPolys (s);
@@ -924,7 +921,6 @@ void R_DrawBrushModel (entity_t *e)
 	qbool		rotated;
 
 	currententity = e;
-	currenttexture = -1;
 
 	clmodel = e->model;
 
@@ -1157,7 +1153,6 @@ void R_DrawWorld (void)
 	VectorCopy (r_refdef2.vieworg, modelorg);
 
 	currententity = &ent;
-	currenttexture = -1;
 
 	glColor3f (1, 1, 1);
 	memset (lightmap_polys, 0, sizeof(lightmap_polys));
@@ -1413,13 +1408,9 @@ void GL_BuildLightmaps (void)
 
 	memset (allocated, 0, sizeof(allocated));
 
-	r_framecount = 1;		// no dlightcache
-
-	if (!lightmap_textures)
-	{
-		lightmap_textures = texture_extension_number;
-		texture_extension_number += MAX_LIGHTMAPS;
-	}
+	glDeleteTextures(MAX_LIGHTMAPS, lightmap_textures);
+	memset(lightmap_textures, 0, sizeof(lightmap_textures));
+	glGenTextures(MAX_LIGHTMAPS, lightmap_textures); 
 
 	if (gl_colorlights.value) {
 		gl_lightmap_format = GL_RGB;
@@ -1462,7 +1453,7 @@ void GL_BuildLightmaps (void)
 		lightmap_rectchange[i].t = BLOCK_HEIGHT;
 		lightmap_rectchange[i].w = 0;
 		lightmap_rectchange[i].h = 0;
-		GL_Bind(lightmap_textures + i);
+		GL_Bind(lightmap_textures[i]);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes

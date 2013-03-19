@@ -21,8 +21,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 #include "rc_image.h"
+
 #include <time.h>
 
+extern gltexture_t *playertextures[MAX_CLIENTS], *playerfbtextures[MAX_CLIENTS];
+int	skytexturenum = -1;
 
 /*
 ===============
@@ -33,6 +36,7 @@ Translates a skin texture by the per-player color lookup
 */
 void R_TranslatePlayerSkin (int playernum)
 {
+#if 0
 	int		top, bottom;
 	byte	translate[256];
 	unsigned	translate32[256];
@@ -106,86 +110,47 @@ void R_TranslatePlayerSkin (int playernum)
 			inheight = 194;
 		}
 
-
 		// because this happens during gameplay, do it fast
 		// instead of sending it through gl_upload 8
-		GL_Bind(playertextures + playernum);
-
-		scaled_width = min (gl_max_texsize, 512);
-		scaled_height = min (gl_max_texsize, 256);
+		scaled_width = min (gl_hardware_maxsize, 512);
+		scaled_height = min (gl_hardware_maxsize, 256);
 
 		// allow users to crunch sizes down even more if they want
-		scaled_width >>= (int)gl_playermip.value;
-		scaled_height >>= (int)gl_playermip.value;
-		if (scaled_width < 1)
-			scaled_width = 1;
-		if (scaled_height < 1)
-			scaled_height = 1;
+		scaled_width = TexMgr_SafeTextureSize(inwidth);
+		scaled_height = TexMgr_SafeTextureSize(inheight);
 
-		if (VID_Is8bit()) { // 8bit texture upload
-			byte *out2;
+		for (i=0 ; i<256 ; i++)
+			translate32[i] = d_8to24table[translate[i]];
 
-			out2 = (byte *)pixels;
-			memset(pixels, 0, sizeof(pixels));
-			fracstep = tinwidth*0x10000/scaled_width;
-			for (i=0 ; i<scaled_height ; i++, out2 += scaled_width)
-			{
-				inrow = original + inwidth*(i*tinheight/scaled_height);
-				frac = fracstep >> 1;
-				for (j=0 ; j<scaled_width ; j+=4)
-				{
-					out2[j] = translate[inrow[frac>>16]];
-					frac += fracstep;
-					out2[j+1] = translate[inrow[frac>>16]];
-					frac += fracstep;
-					out2[j+2] = translate[inrow[frac>>16]];
-					frac += fracstep;
-					out2[j+3] = translate[inrow[frac>>16]];
-					frac += fracstep;
-				}
-			}
-
-			GL_Upload8_EXT ((byte *)pixels, scaled_width, scaled_height, false, false);
-		}
-		else
+		out = pixels;
+		memset(pixels, 0, sizeof(pixels));
+		fracstep = tinwidth*0x10000/scaled_width;
+		for (i=0 ; i<scaled_height ; i++, out += scaled_width)
 		{
-			for (i=0 ; i<256 ; i++)
-				translate32[i] = d_8to24table[translate[i]];
-
-			out = pixels;
-			memset(pixels, 0, sizeof(pixels));
-			fracstep = tinwidth*0x10000/scaled_width;
-			for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+			inrow = original + inwidth*(i*tinheight/scaled_height);
+			frac = fracstep >> 1;
+			for (j=0 ; j<scaled_width ; j+=4)
 			{
-				inrow = original + inwidth*(i*tinheight/scaled_height);
-				frac = fracstep >> 1;
-				for (j=0 ; j<scaled_width ; j+=4)
-				{
-					out[j] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-					out[j+1] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-					out[j+2] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-					out[j+3] = translate32[inrow[frac>>16]];
-					frac += fracstep;
-				}
+				out[j] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				out[j+1] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				out[j+2] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				out[j+3] = translate32[inrow[frac>>16]];
+				frac += fracstep;
 			}
-
-			glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, 
-				scaled_width, scaled_height, 0, GL_RGBA, 
-				GL_UNSIGNED_BYTE, pixels);
-
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
+
+		sprintf(s, "player_%i", playernum);
+		playertextures[playernum] = TexMgr_LoadImage32 (s, scaled_width, scaled_height, pixels, 0);
 
 		playerfbtextures[playernum] = 0;
+/*
 		if (Img_HasFullbrights ((byte *)original, inwidth*inheight))
 		{
-			playerfbtextures[playernum] = playertextures + playernum + MAX_CLIENTS;
-			GL_Bind (playerfbtextures[playernum]);
+			playerfbtextures[playernum] = playertextures[playernum + MAX_CLIENTS];
+			GL_Bind (playerfbtextures[playernum]->texnum);
 
 			out = pixels;
 			memset(pixels, 0, sizeof(pixels));
@@ -229,7 +194,9 @@ void R_TranslatePlayerSkin (int playernum)
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
+*/
 	}
+#endif
 }
 
 /*
@@ -241,8 +208,7 @@ void R_NewMap (struct model_s *worldmodel)
 {
 	int		i;
 
-	for (i=0 ; i<256 ; i++)
-		d_lightstylevalue[i] = 264;		// normal light value
+	R_Modules_NewMap();
 
 	r_worldmodel = worldmodel;
 
@@ -259,7 +225,6 @@ void R_NewMap (struct model_s *worldmodel)
 	GL_BuildLightmaps ();
 
 	// identify sky texture
-	skytexturenum = -1;
 	for (i = 0; i < r_worldmodel->numtextures; i++)
 	{
 		if (!r_worldmodel->textures[i])
@@ -363,7 +328,8 @@ void R_ScreenShot_f (void)
 	int		i, c, temp;
 	FILE	*f;
 
-	if (Cmd_Argc() == 2) {
+	if (Cmd_Argc() == 2)
+	{
 		strlcpy (pcxname, Cmd_Argv(1), sizeof(pcxname));
 		COM_ForceExtension (pcxname, ".tga");
 	}
@@ -428,6 +394,7 @@ int MipColor(int r, int g, int b)
 	int best = 0;
 	float bestdist;
 	int r1, g1, b1;
+	byte *pal = (byte *)d_8to24table;
 	static int lr = -1, lg = -1, lb = -1;
 	static int lastbest;
 
@@ -437,9 +404,9 @@ int MipColor(int r, int g, int b)
 	bestdist = 256*256*3;
 
 	for (i = 0; i < 256; i++) {
-		r1 = host_basepal[i*3] - r;
-		g1 = host_basepal[i*3+1] - g;
-		b1 = host_basepal[i*3+2] - b;
+		r1 = pal[i*3] - r;
+		g1 = pal[i*3+1] - g;
+		b1 = pal[i*3+2] - b;
 		dist = r1*r1 + g1*g1 + b1*b1;
 		if (dist < bestdist) {
 			bestdist = dist;
@@ -451,11 +418,9 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-// from gl_draw.c
-extern byte		*draw_chars;				// 8*8 graphic characters
-
 void R_DrawCharToSnap (int num, byte *dest, int width)
 {
+/*
 	int		row, col;
 	byte	*source;
 	int		drawline;
@@ -477,7 +442,7 @@ void R_DrawCharToSnap (int num, byte *dest, int width)
 		source += 128;
 		dest -= width;
 	}
-
+*/
 }
 
 void R_DrawStringToSnap (const char *s, byte *buf, int x, int y, int width)
@@ -517,6 +482,7 @@ void R_RSShot (byte **pcxdata, int *pcxsize)
 	float fracw, frach;
 	char st[80];
 	time_t now;
+	byte *pal = (byte *)d_8to24table;
 	extern cvar_t name;
 
 // 
@@ -587,11 +553,9 @@ void R_RSShot (byte **pcxdata, int *pcxsize)
 	R_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 21, w);
 
 	// +w*(h-1) and -w are because we have the data upside down in newbuf
-	WritePCX (newbuf + w*(h-1), w, h, -w, host_basepal, pcxdata, pcxsize);
+	WritePCX (newbuf + w*(h-1), w, h, -w, pal, pcxdata, pcxsize);
 
 	Q_free (newbuf);
 
 	// return with pcxdata and pcxsize
 } 
-
-//=============================================================================

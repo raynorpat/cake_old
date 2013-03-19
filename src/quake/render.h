@@ -130,13 +130,14 @@ typedef struct mpic_s
 
 //====================================================
 
+#include "rc_modules.h"
 
 //
 // refresh
 //
 extern refdef2_t	r_refdef2;
 
-void R_Init (unsigned char *palette);
+void R_Init (void);
 void R_InitTextures (void);
 void R_InitEfrags (void);
 void R_RenderView (void);		// must set r_refdef first

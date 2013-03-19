@@ -44,7 +44,6 @@ BRUSH MODELS
 //
 // in memory representation
 //
-// !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
 {
 	vec3_t		position;
@@ -54,9 +53,9 @@ typedef struct texture_s
 {
 	char		name[16];
 	unsigned	width, height;
-	int			gl_texturenum;
-	int			fb_texturenum;			// index of fullbright mask or 0
-	struct msurface_s	*texturechain;	// for gl_texsort drawing
+	struct gltexture_s *gl_texture;
+	struct gltexture_s *fb_texture;		// index of fullbright mask or 0
+	struct msurface_s *texturechain;	// for gl_texsort drawing
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
@@ -65,13 +64,11 @@ typedef struct texture_s
 	int			flatcolor3ub;			// just for r_fastturb's sake
 } texture_t;
 
-
 #define	SURF_PLANEBACK		1
 #define	SURF_DRAWSKY		2
 #define SURF_DRAWTURB		4
 #define SURF_UNLIT			8
 
-// !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
 {
 	unsigned short	v[2];
@@ -145,8 +142,6 @@ typedef struct mnode_s
 	unsigned short		numsurfaces;
 } mnode_t;
 
-
-
 typedef struct mleaf_s
 {
 // common with node
@@ -180,7 +175,7 @@ typedef struct mspriteframe_s
 	int		width;
 	int		height;
 	float	up, down, left, right;
-	int		gl_texturenum;
+	struct gltexture_s *gl_texture;
 } mspriteframe_t;
 
 typedef struct
@@ -271,8 +266,8 @@ typedef struct {
 	int					poseverts;
 	int					posedata;	// numposes*poseverts trivert_t
 	int					commands;	// gl command list with embedded s/t
-	int					gl_texturenum[MAX_SKINS][4];
-	int					fb_texturenum[MAX_SKINS][4];
+	struct gltexture_s *gl_texture[MAX_SKINS][4];
+	struct gltexture_s *fb_texture[MAX_SKINS][4];
 	maliasframedesc_t	frames[1];	// variable sized
 } aliashdr_t;
 
@@ -365,7 +360,6 @@ typedef struct model_s
 // additional model data
 //
 	cache_user_t	cache;		// only access through Mod_Extradata
-
 } model_t;
 
 //============================================================================

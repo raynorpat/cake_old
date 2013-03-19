@@ -332,8 +332,9 @@ static void Sbar_DrawPic (int x, int y, mpic_t *pic)
 /*
 =============
 Sbar_DrawSubPic
+
+Draws a portion of the picture in the status bar.
 =============
-JACK: Draws a portion of the picture in the status bar.
 */
 
 static void Sbar_DrawSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height) 

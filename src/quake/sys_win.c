@@ -611,12 +611,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 		else
 		{
-			if ((cl.paused && (!vid_activewindow && !DDActive)) || vid_hidden || block_drawing)
+			if ((cl.paused && !vid_activewindow) || vid_hidden || block_drawing)
 			{
 				SleepUntilInput (PAUSE_SLEEP);
 				scr_skipupdate = 1;		// no point in bothering to draw
 			}
-			else if (!vid_activewindow && !DDActive)
+			else if (!vid_activewindow)
 				SleepUntilInput (NOT_FOCUS_SLEEP);
 		}
 

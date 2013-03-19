@@ -313,6 +313,7 @@
     <ClCompile Include="..\pr_exec.c" />
     <ClCompile Include="..\q_shared.c" />
     <ClCompile Include="..\rc_image.c" />
+    <ClCompile Include="..\rc_modules.c" />
     <ClCompile Include="..\rc_wad.c" />
     <ClCompile Include="..\skin.c" />
     <ClCompile Include="..\snd_dma.c" />
@@ -370,6 +371,7 @@
     <ClInclude Include="..\q_shared.h" />
     <ClInclude Include="..\quakedef.h" />
     <ClInclude Include="..\rc_image.h" />
+    <ClInclude Include="..\rc_modules.h" />
     <ClInclude Include="..\rc_wad.h" />
     <ClInclude Include="..\render.h" />
     <ClInclude Include="..\cl_screen.h" />

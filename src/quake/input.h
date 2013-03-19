@@ -21,10 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _INPUT_H_
 #define _INPUT_H_
 
-void IN_Init (void);
-
-void IN_Shutdown (void);
-
 void IN_Commands (void);
 // oportunity for devices to stick commands on the script buffer
 

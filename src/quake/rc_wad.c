@@ -34,7 +34,7 @@ typedef struct
 
 static int			wad_numlumps;
 static lumpinfo_t	*wad_lumps;
-static byte			*wad_base = NULL;
+byte				*wad_base = NULL;
 static int			wad_filesize;
 
 void SwapPic (qpic_t *pic);

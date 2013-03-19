@@ -37,13 +37,8 @@ mplane_t	frustum[4];
 
 int			c_brush_polys, c_alias_polys;
 
-int			currenttexture = -1;		// to avoid unnecessary texture sets
-int			cnttextures[2] = {-1, -1};	// cached
-
-int			particletexture;	// little dot for particles
-int			playertextures;		// up to 32 color translated skins
-int			playerfbtextures[MAX_CLIENTS];
-int			skyboxtextures;
+gltexture_t *playertextures[MAX_CLIENTS]; // up to 32 color translated skins
+gltexture_t *playerfbtextures[MAX_CLIENTS];
 
 //
 // view origin
@@ -285,30 +280,33 @@ void R_DrawParticles (void)
 {
 	int				i;
 	byte			color[4];
-	vec3_t			up, right;
-	float			dist, scale;
+	vec3_t			up, right, p_up, p_right, p_upright;
+	float			scale;
 	particle_t		*p;
-	float			r_partscale;
-	
-	r_partscale = 0.004 * tan (r_refdef2.fov_x * (M_PI/180) * 0.5f);
 
 	VectorScale (vup, 1.5, up);
 	VectorScale (vright, 1.5, right);
 
-	GL_Bind (particletexture);
+	GL_Bind (particletexture->texnum);
 	
 	glEnable (GL_BLEND);
 	if (!gl_solidparticles.value)
 		glDepthMask (GL_FALSE);
 	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glBegin (GL_TRIANGLES);
 
+	glBegin (GL_QUADS);
 	for (i = 0, p = r_refdef2.particles; i < r_refdef2.numParticles; i++, p++)
 	{
 		// hack a scale up to keep particles from disapearing
-		dist = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-			+ (p->org[2] - r_origin[2])*vpn[2];
-		scale = 1 + dist * r_partscale;
+		scale = (p->org[0] - r_origin[0]) * vpn[0]
+				  + (p->org[1] - r_origin[1]) * vpn[1]
+				  + (p->org[2] - r_origin[2]) * vpn[2];
+		if (scale < 20)
+			scale = 1 + 0.08;
+		else
+			scale = 1 + scale * 0.004;
+
+		scale /= 2.0;
 
 		*(int *)color = d_8to24table[p->color];
 		color[3] = p->alpha * 255;
@@ -318,18 +316,20 @@ void R_DrawParticles (void)
 		glTexCoord2f (0, 0);
 		glVertex3fv (p->org);
 
-		glTexCoord2f (0.9, 0);
-		glVertex3f (p->org[0] + up[0]*scale, 
-			p->org[1] + up[1]*scale, 
-			p->org[2] + up[2]*scale);
+		glTexCoord2f (0.5, 0);
+		VectorMA (p->org, scale, up, p_up);
+		glVertex3fv (p_up);
 
-		glTexCoord2f (0, 0.9);
-		glVertex3f (p->org[0] + right[0]*scale,
-			p->org[1] + right[1]*scale, 
-			p->org[2] + right[2]*scale);
+		glTexCoord2f (0.5,0.5);
+		VectorMA (p_up, scale, right, p_upright);
+		glVertex3fv (p_upright);
+
+		glTexCoord2f (0,0.5);
+		VectorMA (p->org, scale, right, p_right);
+		glVertex3fv (p_right);
 	}
-
 	glEnd ();
+
 	glDisable (GL_BLEND);
 	glDepthMask (GL_TRUE);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -581,15 +581,20 @@ void R_SetupGL (void)
 	glEnable(GL_DEPTH_TEST);
 }
 
+void gl_main_start(void)
+{
+}
 
-extern void R_Draw_Init (void);
+void gl_main_shutdown(void)
+{
+}
 
-/*
-===============
-R_Init
-===============
-*/
-void R_Init (unsigned char *palette)
+void gl_main_newmap(void)
+{
+	r_framecount = 1;
+}
+
+void GL_Main_Init(void)
 {
 	Cmd_AddCommand ("timerefresh", R_TimeRefresh_f);
 	Cmd_AddCommand ("screenshot", R_ScreenShot_f);
@@ -634,26 +639,21 @@ void R_Init (unsigned char *palette)
 	if (gl_mtexable)
 		Cvar_SetValue (&gl_texsort, 0);
 
-	// this minigl driver seems to slow us down if the particles
-	// are drawn WITHOUT Z buffer bits
-	if (!strcmp(gl_vendor, "METABYTE/WICKED3D"))
-		Cvar_SetValue(&gl_solidparticles, 1);
+	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
+}
 
-	R_InitTextures ();
+extern void R_Draw_Init (void);
+
+/*
+===============
+R_Init
+===============
+*/
+void R_Init (void)
+{
+	GL_Main_Init ();
+	TexMgr_Init ();
 	R_Draw_Init ();
-
-	netgraphtexture = texture_extension_number;
-	texture_extension_number++;
-
-	playertextures = texture_extension_number;
-	texture_extension_number += MAX_CLIENTS;
-
-	// add room for fullbright skins
-	texture_extension_number += MAX_CLIENTS;
-
-	skyboxtextures = texture_extension_number;
-	texture_extension_number += 6;
-
 	Mod_Init ();
 }
 

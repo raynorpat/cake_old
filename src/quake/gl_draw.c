@@ -20,16 +20,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 #include "rc_wad.h"
-#include "crc.h"
-
-static void	OnChange_gl_smoothfont (cvar_t *var, char *string, qbool *cancel);
-cvar_t		gl_smoothfont = {"gl_smoothfont", "0", 0, OnChange_gl_smoothfont};
 
 byte		*draw_chars;				// 8*8 graphic characters
 
-int			translate_texture;
-int			char_texture;
-int			crosshairtextures[3];
+gltexture_t	*translate_texture, *char_texture;
+gltexture_t *crosshairtextures[3];
 
 static byte crosshairdata[3][64] = {
 	{
@@ -66,7 +61,6 @@ static byte crosshairdata[3][64] = {
 	}
 };
 
-
 static void	R_LoadCharset (void);
 
 /*
@@ -88,58 +82,71 @@ static void	R_LoadCharset (void);
 #define	BLOCK_HEIGHT	256
 
 static int	scrap_allocated[MAX_SCRAPS][BLOCK_WIDTH];
-/* static */ byte	scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT*4];
-static int	scrap_dirty = 0;	// bit mask
-static int	scrap_texnum;
+/* static */ byte	scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT];
+static qbool scrap_dirty = false;
+static gltexture_t *scrap_textures[MAX_SCRAPS];
 
-// returns false if allocation failed
-static qbool Scrap_AllocBlock (int scrapnum, int w, int h, int *x, int *y)
+/*
+================
+Scrap_AllocBlock
+
+returns an index into scrap_texnums[] and the position inside it
+================
+*/ 
+static int Scrap_AllocBlock (int w, int h, int *x, int *y)
 {
 	int		i, j;
 	int		best, best2;
+	int		texnum;
 
-	best = BLOCK_HEIGHT;
-	
-	for (i=0 ; i<BLOCK_WIDTH-w ; i++)
+	for (texnum=0 ; texnum<MAX_SCRAPS ; texnum++)
 	{
-		best2 = 0;
-		
-		for (j=0 ; j<w ; j++)
+		best = BLOCK_HEIGHT;
+
+		for (i=0 ; i<BLOCK_WIDTH-w ; i++)
 		{
-			if (scrap_allocated[scrapnum][i+j] >= best)
-				break;
-			if (scrap_allocated[scrapnum][i+j] > best2)
-				best2 = scrap_allocated[scrapnum][i+j];
+			best2 = 0;
+
+			for (j=0 ; j<w ; j++)
+			{
+				if (scrap_allocated[texnum][i+j] >= best)
+					break;
+				if (scrap_allocated[texnum][i+j] > best2)
+					best2 = scrap_allocated[texnum][i+j];
+			}
+			if (j == w)
+			{
+				// this is a valid spot
+				*x = i;
+				*y = best = best2;
+			}
 		}
-		if (j == w)
-		{	// this is a valid spot
-			*x = i;
-			*y = best = best2;
-		}
+
+		if (best + h > BLOCK_HEIGHT)
+			continue;
+
+		for (i=0 ; i<w ; i++)
+			scrap_allocated[texnum][*x + i] = best + h;
+
+		return texnum;
 	}
-	
-	if (best + h > BLOCK_HEIGHT)
-		return false;
-	
-	for (i=0 ; i<w ; i++)
-		scrap_allocated[scrapnum][*x + i] = best + h;
 
-	scrap_dirty |= (1 << scrapnum);
-
-	return true;
+	Sys_Error ("Scrap_AllocBlock: full");
+	return 0;
 }
 
 static void Scrap_Upload (void)
 {
-	int i;
+	char name[8];
+	int	i;
 
-	for (i=0 ; i<2 ; i++) {
-		if ( !(scrap_dirty & (1 << i)) )
-			continue;
-		scrap_dirty &= ~(1 << i);
-		GL_Bind (scrap_texnum + i);
-		GL_Upload8 (scrap_texels[i], BLOCK_WIDTH, BLOCK_HEIGHT, false, i, false);
+	for (i=0; i<MAX_SCRAPS; i++)
+	{
+		sprintf (name, "scrap%i", i);
+		scrap_textures[i] = TexMgr_LoadImage (NULL, name, BLOCK_WIDTH, BLOCK_HEIGHT, SRC_INDEXED, scrap_texels[i], "", (unsigned)scrap_texels[i], TEXPREF_ALPHA | TEXPREF_OVERWRITE);
 	}
+
+	scrap_dirty = false;
 }
 
 //=============================================================================
@@ -149,7 +156,7 @@ typedef struct cachepic_s
 {
 	mpic_t		pic;
 	char		name[MAX_QPATH];
-	int			texnum;
+	gltexture_t *gltexture;
 	float		sl, tl, sh, th;
 } cachepic_t;
 
@@ -159,14 +166,12 @@ static int			numcachepics;
 
 byte		menuplyr_pixels[4096];		// the menu needs them
 
-static int	GL_LoadPicTexture (char *name, cachepic_t *pic, byte *data);
-
-
 static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
 {
 	qpic_t	*p;
 	cachepic_t	*pic;
 	int		i;
+	unsigned offset;
 
 	for (pic = cachepics, i = 0; i < numcachepics; pic++, i++)
 		if (!strcmp (path, pic->name))
@@ -214,24 +219,34 @@ static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
 		int		i, j, k;
 		int		texnum;
 
-		texnum = memchr(p->data, 255, p->width*p->height) != NULL;
-		if (!Scrap_AllocBlock (texnum, p->width, p->height, &x, &y)) {
-			GL_LoadPicTexture (path, pic, p->data);
-			return &pic->pic;
-		}
+		texnum = Scrap_AllocBlock (p->width, p->height, &x, &y);
+		scrap_dirty = true;
 		k = 0;
 		for (i=0 ; i<p->height ; i++)
 			for (j=0 ; j<p->width ; j++, k++)
 				scrap_texels[texnum][(y+i)*BLOCK_WIDTH + x + j] = p->data[k];
-		texnum += scrap_texnum;
-		pic->texnum = texnum;
-		pic->sl = (x+0.01)/(float)BLOCK_WIDTH;
-		pic->sh = (x+p->width-0.01)/(float)BLOCK_WIDTH;
-		pic->tl = (y+0.01)/(float)BLOCK_WIDTH;
-		pic->th = (y+p->height-0.01)/(float)BLOCK_WIDTH;
+		pic->gltexture = scrap_textures[texnum];
+		pic->sl = x/(float)BLOCK_WIDTH;
+		pic->sh = (x+p->width)/(float)BLOCK_WIDTH;
+		pic->tl = y/(float)BLOCK_WIDTH;
+		pic->th = (y+p->height)/(float)BLOCK_WIDTH;
 	}
 	else
-		GL_LoadPicTexture (path, pic, p->data);
+	{
+		extern byte	*wad_base;
+		char texturename[64];
+		sprintf (texturename, "gfx:%s", path);
+
+		offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
+
+		pic->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx",
+										  offset, TEXPREF_ALPHA | TEXPREF_PAD);
+
+		pic->sl = 0;
+		pic->sh = (float)p->width/(float)TexMgr_Pad(p->width);
+		pic->tl = 0;
+		pic->th = (float)p->height/(float)TexMgr_Pad(p->height);
+	}
 
 	return &pic->pic;
 }
@@ -247,93 +262,16 @@ mpic_t *R_CacheWadPic (char *name)
 }
 
 
-/*
-================
-GL_LoadPicTexture
-================
-*/
-static int GL_LoadPicTexture (char *name, cachepic_t *cpic, byte *data)
-{
-	int		glwidth, glheight;
-	int		i;
-	char	fullname[64] = "pic:";
-
-	strlcpy (fullname + 4, name, sizeof(fullname)-4);
-
-	for (glwidth = 1 ; glwidth < cpic->pic.width ; glwidth<<=1)
-		;
-	for (glheight = 1 ; glheight < cpic->pic.height ; glheight<<=1)
-		;
-
-	if (glwidth == cpic->pic.width && glheight == cpic->pic.height)
-	{
-		cpic->texnum = GL_LoadTexture (fullname, glwidth, glheight, data,
-						false, true, false);
-		cpic->sl = 0;
-		cpic->sh = 1;
-		cpic->tl = 0;
-		cpic->th = 1;
-	}
-	else
-	{
-		byte *src, *dest;
-		byte *buf;
-
-		buf = Q_malloc (glwidth*glheight);
-
-		memset (buf, 0, glwidth*glheight);
-		src = data;
-		dest = buf;
-		for (i = 0; i < cpic->pic.height; i++) {
-			memcpy (dest, src, cpic->pic.width);
-			src += cpic->pic.width;
-			dest += glwidth;
-		}
-
-		cpic->texnum = GL_LoadTexture (fullname, glwidth, glheight, buf,
-						false, true, false);
-		cpic->sl = 0;
-		cpic->sh = (float)cpic->pic.width / glwidth;
-		cpic->tl = 0;
-		cpic->th = (float)cpic->pic.height / glheight;
-
-		Q_free (buf);
-	}
-
-	return cpic->texnum;
-}
-
-
-static void OnChange_gl_smoothfont (cvar_t *var, char *string, qbool *cancel)
-{
-	float	newval;
-
-	newval = Q_atof (string);
-	if (!newval == !gl_smoothfont.value || !char_texture)
-		return;
-
-	GL_Bind(char_texture);
-        
-	if (newval)
-	{
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	}
-	else
-	{
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
-}
-
-
 static void R_LoadCharset (void)
 {
-	int i;
+	int		i;
 	byte	buf[128*256];
 	byte	*src, *dest;
+	unsigned offset;
+	extern byte	*wad_base;
 
 	draw_chars = W_GetLumpName ("conchars", true);
+	offset = (unsigned)draw_chars - (unsigned)wad_base;
 	for (i=0 ; i<256*64 ; i++)
 		if (draw_chars[i] == 0)
 			draw_chars[i] = 255;	// proper transparent color
@@ -351,35 +289,46 @@ static void R_LoadCharset (void)
 		dest += 128*8*2;
 	}
 
-	char_texture = GL_LoadTexture ("pic:charset", 128, 256, buf, false, true, false);
-	if (!gl_smoothfont.value)
-	{
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
+	char_texture = TexMgr_LoadImage (NULL, "gfx:conchars", 128, 256, SRC_INDEXED, buf, "gfx", offset, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_CONCHARS);
 }
 
-
-void R_FlushPics (void)
+static void gl_draw_start(void)
 {
-	if (!draw_chars)
-		return;		// not initialized yet (FIXME?)
+	int	i;
+	int flags = TEXPREF_NEAREST | TEXPREF_ALPHA | TEXPREF_PERSIST;
 
 	numcachepics = 0;
 
 	memset (scrap_allocated, 0, sizeof(scrap_allocated));
 	memset (scrap_texels, 0, sizeof(scrap_texels));
-	scrap_dirty = false;
+	Scrap_Upload (); //creates 2 empty gltextures
 
 	draw_chars = NULL;
 
-	// load a new gfx.wad
+	// load the crosshair pics
+	for (i=0 ; i<3 ; i++)
+		crosshairtextures[i] = TexMgr_LoadImage (NULL, va("pic:crosshair_%d", i), 8, 8, SRC_INDEXED, crosshairdata[i], "", (unsigned)crosshairdata[i], flags);
+
 	W_LoadWadFile ("gfx.wad");
 
 	// load the charset by hand
 	R_LoadCharset ();
 }
 
+static void gl_draw_shutdown(void)
+{
+	numcachepics = 0;
+
+	memset (scrap_allocated, 0, sizeof(scrap_allocated));
+	memset (scrap_texels, 0, sizeof(scrap_texels));
+	Scrap_Upload (); //creates 2 empty gltextures
+
+	draw_chars = NULL;
+}
+
+static void gl_draw_newmap(void)
+{
+}
 
 
 /*
@@ -389,23 +338,17 @@ R_Draw_Init
 */
 void R_Draw_Init (void)
 {
-	int		i;
+	numcachepics = 0;
 
-	Cvar_Register (&gl_smoothfont);
+	R_RegisterModule("GL_Draw", gl_draw_start, gl_draw_shutdown, gl_draw_newmap);
+}
 
-	// save a texture slot for translated picture
-	translate_texture = texture_extension_number++;
+void R_FlushPics (void)
+{
+	if (!draw_chars)
+		return;		// not initialized yet (FIXME?)
 
-	// save slots for scraps
-	scrap_texnum = texture_extension_number;
-	texture_extension_number += MAX_SCRAPS;
-
-	// load the crosshair pics
-	for (i=0 ; i<3 ; i++) {
-		crosshairtextures[i] = GL_LoadTexture ("", 8, 8, crosshairdata[i], false, true, false);
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
+	gl_draw_shutdown();
 
 	W_LoadWadFile ("gfx.wad");
 
@@ -442,7 +385,7 @@ void R_DrawChar (int x, int y, int num)
 	frow = row*0.0625;
 	fcol = col*0.0625;
 
-	GL_Bind (char_texture);
+	GL_Bind (char_texture->texnum);
 
 	glBegin (GL_QUADS);
 	glTexCoord2f (fcol, frow);
@@ -466,7 +409,7 @@ void R_DrawString (int x, int y, const char *str)
 	if (!*str)
 		return;
 
-	GL_Bind (char_texture);
+	GL_Bind (char_texture->texnum);
 
 	glBegin (GL_QUADS);
 
@@ -505,7 +448,7 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 	if (num == 2 || num == 3 || num == 4) {
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		glColor3ubv ((byte *) &d_8to24table[(byte) color]);
-		GL_Bind (crosshairtextures[num - 2]);
+		GL_Bind (crosshairtextures[num - 2]->texnum);
 
 		if (vid.width == 320) {
 			ofs1 = 3;//3.5;
@@ -543,7 +486,7 @@ void R_DrawPic (int x, int y, mpic_t *pic)
 	if (scrap_dirty)
 		Scrap_Upload ();
 
-	GL_Bind (cpic->texnum);
+	GL_Bind (cpic->gltexture->texnum);
 	glBegin (GL_QUADS);
 	glTexCoord2f (cpic->sl, cpic->tl);
 	glVertex2f (x, y);
@@ -577,7 +520,7 @@ void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 	newtl = cpic->tl + (srcy*oldglheight)/pic->height;
 	newth = newtl + (height*oldglheight)/pic->height;
 	
-	GL_Bind (cpic->texnum);
+	GL_Bind (cpic->gltexture->texnum);
 	glBegin (GL_QUADS);
 	glTexCoord2f (newsl, newtl);
 	glVertex2f (x, y);
@@ -599,6 +542,7 @@ Only used for the player color selection menu
 */
 void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
 {
+/*
 	int				v, u, c;
 	unsigned		trans[64*64], *dest;
 	byte			*src;
@@ -606,8 +550,6 @@ void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
 
 	if (!pic)
 		return;
-
-	GL_Bind (translate_texture);
 
 	c = pic->width * pic->height;
 
@@ -619,16 +561,14 @@ void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
 		{
 			p = src[(u*pic->width)>>6];
 			if (p == 255)
-				dest[u] = p;
+				dest[u] = 0;
 			else
 				dest[u] =  d_8to24table[translation[p]];
 		}
 	}
 
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	translate_texture = TexMgr_LoadImage32 ("translate_texture", 64, 64, trans, TEXPREF_ALPHA);
+	GL_Bind (translate_texture->texnum);
 
 	glBegin (GL_QUADS);
 	glTexCoord2f (0, 0);
@@ -640,6 +580,7 @@ void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
 	glTexCoord2f (0, 1);
 	glVertex2f (x, y+pic->height);
 	glEnd ();
+	*/
 }
 
 
@@ -658,7 +599,7 @@ void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float a
 //	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glCullFace(GL_FRONT);
 	glColor4f (1, 1, 1, alpha);
-	GL_Bind (cpic->texnum);
+	GL_Bind (cpic->gltexture->texnum);
 	glBegin (GL_QUADS);
 	glTexCoord2f (cpic->sl, cpic->tl);
 	glVertex2f (x, y);
@@ -685,7 +626,7 @@ refresh window.
 */
 void R_DrawTile (int x, int y, int w, int h, mpic_t *pic)
 {
-	GL_Bind (((cachepic_t *)pic)->texnum);
+	GL_Bind (((cachepic_t *)pic)->gltexture->texnum);
 	glBegin (GL_QUADS);
 	glTexCoord2f (x/64.0, y/64.0);
 	glVertex2f (x, y);
@@ -708,19 +649,18 @@ Fills a box of pixels with a single color
 */
 void R_DrawFilledRect (int x, int y, int w, int h, int c)
 {
+	byte *pal = (byte *)d_8to24table;
+
 	glDisable (GL_TEXTURE_2D);
-	glColor3f (host_basepal[c*3]/255.0,
-		host_basepal[c*3+1]/255.0,
-		host_basepal[c*3+2]/255.0);
+	glColor3f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0);
 
 	glBegin (GL_QUADS);
-
 	glVertex2f (x,y);
 	glVertex2f (x+w, y);
 	glVertex2f (x+w, y+h);
 	glVertex2f (x, y+h);
-
 	glEnd ();
+
 	glColor3f (1, 1, 1);
 	glEnable (GL_TEXTURE_2D);
 }
@@ -740,7 +680,7 @@ void R_FadeScreen (void)
 	glVertex2f (0, vid.height);
 
 	glEnd ();
-	glColor3f (1, 1, 1);
+	glColor4f (1,1,1,1);
 	glEnable (GL_TEXTURE_2D);
 	glDisable (GL_BLEND);
 }

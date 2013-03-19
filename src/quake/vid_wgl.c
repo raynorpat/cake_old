@@ -27,12 +27,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "sound.h"
 #include "winquake.h"
 
+#define DIRECTINPUT_VERSION 0x0300
+#include <dinput.h>
+
+#define DINPUT_BUFFERSIZE           16
+#define iDirectInputCreate(a,b,c,d)	pDirectInputCreate(a,b,c,d)
+
+HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
+	LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
+
 const char *gl_vendor;
 const char *gl_renderer;
 const char *gl_version;
 const char *gl_extensions;
-
-qbool			DDActive;
 
 static DEVMODE	gdevmode;
 static qbool	vid_initialized = false;
@@ -40,8 +47,8 @@ static qbool	vid_canalttab = false;
 static qbool	vid_wassuspended = false;
 static int		windowed_mouse;
 extern qbool	in_mouseactive;  // from in_win.c
-static HICON	hIcon;
 
+static HICON	hIcon;
 HWND mainwindow;
 
 static int vid_isfullscreen;
@@ -53,14 +60,17 @@ cvar_t	vid_hwgammacontrol = {"vid_hwgammacontrol","1"};
 cvar_t	gl_swapinterval = {"gl_swapinterval", "1"};
 cvar_t	gl_ext_swapinterval = {"gl_ext_swapinterval", "1"};
 
+cvar_t	m_filter = {"m_filter", "0"};
+cvar_t	in_dinput = {"in_dinput", "1", CVAR_ARCHIVE};
+cvar_t	in_joystick = {"joystick","0", CVAR_ARCHIVE};
+
+// compatibility with old Quake -- setting to 0 disables KP_* codes
+cvar_t	cl_keypad = {"cl_keypad","1"};
+
 qbool	vid_gammaworks = false;
 qbool	vid_hwgamma_enabled = false;
 unsigned short *currentgammaramp = NULL;
 void RestoreHWGamma (void);
-
-unsigned	d_8to24table[256];
-unsigned	d_8to24table2[256];
-unsigned char d_15to8table[65536];
 
 float		gldepthmin, gldepthmax;
 
@@ -68,11 +78,6 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void AppActivate(BOOL fActive, BOOL minimize);
 
 void GL_Init (void);
-
-PROC glArrayElementEXT;
-PROC glColorPointerEXT;
-PROC glTexCoordPointerEXT;
-PROC glVertexPointerEXT;
 
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
 lp3DFXFUNC glColorTableEXT;
@@ -83,17 +88,22 @@ qbool gl_mtexfbskins = false;
 
 //====================================
 
-cvar_t		_windowed_mouse = {"_windowed_mouse","1",CVAR_ARCHIVE};
+cvar_t		_windowed_mouse = {"_windowed_mouse","0",CVAR_ARCHIVE};
 cvar_t		vid_displayfrequency = {"vid_displayfrequency", "0"};
 
 int window_x, window_y, window_width, window_height;
 int window_center_x, window_center_y;
+unsigned int uiWheelMessage = (unsigned int)0;
 
 void IN_ShowMouse (void);
 void IN_DeactivateMouse (void);
 void IN_HideMouse (void);
 void IN_ActivateMouse (void);
 void IN_MouseEvent (int mstate);
+
+static void IN_StartupMouse (void);
+static void IN_StartupJoystick (void);;
+static void IN_LoadKeys_f (void);
 
 qbool mouseinitialized;
 static qbool dinput;
@@ -145,76 +155,6 @@ void VID_GetWindowSize (int *x, int *y, int *width, int *height)
 
 //====================================
 
-BINDTEXFUNCPTR bindTexFunc;
-
-#define TEXTURE_EXT_STRING "GL_EXT_texture_object"
-
-
-void CheckTextureExtensions (void)
-{
-	unsigned char	*tmp;
-	qbool			 texture_ext;
-	HINSTANCE		 hInstGL;
-
-	texture_ext = FALSE;
-	/* check for texture extension */
-	tmp = (unsigned char *)glGetString(GL_EXTENSIONS);
-	while (tmp && *tmp)
-	{
-		if (strncmp((const char*)tmp, TEXTURE_EXT_STRING, strlen(TEXTURE_EXT_STRING)) == 0)
-			texture_ext = TRUE;
-		tmp++;
-	}
-
-	if (!texture_ext || COM_CheckParm ("-gl11") )
-	{
-		hInstGL = LoadLibrary("opengl32.dll");
-
-		if (hInstGL == NULL)
-			Sys_Error ("Couldn't load opengl32.dll");
-
-		bindTexFunc = (void *)GetProcAddress(hInstGL,"glBindTexture");
-
-		if (!bindTexFunc)
-			Sys_Error ("No texture objects!");
-		return;
-	}
-
-/* load library and get procedure adresses for texture extension API */
-	if ((bindTexFunc = (BINDTEXFUNCPTR)
-		wglGetProcAddress((LPCSTR) "glBindTextureEXT")) == NULL)
-	{
-		Sys_Error ("GetProcAddress for BindTextureEXT failed");
-		return;
-	}
-}
-
-void CheckArrayExtensions (void)
-{
-	unsigned char		*tmp;
-
-	/* check for texture extension */
-	tmp = (unsigned char *)glGetString(GL_EXTENSIONS);
-	while (tmp && *tmp)
-	{
-		if (strncmp((const char*)tmp, "GL_EXT_vertex_array", strlen("GL_EXT_vertex_array")) == 0)
-		{
-			if ( ((glArrayElementEXT = wglGetProcAddress("glArrayElementEXT")) == NULL) ||
-			     ((glColorPointerEXT = wglGetProcAddress("glColorPointerEXT")) == NULL) ||
-			     ((glTexCoordPointerEXT = wglGetProcAddress("glTexCoordPointerEXT")) == NULL) ||
-			     ((glVertexPointerEXT = wglGetProcAddress("glVertexPointerEXT")) == NULL) )
-			{
-				Sys_Error ("GetProcAddress for vertex extension failed");
-				return;
-			}
-			return;
-		}
-		tmp++;
-	}
-
-	Sys_Error ("Vertex array extension not present");
-}
-
 void CheckMultiTextureExtensions (void)
 {
 	if (strstr(gl_extensions, "GL_ARB_multitexture ") && !COM_CheckParm("-nomtex")) {
@@ -251,77 +191,6 @@ void UpdateSwapInterval (void)
 	}
 }
 
-qbool VID_Is8bit() {
-	return is8bit;
-}
-
-#define GL_SHARED_TEXTURE_PALETTE_EXT 0x81FB
-
-static void VID_Build15to8table (void)
-{
-	byte	*pal;
-	unsigned r,g,b;
-	unsigned v;
-	int     r1,g1,b1;
-	int		j,k,l;
-	int		i;
-
-	// 3D distance calcs - k is last closest, l is the distance.
-	// FIXME: Precalculate this and cache to disk ?
-	for (i=0; i < (1<<15); i++) {
-		/* Maps
-			000000000000000
-			000000000011111 = Red  = 0x1F
-			000001111100000 = Blue = 0x03E0
-			111110000000000 = Grn  = 0x7C00
-		*/
-		r = ((i & 0x1F) << 3)+4;
-		g = ((i & 0x03E0) >> 2)+4;
-		b = ((i & 0x7C00) >> 7)+4;
-		pal = (unsigned char *)d_8to24table;
-		for (v=0,k=0,l=10000*10000; v<256; v++,pal+=4) {
-			r1 = r-pal[0];
-			g1 = g-pal[1];
-			b1 = b-pal[2];
-			j = (r1*r1)+(g1*g1)+(b1*b1);
-			if (j<l) {
-				k=v;
-				l=j;
-			}
-		}
-		d_15to8table[i]=k;
-	}
-}
-
-void VID_Init8bitPalette()
-{
-	// Check for 8bit Extensions and initialize them.
-	int i;
-	char thePalette[256*3];
-	char *oldPalette, *newPalette;
-
-	glColorTableEXT = (void *)wglGetProcAddress("glColorTableEXT");
-    if (!glColorTableEXT || !strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
-		!COM_CheckParm("-use8bit"))
-		return;
-
-	Com_Printf ("8-bit GL extensions enabled.\n");
-    glEnable( GL_SHARED_TEXTURE_PALETTE_EXT );
-	oldPalette = (char *) d_8to24table;
-	newPalette = thePalette;
-	for (i=0;i<256;i++) {
-		*newPalette++ = *oldPalette++;
-		*newPalette++ = *oldPalette++;
-		*newPalette++ = *oldPalette++;
-		oldPalette++;
-	}
-	glColorTableEXT(GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256, GL_RGB, GL_UNSIGNED_BYTE,
-		(void *) thePalette);
-	is8bit = TRUE;
-
-	VID_Build15to8table ();
-}
-
 /*
 ===============
 GL_Init
@@ -345,12 +214,8 @@ void GL_Init (void)
     if (strnicmp(gl_renderer,"Permedia",8)==0)
          isPermedia = true;
 
-	CheckTextureExtensions ();
 	CheckMultiTextureExtensions ();
 	CheckSwapIntervalExtension ();
-
-	// Check for 3DFX Extensions and initialize them.
-	VID_Init8bitPalette();
 
 	glClearColor (1,0,0,0);
 	glCullFace(GL_FRONT);
@@ -421,48 +286,6 @@ void GL_EndRendering (void)
 			}
 		}
 	}
-}
-
-void VID_SetPalette (unsigned char *palette)
-{
-	int			i;
-	byte		*pal;
-	unsigned	r,g,b;
-	unsigned	v;
-	unsigned	*table;
-
-//
-// 8 8 8 encoding
-//
-	pal = palette;
-	table = d_8to24table;
-	for (i=0 ; i<256 ; i++)
-	{
-		r = pal[0];
-		g = pal[1];
-		b = pal[2];
-		pal += 3;
-
-//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-		v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-		*table++ = v;
-	}
-	d_8to24table[255] = 0;	// 255 is transparent
-
-// Tonik: create a brighter palette for bmodel textures
-	pal = palette;
-	table = d_8to24table2;
-
-	for (i=0 ; i<256 ; i++)
-	{
-		r = pal[0] * (2.0 / 1.5); if (r > 255) r = 255;
-		g = pal[1] * (2.0 / 1.5); if (g > 255) g = 255;
-		b = pal[2] * (2.0 / 1.5); if (b > 255) b = 255;
-		pal += 3;
-		*table++ = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-	}
-	d_8to24table2[255] = 0;	// 255 is transparent
 }
 
 static byte	systemgammaramp[3][256][2];
@@ -637,7 +460,6 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 {
     LONG    lRet = 1;
 	int		fActive, fMinimized, temp;
-	extern unsigned int uiWheelMessage;
 
 	if ( uMsg == uiWheelMessage ) {
 		uMsg = WM_MOUSEWHEEL;
@@ -743,14 +565,9 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 
 			break;
 
-   	    case WM_DESTROY:
-        {
-			if (mainwindow)
-				DestroyWindow (mainwindow);
-
-            PostQuitMessage (0);
-        }
-        break;
+//	    case WM_DESTROY:
+//          PostQuitMessage (0);
+//	        break;
 
 		case MM_MCINOTIFY:
             lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
@@ -766,6 +583,7 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
     return lRet;
 }
 
+/*
 static void Check_Gamma (unsigned char *pal)
 {
 	float	f, inf;
@@ -792,6 +610,7 @@ static void Check_Gamma (unsigned char *pal)
 
 	memcpy (pal, palette, sizeof(palette));
 }
+*/
 
 /*
 ===================
@@ -807,6 +626,13 @@ void VID_Init (void)
 	Cvar_Register (&vid_displayfrequency);
 	Cvar_Register (&gl_swapinterval);
 	Cvar_Register (&gl_ext_swapinterval);
+
+	Cvar_Register (&m_filter);
+	Cvar_Register (&in_dinput);
+	Cvar_Register (&in_joystick);
+	Cvar_Register (&cl_keypad);
+
+	Cmd_AddCommand ("loadkeys", IN_LoadKeys_f);
 
 	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_APPICON));
 
@@ -824,6 +650,8 @@ void VID_Init (void)
 
 	if (!RegisterClass (&wc))
 		Sys_Error("Couldn't register window class\n");
+
+	uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
 }
 
 int VID_InitMode (int fullscreen, int width, int height)
@@ -868,8 +696,7 @@ int VID_InitMode (int fullscreen, int width, int height)
 		hwnd_dialog = NULL;
 	}
 
-	Check_Gamma(host_basepal);
-	VID_SetPalette (host_basepal);
+//	Check_Gamma(host_basepal);
 
 	InitHWGamma ();
 
@@ -940,8 +767,8 @@ int VID_InitMode (int fullscreen, int width, int height)
 	mainwindow = CreateWindowEx (ExWindowStyle, "QuakeWindowClass", "WinQuake", WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
 	if (!mainwindow)
 	{
+		Com_Printf("CreateWindowEx(%d, %s, %s, %d, %d, %d, %d, %d, %p, %p, %d, %p) failed\n", ExWindowStyle, "QuakeWindowClass", "WinQuake", WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
 		VID_Shutdown();
-		Com_Printf("CreateWindowEx(%d, %s, %s, %d, %d, %d, %d, %d, %p, %p, %d, %p) failed\n", ExWindowStyle, "WinQuake", "WinQuake", WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
 		return false;
 	}
 
@@ -1025,6 +852,9 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 	vid.colormap = host_colormap;
 
+	IN_StartupMouse ();
+	IN_StartupJoystick ();
+
 	return true;
 }
 
@@ -1033,48 +863,35 @@ void VID_Shutdown (void)
 	HGLRC hRC = 0;
 	HDC hDC = 0;
 
-	if (vid_initialized)
-	{
-		vid_initialized = false;
-		if (wglGetCurrentContext)
-			hRC = wglGetCurrentContext();
-		if (wglGetCurrentDC)
-			hDC = wglGetCurrentDC();
+	vid_initialized = false;
 
-		if (wglMakeCurrent)
-			wglMakeCurrent(NULL, NULL);
+	IN_DeactivateMouse ();
+	IN_ShowMouse ();
 
-		if (hRC && wglDeleteContext)
-			wglDeleteContext(hRC);
+	if (wglGetCurrentContext)
+		hRC = wglGetCurrentContext();
+	if (wglGetCurrentDC)
+		hDC = wglGetCurrentDC();
 
-		if (hDC && mainwindow)
-			ReleaseDC(mainwindow, hDC);
+	if (wglMakeCurrent)
+		wglMakeCurrent(NULL, NULL);
 
-		if (vid_isfullscreen)
-			ChangeDisplaySettings (NULL, 0);
+	if (hRC && wglDeleteContext)
+		wglDeleteContext(hRC);
 
-		AppActivate(false, false);
-	}
+	if (hDC && mainwindow)
+		ReleaseDC(mainwindow, hDC);
+
+	if (vid_isfullscreen)
+		ChangeDisplaySettings (NULL, 0);
+	vid_isfullscreen = false;
+	AppActivate(false, false);
+
+	if (mainwindow)
+		DestroyWindow(mainwindow);
+	mainwindow = 0;
 }
 
-// in_win.c -- windows 95 mouse and joystick code
-// 02/21/97 JCB Added extended DirectInput code to support external controllers.
-
-#define DIRECTINPUT_VERSION 0x0300
-#include <dinput.h>
-
-#define DINPUT_BUFFERSIZE           16
-#define iDirectInputCreate(a,b,c,d)	pDirectInputCreate(a,b,c,d)
-
-HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
-	LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
-
-// mouse variables
-cvar_t	m_filter = {"m_filter", "0"};
-cvar_t	in_dinput = {"in_dinput", "1", CVAR_ARCHIVE};
-
-// compatibility with old Quake -- setting to 0 disables KP_* codes
-cvar_t	cl_keypad = {"cl_keypad","1"};
 
 static int		mouse_buttons = 0;
 static int		mouse_oldbuttonstate = 0;
@@ -1088,7 +905,6 @@ static qbool	mouseparmsvalid = false, mouseactivatetoggle = false;
 static qbool	mouseshowtoggle = true;
 static qbool	dinput_acquired = false;
 static unsigned int		mstate_di = (unsigned int)0;
-unsigned int	uiWheelMessage = (unsigned int)0;
 
 qbool			in_mouseactive = false;
 
@@ -1123,7 +939,6 @@ PDWORD	pdwRawValue[JOY_MAX_AXES];
 // each time.  this avoids any problems with getting back to a default usage
 // or when changing from one controller to another.  this way at least something
 // works.
-cvar_t	in_joystick = {"joystick","0",CVAR_ARCHIVE};
 cvar_t	joy_name = {"joyname", "joystick"};
 cvar_t	joy_advanced = {"joyadvanced", "0"};
 cvar_t	joy_advaxisx = {"joyadvaxisx", "0"};
@@ -1206,23 +1021,8 @@ static DIDATAFORMAT	df = {
 };
 
 // forward-referenced functions
-static void IN_StartupJoystick (void);
 static void Joy_AdvancedUpdate_f (void);
 static void IN_JoyMove (usercmd_t *cmd);
-
-static void IN_LoadKeys_f (void);
-
-
-/*
-===========
-Force_CenterView_f
-===========
-*/
-static void Force_CenterView_f (void)
-{
-	cl.viewangles[PITCH] = 0;
-}
-
 
 /*
 ===========
@@ -1533,56 +1333,6 @@ static void IN_StartupMouse (void)
 // set the mouse state appropriately
 	if (mouseactivatetoggle)
 		IN_ActivateMouse ();
-}
-
-
-/*
-===========
-IN_Init
-===========
-*/
-void IN_Init (void)
-{
-	// mouse variables
-	Cvar_Register (&m_filter);
-	Cvar_Register (&in_dinput);
-
-	// joystick variables
-	Cvar_Register (&in_joystick);
-
-	// keyboard variables
-	Cvar_Register (&cl_keypad);
-
-	Cmd_AddCommand ("force_centerview", Force_CenterView_f);
-	Cmd_AddCommand ("loadkeys", IN_LoadKeys_f);
-
-	uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
-
-	IN_StartupMouse ();
-	IN_StartupJoystick ();
-}
-
-/*
-===========
-IN_Shutdown
-===========
-*/
-void IN_Shutdown (void)
-{
-	IN_DeactivateMouse ();
-	IN_ShowMouse ();
-
-    if (g_pMouse)
-	{
-		IDirectInputDevice_Release(g_pMouse);
-		g_pMouse = NULL;
-	}
-
-    if (g_pdi)
-	{
-		IDirectInput_Release(g_pdi);
-		g_pdi = NULL;
-	}
 }
 
 

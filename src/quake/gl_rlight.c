@@ -23,6 +23,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 int	r_dlightframecount;
 
+void r_light_start(void)
+{
+}
+
+void r_light_shutdown(void)
+{
+}
+
+void r_light_newmap(void)
+{
+	int i;
+
+	for (i = 0; i < 256; i++)
+		d_lightstylevalue[i] = 264; // normal light value
+}
+
+void R_Light_Init(void)
+{
+	R_RegisterModule("R_Light", r_light_start, r_light_shutdown, r_light_newmap);
+}
 
 /*
 ==================
@@ -33,8 +53,8 @@ void R_AnimateLight (void)
 {
 	int			i,j,k;
 
-// light animations
-// 'm' is normal light, 'a' is no light, 'z' is double bright
+	// light animations
+	// 'm' is normal light, 'a' is no light, 'z' is double bright
 	i = (int)(r_refdef2.time*10);
 	for (j=0 ; j<MAX_LIGHTSTYLES ; j++)
 	{

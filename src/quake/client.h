@@ -429,7 +429,6 @@ extern	efrag_t			cl_efrags[MAX_EFRAGS];
 extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 
-extern byte		*host_basepal;
 extern byte		*host_colormap;
 
 //=============================================================================

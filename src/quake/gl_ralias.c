@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
+extern gltexture_t *playertextures[MAX_CLIENTS], *playerfbtextures[MAX_CLIENTS];
+
 /*
 =============================================================
 
@@ -28,7 +30,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 =============================================================
 */
-
 
 #define NUMVERTEXNORMALS	162
 
@@ -63,6 +64,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 	trivertx_t	*verts;
 	int		*order;
 	int		count;
+	float	hscale, vscale;
 
 	if (currententity->renderfx & RF_TRANSLUCENT)
 	{
@@ -73,6 +75,9 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		l_v[3] = 1.0;
 
 	lastposenum = posenum;
+
+	hscale = (float)paliashdr->skinwidth/(float)TexMgr_Pad(paliashdr->skinwidth);
+	vscale = (float)paliashdr->skinheight/(float)TexMgr_Pad(paliashdr->skinheight);
 
 	verts = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
 	verts += posenum * paliashdr->poseverts;
@@ -93,11 +98,11 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		{
 			// texture coordinates come from the draw list
 			if (mtex) {
-				qglMultiTexCoord2f (GL_TEXTURE0_ARB, ((float *) order)[0], ((float *) order)[1]);
-				qglMultiTexCoord2f (GL_TEXTURE1_ARB, ((float *) order)[0], ((float *) order)[1]);
+				qglMultiTexCoord2f (GL_TEXTURE0_ARB, hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
+				qglMultiTexCoord2f (GL_TEXTURE1_ARB, hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
 			}
 			else {
-				glTexCoord2f (((float *) order)[0], ((float *) order)[1]);
+				glTexCoord2f (hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
 			}
 
 			order += 2;
@@ -226,7 +231,6 @@ static void DesaturateColor (vec3_t color, float white_level)
 /*
 =================
 R_DrawAliasModel
-
 =================
 */
 void R_DrawAliasModel (entity_t *ent)
@@ -240,7 +244,7 @@ void R_DrawAliasModel (entity_t *ent)
 	int			anim, skinnum;
 	qbool		full_light;
 	model_t		*clmodel = ent->model;
-	int			texture, fb_texture;
+	gltexture_t	*texture, *fb_texture;
 	vec3_t		lightcolor;
 	float		shadelight, ambientlight;
 	float	original_light;
@@ -364,13 +368,12 @@ void R_DrawAliasModel (entity_t *ent)
 		skinnum = 0;
 	}
 
-	texture = paliashdr->gl_texturenum[skinnum][anim];
-	fb_texture = paliashdr->fb_texturenum[skinnum][anim];
+	texture = paliashdr->gl_texture[skinnum][anim];
+	fb_texture = paliashdr->fb_texture[skinnum][anim];
 
 	// we can't dynamically colormap textures, so they are cached
 	// separately for the players.  Heads are just uncolored.
-	if (ent->scoreboard && (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL)
-		&& !gl_nocolors.value)
+	if (ent->scoreboard && (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL) && !gl_nocolors.value)
 	{
 		i = ent->scoreboard - cl.players;
 
@@ -380,7 +383,7 @@ void R_DrawAliasModel (entity_t *ent)
 		}
 
 		if (i >= 0 && i < MAX_CLIENTS) {
-		    texture = playertextures + i;
+		    texture = playertextures[i];
 			fb_texture = playerfbtextures[i];
 		}
 	}
@@ -403,11 +406,11 @@ void R_DrawAliasModel (entity_t *ent)
 
 	if (fb_texture && gl_mtexfbskins) {
 		GL_SelectTexture (GL_TEXTURE0_ARB);
-		GL_Bind (texture);
+		GL_Bind (texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		GL_EnableMultitexture ();
-		GL_Bind (fb_texture);
+		GL_Bind (fb_texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
 
 		R_SetupAliasFrame (ent->frame, paliashdr, true);
@@ -417,7 +420,7 @@ void R_DrawAliasModel (entity_t *ent)
 	else
 	{
 		GL_DisableMultitexture();
-		GL_Bind (texture);
+		GL_Bind (texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		R_SetupAliasFrame (ent->frame, paliashdr, false);
@@ -425,7 +428,7 @@ void R_DrawAliasModel (entity_t *ent)
 		if (fb_texture) {
 			glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 			glEnable (GL_BLEND);
-			GL_Bind (fb_texture);
+			GL_Bind (fb_texture->texnum);
 
 			R_SetupAliasFrame (ent->frame, paliashdr, false);
 
@@ -448,7 +451,7 @@ void R_DrawAliasModel (entity_t *ent)
 		float an = -ent->angles[1] / 180 * M_PI;
 		
 		if (!shadescale)
-			shadescale = 1/sqrt(2);
+			shadescale = 1/sqrtf(2);
 
 		shadevector[0] = cos(an) * shadescale;
 		shadevector[1] = sin(an) * shadescale;

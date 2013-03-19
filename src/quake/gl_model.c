@@ -39,6 +39,19 @@ byte	mod_novis[MAX_MAP_LEAFS/8];
 model_t	mod_known[MAX_MOD_KNOWN];
 int		mod_numknown;
 
+void gl_models_start(void)
+{
+	memset (mod_novis, 0xff, sizeof(mod_novis));
+}
+
+void gl_models_shutdown(void)
+{
+}
+
+void gl_models_newmap(void)
+{
+}
+
 /*
 ===============
 Mod_Init
@@ -46,7 +59,7 @@ Mod_Init
 */
 void Mod_Init (void)
 {
-	memset (mod_novis, 0xff, sizeof(mod_novis));
+	R_RegisterModule("GL_Models", gl_models_start, gl_models_shutdown, gl_models_newmap);
 }
 
 /*
@@ -165,8 +178,13 @@ void Mod_ClearAll (void)
 	model_t	*mod;
 	
 	for (i = 0, mod = mod_known; i < mod_numknown; i++, mod++)
+	{
 		if (mod->type != mod_alias)
+		{
 			mod->needload = true;
+			TexMgr_FreeTexturesForOwner (mod);
+		}
+	}
 }
 
 /*
@@ -181,7 +199,7 @@ model_t *Mod_FindName (char *name)
 	model_t	*mod;
 	
 	if (!name[0])
-		Sys_Error ("Mod_ForName: NULL name");
+		Sys_Error ("Mod_FindName: NULL name");
 		
 //
 // search the currently loaded models
@@ -314,18 +332,6 @@ model_t *Mod_ForName (char *name, qbool crash)
 }
 
 
-qbool Img_HasFullbrights (byte *pixels, int size)
-{
-	int i;
-
-	for (i = 0; i < size; i++)
-		if (pixels[i] >= 224)
-			return true;
-
-	return false;
-}
-
-
 /*
 ===============================================================================
 
@@ -335,6 +341,24 @@ qbool Img_HasFullbrights (byte *pixels, int size)
 */
 
 byte	*mod_base;
+
+/*
+=================
+Mod_CheckFullbrights
+=================
+*/
+qbool Mod_CheckFullbrights (byte *pixels, int count)
+{
+	int i;
+
+	for (i = 0; i < count; i++)
+	{
+		if (*pixels++ > 223)
+			return true;
+	}
+
+	return false;
+}
 
 /*
 =================
@@ -349,6 +373,8 @@ void Mod_LoadTextures (lump_t *l)
 	texture_t	*anims[10];
 	texture_t	*altanims[10];
 	dmiptexlump_t *m;
+	char		texturename[64];
+	unsigned	offset;
 
 	if (!l->filelen)
 	{
@@ -402,15 +428,6 @@ void Mod_LoadTextures (lump_t *l)
 			// the pixels immediately follow the structures
 			memcpy (tx+1, mt+1, pixels);
 
-			// HACK HACK HACK
-			if (!strcmp(mt->name, "shot1sid") && mt->width==32 && mt->height==32
-				&& CRC_Block((byte*)(mt+1), mt->width*mt->height) == 65393)
-			{	// This texture in b_shell1.bsp has some of the first 32 pixels painted white.
-				// They are invisible in software, but look really ugly in GL. So we just copy
-				// 32 pixels from the bottom to make it look nice.
-				memcpy (tx+1, (byte *)(tx+1) + 32*31, 32);
-			}
-
 			// just for r_fastturb's sake
 			{
 				byte *data = (byte *) &d_8to24table[*((byte *) mt + mt->offsets[0] + ((mt->height * mt->width) >> 1))];
@@ -421,23 +438,23 @@ void Mod_LoadTextures (lump_t *l)
 		{
 			tx->width = r_notexture_mip->width;
 			tx->height = r_notexture_mip->height;
-			tx->gl_texturenum = GL_LoadTexture ("r_notexture_mip", tx->width, 
-							tx->height, (byte *)(r_notexture_mip + 1), true, false, true);
+			tx->gl_texture = TexMgr_LoadImage (loadmodel, "r_notexture_mip", tx->width, tx->height, SRC_INDEXED, (byte *)(r_notexture_mip + 1), loadmodel->name, 0, TEXPREF_MIPMAP);
 			continue;
 		}
 
-		if (!loadmodel->halflifebsp && !strncmp(mt->name,"sky",3))	
+		if (!loadmodel->halflifebsp && !strncmp(mt->name,"sky",3))
+		{
 			R_InitSky (tx);
+		}
 		else
 		{
-			if (mt->name[0] == '*')	// we don't brighten turb textures
-				tx->gl_texturenum = GL_LoadTexture (mt->name, tx->width, tx->height, (byte *)(tx+1), true, false, false);
-			else {
-				tx->gl_texturenum = GL_LoadTexture (mt->name, tx->width, tx->height, (byte *)(tx+1), true, false, true);
-				if (Img_HasFullbrights((byte *)(tx+1), tx->width*tx->height)) {
-					tx->fb_texturenum = GL_LoadTexture (va("@fb_%s", mt->name), tx->width, tx->height, (byte *)(tx+1),
-						true, 2 /* Fullbright mask */, false);
-				}
+			sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
+			offset = (unsigned)(mt+1) - (unsigned)mod_base;
+			tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
+			if (Mod_CheckFullbrights ((byte *)(tx+1), pixels))
+			{
+				sprintf (texturename, "%s:%s_glow", loadmodel->name, tx->name);
+				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_ALPHA);
 			}
 		}
 	}
@@ -834,7 +851,7 @@ void CalcSurfaceExtents (msurface_t *s)
 
 		s->texturemins[i] = bmins[i] * 16;
 		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
-		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 512 /* 256 */ )
+		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 512 )
 			Host_Error ("Bad surface extents");
 	}
 }
@@ -989,6 +1006,7 @@ void Mod_LoadLeafs (lump_t *l)
 
 	loadmodel->leafs = out;
 	loadmodel->numleafs = count;
+
 	for (i = 0; i < count; i++, in++, out++)
 	{
 		for (j = 0; j < 3; j++)
@@ -1219,7 +1237,6 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 
 	for (i = 0; i < sizeof(dheader_t)/4; i++)
 		((int *)header)[i] = LittleLong (((int *)header)[i]);
-
 
 // load into heap
 
@@ -1479,6 +1496,7 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 	daliasskingroup_t		*pinskingroup;
 	int		groupskins;
 	daliasskininterval_t	*pinskinintervals;
+	unsigned				offset;
 	
 	skin = (byte *)(pskintype + 1);
 
@@ -1500,21 +1518,20 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 				memcpy (player_8bit_texels, (byte *)(pskintype + 1), s);
 			}
 			Q_snprintfz (name, sizeof(name), "%s_%i", loadmodel->name, i);
-			pheader->gl_texturenum[i][0] =
-			pheader->gl_texturenum[i][1] =
-			pheader->gl_texturenum[i][2] =
-			pheader->gl_texturenum[i][3] =
-				GL_LoadTexture (name, pheader->skinwidth, pheader->skinheight,
-				(byte *)(pskintype + 1), true, false, false);
+			offset = (unsigned)(pskintype+1) - (unsigned)mod_base;
+			pheader->gl_texture[i][0] =
+			pheader->gl_texture[i][1] =
+			pheader->gl_texture[i][2] =
+			pheader->gl_texture[i][3] =	TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_PAD);
 
-			if (Img_HasFullbrights((byte *)(pskintype + 1),	pheader->skinwidth*pheader->skinheight))
-				pheader->fb_texturenum[i][0] = pheader->fb_texturenum[i][1] =
-				pheader->fb_texturenum[i][2] = pheader->fb_texturenum[i][3] =
-					GL_LoadTexture (va("@fb_%s", name), pheader->skinwidth, 
-					pheader->skinheight, (byte *)(pskintype + 1), true, 2, false);
+			if (Mod_CheckFullbrights((byte *)(pskintype + 1),	pheader->skinwidth*pheader->skinheight))
+				pheader->fb_texture[i][0] = pheader->fb_texture[i][1] =
+				pheader->fb_texture[i][2] = pheader->fb_texture[i][3] =
+					TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA);
 			else
-				pheader->fb_texturenum[i][0] = pheader->fb_texturenum[i][1] =
-				pheader->fb_texturenum[i][2] = pheader->fb_texturenum[i][3] = 0;
+				pheader->fb_texture[i][0] = pheader->fb_texture[i][1] =
+				pheader->fb_texture[i][2] = pheader->fb_texture[i][3] = NULL;
 			
 			pskintype = (daliasskintype_t *)((byte *)(pskintype+1) + s);
 		} else {
@@ -1530,23 +1547,21 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 			{
 					Mod_FloodFillSkin (skin, pheader->skinwidth, pheader->skinheight);
 					Q_snprintfz (name, sizeof(name), "%s_%i_%i", loadmodel->name, i, j);
-					pheader->gl_texturenum[i][j&3] = 
-						GL_LoadTexture (name, pheader->skinwidth, 
-						pheader->skinheight, (byte *)(pskintype), true, false, false);
+					offset = (unsigned)(pskintype) - (unsigned)mod_base;
+					pheader->gl_texture[i][j&3] = 
+						TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,	SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_PAD);
 
-					if (Img_HasFullbrights((byte *)(pskintype),	pheader->skinwidth*pheader->skinheight))
-						pheader->fb_texturenum[i][j&3] =
-							GL_LoadTexture (va("@fb_%s", name), pheader->skinwidth, 
-							pheader->skinheight, (byte *)(pskintype), true, 2, false);
+					if (Mod_CheckFullbrights((byte *)(pskintype),	pheader->skinwidth*pheader->skinheight))
+						pheader->fb_texture[i][j&3] =
+							TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA);
 					else
-						pheader->fb_texturenum[i][j&3] = 0;
+						pheader->fb_texture[i][j&3] = NULL;
 
 					pskintype = (daliasskintype_t *)((byte *)(pskintype) + s);
 			}
 			k = j;
 			for (/* */; j < 4; j++)
-				pheader->gl_texturenum[i][j&3] = 
-				pheader->gl_texturenum[i][j - k]; 
+				pheader->gl_texture[i][j&3] = pheader->gl_texture[i][j - k]; 
 		}
 	}
 
@@ -1594,15 +1609,13 @@ void Mod_LoadAliasModel (model_t *mod, void *buffer)
 	start = Hunk_LowMark ();
 
 	pinmodel = (mdl_t *)buffer;
+	mod_base = (byte *)buffer;
 
 	version = LittleLong (pinmodel->version);
 
 	if (version != ALIAS_VERSION) {
 		Hunk_FreeToLowMark (start);
-
-		Host_Error ("%s has wrong version number (%i should be %i)\n",
-				 mod->name, version, ALIAS_VERSION);
-
+		Host_Error ("%s has wrong version number (%i should be %i)\n", mod->name, version, ALIAS_VERSION);
 		return;
 	}
 
@@ -1626,8 +1639,7 @@ void Mod_LoadAliasModel (model_t *mod, void *buffer)
 	pheader->skinheight = LittleLong (pinmodel->skinheight);
 
 	if (pheader->skinheight > MAX_LBM_HEIGHT)
-		Host_Error ("model %s has a skin taller than %d", mod->name,
-				   MAX_LBM_HEIGHT);
+		Host_Error ("model %s has a skin taller than %d", mod->name, MAX_LBM_HEIGHT);
 
 	pheader->numverts = LittleLong (pinmodel->numverts);
 
@@ -1764,6 +1776,7 @@ void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
 	mspriteframe_t		*pspriteframe;
 	int					width, height, size, origin[2];
 	char				name[64];
+	unsigned			offset;
 
 	pinframe = (dspriteframe_t *)pin;
 
@@ -1788,7 +1801,8 @@ void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
 	pspriteframe->right = width + origin[0];
 
 	sprintf (name, "%s_%i", loadmodel->name, framenum);
-	pspriteframe->gl_texturenum = GL_LoadTexture (name, width, height, (byte *)(pinframe + 1), true, true, false);
+	offset = (unsigned)(pinframe+1) - (unsigned)mod_base;
+	pspriteframe->gl_texture = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA);
 
 	return (void *)((byte *)pinframe + sizeof (dspriteframe_t) + size);
 }
@@ -1862,6 +1876,7 @@ void Mod_LoadSpriteModel (model_t *mod, void *buffer)
 	dspriteframetype_t	*pframetype;
 	
 	pin = (dsprite_t *)buffer;
+	mod_base = (byte *)buffer;
 
 	version = LittleLong (pin->version);
 

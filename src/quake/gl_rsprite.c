@@ -123,7 +123,7 @@ void R_DrawSpriteModel (entity_t *e)
 		VectorCopy (vright, right);
 	}
 
-    GL_Bind(frame->gl_texturenum);
+    GL_Bind(frame->gl_texture->texnum);
 
 	glBegin (GL_QUADS);
 

@@ -24,8 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern	model_t	*loadmodel;
 
-int		solidskytexture;
-int		alphaskytexture;
+gltexture_t	*skyboxtextures[6];
+gltexture_t	*solidskytexture, *alphaskytexture;
 float	speedscale;		// for top sky and bottom sky
 
 qbool	r_skyboxloaded;
@@ -340,14 +340,14 @@ void EmitBothSkyLayers (msurface_t *fa)
 		return;
 	}
 
-	GL_Bind (solidskytexture);
+	GL_Bind (solidskytexture->texnum);
 	speedscale = r_refdef2.time*8;
 	speedscale -= (int)speedscale & ~127;
 
 	EmitSkyPolys (fa);
 
 	glEnable (GL_BLEND);
-	GL_Bind (alphaskytexture);
+	GL_Bind (alphaskytexture->texnum);
 	speedscale = r_refdef2.time*16;
 	speedscale -= (int)speedscale & ~127;
 
@@ -367,60 +367,37 @@ A sky texture is 256*128, with the right side being a masked overlay
 */
 void R_InitSky (texture_t *mt)
 {
-	int			i, j, p;
+	char		texturename[64];
+	int			i, j;
 	byte		*src;
-	unsigned	trans[128*128];
-	unsigned	transpix;
-	int			r, g, b;
-	unsigned	*rgba;
+	static byte	front_data[128*128]; //FIXME: Hunk_Alloc
+	static byte	back_data[128*128]; //FIXME: Hunk_Alloc
 
 	src = (byte *)mt + mt->offsets[0];
 
-	// make an average value for the back to avoid
-	// a fringe on the top level
-
-	r = g = b = 0;
+	// extract back layer and upload
 	for (i=0 ; i<128 ; i++)
+	{
+		for (j=0 ; j<128 ; j++)
+			back_data[(i*128) + j] = src[i*256 + j + 128];
+	}
+
+	sprintf(texturename, "%s:%s_back", loadmodel->name, mt->name);
+	solidskytexture = TexMgr_LoadImage (loadmodel, texturename, 128, 128, SRC_INDEXED, back_data, "", (unsigned)back_data, 0);
+
+	// extract front layer and upload
+	for (i=0 ; i<128 ; i++)
+	{
 		for (j=0 ; j<128 ; j++)
 		{
-			p = src[i*256 + j + 128];
-			rgba = &d_8to24table[p];
-			trans[(i*128) + j] = *rgba;
-			r += ((byte *)rgba)[0];
-			g += ((byte *)rgba)[1];
-			b += ((byte *)rgba)[2];
+			front_data[(i*128) + j] = src[i*256 + j];
+			if (front_data[(i*128) + j] == 0)
+				front_data[(i*128) + j] = 255;
 		}
+	}
 
-	((byte *)&transpix)[0] = r/(128*128);
-	((byte *)&transpix)[1] = g/(128*128);
-	((byte *)&transpix)[2] = b/(128*128);
-	((byte *)&transpix)[3] = 0;
-
-
-	if (!solidskytexture)
-		solidskytexture = texture_extension_number++;
-	GL_Bind (solidskytexture );
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-	for (i=0 ; i<128 ; i++)
-		for (j=0 ; j<128 ; j++)
-		{
-			p = src[i*256 + j];
-			if (p == 0)
-				trans[(i*128) + j] = transpix;
-			else
-				trans[(i*128) + j] = d_8to24table[p];
-		}
-
-	if (!alphaskytexture)
-		alphaskytexture = texture_extension_number++;
-	GL_Bind(alphaskytexture);
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	sprintf(texturename, "%s:%s_front", loadmodel->name, mt->name);
+	alphaskytexture = TexMgr_LoadImage (loadmodel, texturename, 128, 128, SRC_INDEXED, front_data, "", (unsigned)front_data, TEXPREF_ALPHA);
 }
 
 
@@ -446,10 +423,19 @@ void R_SetSky (char *name)
 	int		width, height;
 	char	pathname[MAX_OSPATH];
 
-	if (!name[0]) {
+	if (!name[0])
+	{
 		// disable skybox
 		r_skyboxloaded = false;
 		return;
+	}
+
+	// purge old textures
+	for (i=0; i<6; i++)
+	{
+		if (skyboxtextures[i] && skyboxtextures[i] != notexture)
+			TexMgr_FreeTexture (skyboxtextures[i]);
+		skyboxtextures[i] = NULL;
 	}
 
 	for (i=0 ; i<6 ; i++)
@@ -470,13 +456,7 @@ void R_SetSky (char *name)
 			return;
 		}
 
-		// FIXME, scale image down if larger than gl_max_size
-		// We're gonna run into trouble on a Voodoo
-
-		GL_Bind (skyboxtextures + i);
-		glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pic);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		skyboxtextures[i] = TexMgr_LoadImage (NULL, pathname, width, height, SRC_RGBA, pic, pathname, 0, 0);
 
 		Q_free (pic);	// Q_malloc'ed by LoadTGA
 	}
@@ -783,7 +763,7 @@ static void R_DrawSkyBox (void)
 		if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
 			continue;
 
-		GL_Bind (skyboxtextures + skytexorder[i]);
+		GL_Bind (skyboxtextures[skytexorder[i]]->texnum);
 
 		glBegin (GL_QUADS);
 		MakeSkyVec (skymins[0][i], skymins[1][i], i);
@@ -884,7 +864,7 @@ static void R_DrawSkyDome (void)
 	int i;
 
 	GL_DisableMultitexture();
-	GL_Bind (solidskytexture);
+	GL_Bind (solidskytexture->texnum);
 
 	speedscale = r_refdef2.time*8;
 	speedscale -= (int)speedscale & ~127;
@@ -896,7 +876,7 @@ static void R_DrawSkyDome (void)
 	}
 
 	glEnable (GL_BLEND);
-	GL_Bind (alphaskytexture);
+	GL_Bind (alphaskytexture->texnum);
 
 	speedscale = r_refdef2.time*16;
 	speedscale -= (int)speedscale & ~127;
@@ -989,103 +969,3 @@ void R_DrawSky (void)
 
 	skychain = NULL;
 }
-
-/*
-
-This works better (with gl_ztrick 0) on aerowalk where otherwise the sky
-shows in bright pixels through holes in walls, of which on aerowalk there
-are plenty.
-But problems arise on large maps like q1dm17 where the sky tends
-to hide parts of the level.
-We could just put the far clip plane further of course...
-
-void R_DrawSky (void)
-{
-	msurface_t	*fa;
-	qbool		ignore_z;
-	extern cvar_t	gl_ztrick;
-	extern int		gl_ztrickframe;
-	extern msurface_t *skychain;
-
-	GL_DisableMultitexture ();
-
-	if (r_fastsky.value) {
-		glDisable (GL_TEXTURE_2D);
-		glColor3ubv ((byte *)&d_8to24table[(byte)r_skycolor.value]);
-		
-		for (fa = skychain; fa; fa = fa->texturechain)
-			EmitFlatPoly (fa);
-		skychain = NULL;
-
-		glEnable (GL_TEXTURE_2D);
-		glColor3f (1, 1, 1);
-		return;
-	}
-
-	if (r_viewleaf->contents == CONTENTS_SOLID) {
-		// always draw if we're in a solid leaf (probably outside the level)
-		// FIXME: we don't really want to add all six planes every time!
-		int i;
-		for (i = 0; i < 6; i++) {
-			skymins[0][i] = skymins[1][i] = -1;
-			skymaxs[0][i] = skymaxs[1][i] = 1;
-		}
-		ignore_z = true;
-	}
-	else {
-		if (!skychain)
-			return;		// no sky at all
-
-		// figure out how much of the sky box we need to draw
-		for (fa = skychain; fa; fa = fa->texturechain)
-			R_AddSkyBoxSurface (fa);
-
-		ignore_z = false;
-	}
-
-	// draw the sky polys into the Z buffer
-	if (!ignore_z) {
-		glDisable(GL_TEXTURE_2D);
-		glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_ZERO, GL_ONE);
-
-		for (fa = skychain; fa; fa = fa->texturechain)
-			EmitFlatPoly (fa);
-
-		glEnable (GL_TEXTURE_2D);
-		glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		glDisable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-
-	if (!ignore_z) {
-		// only write portions of the sky behind the Z polygons we rendered
-		if (gl_ztrick.value && !gl_ztrickframe)
-			glDepthFunc (GL_LEQUAL);
-		else
-			glDepthFunc (GL_GEQUAL);
-
-		glDepthMask (GL_FALSE);	// don't bother writing Z
-	}
-
-	// draw a skybox or classic quake clouds
-	if (r_skyboxloaded)
-		R_DrawSkyBox ();
-	else
-		R_DrawSkyDome ();
-
-	if (!ignore_z) {
-		// back to normal Z test
-		if (gl_ztrick.value && !gl_ztrickframe)
-			glDepthFunc (GL_GEQUAL);
-		else
-			glDepthFunc (GL_LEQUAL);
-
-		glDepthMask (GL_TRUE);	// re-enable Z writes
-	}
-
-	skychain = NULL;
-}
-*/

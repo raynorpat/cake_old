@@ -22,19 +22,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_local.h"
 
 // if window is hidden, don't update screen
-int vid_hidden = false;
+int vid_hidden = true;
 // if window is not the active window, don't hog as much CPU time,
 // let go of the mouse, turn off sound, and restore system gamma ramps...
 int vid_activewindow = true;
 
-int current_vid_fullscreen;
-int current_vid_width;
-int current_vid_height;
-
-cvar_t vid_fullscreen = {"vid_fullscreen", "1"};
+cvar_t vid_fullscreen = {"vid_fullscreen", "0"};
 cvar_t vid_width = {"vid_width", "1024"};
 cvar_t vid_height = {"vid_height", "768"};
 
+int current_vid_fullscreen;
+int current_vid_width;
+int current_vid_height;
 extern int VID_InitMode (int fullscreen, int width, int height);
 int VID_Mode(int fullscreen, int width, int height)
 {
@@ -44,18 +43,30 @@ int VID_Mode(int fullscreen, int width, int height)
 		Com_Printf("Video: %dx%d windowed\n", width, height);
 
 	if (VID_InitMode(fullscreen, width, height))
+	{
+		current_vid_fullscreen = fullscreen;
+		current_vid_width = width;
+		current_vid_height = height;
+		Cvar_SetValue(&vid_fullscreen, fullscreen);
+		Cvar_SetValue(&vid_width, width);
+		Cvar_SetValue(&vid_height, height);
 		return true;
+	}
 	else
+	{
 		return false;
+	}
 }
 
-void VID_InitCvars(void)
+void VID_Shared_Init(void)
 {
 	int i;
 
 	Cvar_Register(&vid_fullscreen);
 	Cvar_Register(&vid_width);
 	Cvar_Register(&vid_height);
+
+	Cmd_AddCommand("vid_restart", VID_Restart_f);
 	
 	// interpret command-line parameters
 	if ((i = COM_CheckParm("-window")) != 0)
@@ -66,8 +77,59 @@ void VID_InitCvars(void)
 		Cvar_Set(&vid_width, com_argv[i+1]);
 	if ((i = COM_CheckParm("-height")) != 0)
 		Cvar_Set(&vid_height, com_argv[i+1]);
+}
 
-	current_vid_fullscreen = vid_fullscreen.value;
-	current_vid_width = vid_width.value;
-	current_vid_height = vid_height.value;
+static void VID_OpenSystems(void)
+{
+	R_Modules_Start();
+}
+
+static void VID_CloseSystems(void)
+{
+	R_Modules_Shutdown();
+}
+
+void VID_Restart_f(void)
+{
+	Com_Printf("VID_Restart: changing from %s %dx%d, to %s %dx%d.\n",
+		current_vid_fullscreen ? "fullscreen" : "window", current_vid_width, current_vid_height, 
+		vid_fullscreen.value ? "fullscreen" : "window", vid_width.value, vid_height.value);
+
+	VID_Close();
+	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
+	{
+		Com_Printf("Video mode change failed\n");
+		if (!VID_Mode(current_vid_fullscreen, current_vid_width, current_vid_height))
+			Sys_Error("Unable to restore to last working video mode\n");
+	}
+	VID_OpenSystems();
+
+	TexMgr_ReloadImages();
+}
+
+void VID_Open(void)
+{
+	Com_Printf("Starting video system\n");
+	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
+	{
+		Com_Printf("Desired video mode failed, trying fallbacks...\n");
+		if (vid_fullscreen.value)
+		{
+			if (!VID_Mode(true, 640, 480))
+				if (!VID_Mode(false, 640, 480))
+					Sys_Error("Video modes failed\n");
+		}
+		else
+		{
+			Sys_Error("Windowed video failed\n");
+		}
+	}
+
+	VID_OpenSystems();
+}
+
+void VID_Close(void)
+{
+	VID_CloseSystems();
+	VID_Shutdown();
 }
