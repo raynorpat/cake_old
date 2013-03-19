@@ -717,7 +717,7 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 		vid_isfullscreen = true;
 		WindowStyle = WS_POPUP;
-		ExWindowStyle = 0;
+		ExWindowStyle = WS_EX_TOPMOST;
 	}
 	else
 	{
