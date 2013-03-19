@@ -642,7 +642,7 @@ void VID_Init (void)
 	wc.cbClsExtra    = 0;
 	wc.cbWndExtra    = 0;
 	wc.hInstance     = global_hInstance;
-	wc.hIcon         = 0;
+	wc.hIcon         = hIcon;
 	wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wc.hbrBackground = NULL;
 	wc.lpszMenuName  = 0;
@@ -780,9 +780,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 	ShowWindow (mainwindow, SW_SHOWDEFAULT);
 	UpdateWindow (mainwindow);
 
-	SendMessage (mainwindow, WM_SETICON, (WPARAM)true, (LPARAM)hIcon);
-	SendMessage (mainwindow, WM_SETICON, (WPARAM)false, (LPARAM)hIcon);
-
 	VID_UpdateWindowStatus ();
 
 	// now we try to make sure we get the focus on the mode switch, because
@@ -862,6 +859,9 @@ void VID_Shutdown (void)
 {
 	HGLRC hRC = 0;
 	HDC hDC = 0;
+
+	if(!vid_initialized)
+		return;
 
 	vid_initialized = false;
 
