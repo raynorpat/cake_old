@@ -702,8 +702,7 @@ int FS_FOpenFile (char *filename, FILE **file)
 			if (!*file)
 				continue;
 			
-			if (developer.value)
-				Sys_Printf ("FindFile: %s\n",netpath);
+			Com_DPrintf ("FindFile: %s\n",netpath);
 
 			return COM_filelength (*file);
 		}
