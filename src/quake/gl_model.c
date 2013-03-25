@@ -580,7 +580,7 @@ void Mod_LoadLighting (lump_t *l)
 #endif
 
 	// LordHavoc's .lit support
-	if (!gl_loadlitfiles.value || !gl_colorlights.value)
+	if (!gl_loadlitfiles.value)
 		goto loadmono;
 
 	strlcpy (litname, loadmodel->name, sizeof(litname));

@@ -666,6 +666,26 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c)
 }
 //=============================================================================
 
+void R_LoadingScreen (void)
+{
+	float x, y;
+	mpic_t *pic;
+
+	// don't do anything if not initialized yet
+	if (vid_hidden)
+		return;
+
+	VID_GetWindowSize(&vid.realx, &vid.realy, &vid.realwidth, &vid.realheight);
+
+	// draw the loading plaque
+	pic = R_CachePic("gfx/loading.lmp");
+	x = (vid.width - pic->width)/2;
+	y = (vid.height - pic->height)/2;
+	R_DrawPic (x, y, pic );
+
+	// refresh
+	VID_Finish();
+}
 
 void R_FadeScreen (void)
 {

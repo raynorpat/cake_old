@@ -79,7 +79,6 @@ cvar_t	r_fastturb = {"r_fastturb", "0"};
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
 cvar_t	gl_clear = {"gl_clear","0"};
 cvar_t	gl_cull = {"gl_cull","1"};
-cvar_t	gl_texsort = {"gl_texsort","1"};
 cvar_t	gl_ztrick = {"gl_ztrick", "1"};
 cvar_t	gl_smoothmodels = {"gl_smoothmodels","1"};
 cvar_t	gl_affinemodels = {"gl_affinemodels","0"};
@@ -90,7 +89,6 @@ cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fb_depthhack = {"gl_fb_depthhack","1"};
 cvar_t	gl_fb_bmodels = {"gl_fb_bmodels","1"};
 cvar_t	gl_fb_models = {"gl_fb_models","1"};
-cvar_t	gl_colorlights = {"gl_colorlights","1"};
 cvar_t	gl_loadlitfiles = {"gl_loadlitfiles","1"};
 cvar_t	gl_lightmode = {"gl_lightmode","2"};
 cvar_t	gl_solidparticles = {"gl_solidparticles", "0"};
@@ -239,7 +237,7 @@ void R_DrawEntitiesOnList (void)
 	// draw sprites separately, because of alpha blending
 	if (draw_sprites)
 	{
-		GL_DisableMultitexture ();
+		GL_SelectTexture (GL_TEXTURE0_ARB);
 		glEnable (GL_ALPHA_TEST);
 //		glDepthMask (GL_FALSE);
 
@@ -618,7 +616,6 @@ void GL_Main_Init(void)
 
 	Cvar_Register (&gl_subdivide_size);
 	Cvar_Register (&gl_clear);
-	Cvar_Register (&gl_texsort);
 	Cvar_Register (&gl_cull);
 	Cvar_Register (&gl_ztrick);
 	Cvar_Register (&gl_smoothmodels);
@@ -630,14 +627,9 @@ void GL_Main_Init(void)
 	Cvar_Register (&gl_fb_depthhack);
 	Cvar_Register (&gl_fb_bmodels);
 	Cvar_Register (&gl_fb_models);
-	Cvar_Register (&gl_colorlights);
 	Cvar_Register (&gl_loadlitfiles);
 	Cvar_Register (&gl_lightmode);
 	Cvar_Register (&gl_solidparticles);
-
-	// assume gl_texsort 0 is faster if the card supports multitexture
-	if (gl_mtexable)
-		Cvar_SetValue (&gl_texsort, 0);
 
 	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
 }
@@ -681,7 +673,7 @@ void R_RenderScene (void)
 
 	R_DrawEntitiesOnList ();
 
-	GL_DisableMultitexture();
+	GL_SelectTexture(GL_TEXTURE0_ARB);
 }
 
 

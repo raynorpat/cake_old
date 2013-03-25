@@ -57,6 +57,7 @@ extern int vid_activewindow;
 extern cvar_t vid_fullscreen;
 extern cvar_t vid_width;
 extern cvar_t vid_height;
+extern cvar_t vid_vsync;
 
 void	VID_Shared_Init(void);
 
@@ -66,6 +67,9 @@ int		VID_Mode(int fullscreen, int width, int height);
 
 void	VID_Shutdown (void);
 // Called at shutdown
+
+void	VID_Finish (void);
+// Called at end of each frame
 
 void VID_GetWindowSize (int *x, int *y, int *width, int *height);
 

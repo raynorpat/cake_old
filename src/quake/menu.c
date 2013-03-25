@@ -1005,10 +1005,10 @@ void M_Fps_Key (int k)
 //=============================================================================
 /* VIDEO MENU */
 
-#define VIDEO_ITEMS 3
+#define VIDEO_ITEMS 4
 
 int video_cursor = 0;
-int video_cursor_table[] = {56, 68, 80};
+int video_cursor_table[] = {56, 68, 80, 100};
 // note: if modes are added to the beginning of this list, update the
 // video_resolution = x; in M_Menu_Video_f below
 unsigned short video_resolutions[][2] = {{320,240}, {400,300}, {512,384}, {640,480}, {800,600}, {1024,768}, {1152,864}, {1280,960}, {1280,1024}, {1600,1200}, {1792,1344}, {1920,1440}, {2048,1536}};
@@ -1061,6 +1061,10 @@ void M_Video_Draw (void)
 	// "Apply" button
 	M_PrintWhite(220, video_cursor_table[2], "Apply");
 
+	// Vertical Sync
+	M_Print(16, video_cursor_table[3], "         Vertical Sync");
+	M_DrawCheckbox(220, video_cursor_table[3], vid_vsync.value);
+
 	// cursor
 	M_DrawChar(200, video_cursor_table[video_cursor], 12+((int)(curtime*4)&1));
 }
@@ -1111,9 +1115,12 @@ void M_Video_Key (int key)
 			m_entersound = true;
 			switch (video_cursor)
 			{
-				case 4:
+				case 2:
 					Cbuf_AddText ("vid_restart\n");
 					M_Menu_Options_f ();
+					break;
+				case 3:
+					Cvar_SetValue (&vid_vsync, !vid_vsync.value);
 					break;
 				default:
 					M_Menu_Video_AdjustSliders (1);
@@ -1239,7 +1246,49 @@ void M_Quit_Key (int key)
 	default:
 		break;
 	}
+}
 
+
+void M_Quit_Draw (void)
+{
+	static char *quitmsg[] = {
+		"0" PROGRAM " " PROGRAM_VERSION,
+		"1based on QuakeWorld by Id Software",
+		"1",
+		"0Programming",
+		"1Anton 'Tonik' Gavrilov",
+		"1",
+		"0Additional Programming",
+		"1QuakeForge team",
+		"1Victor Luchits",
+		"1",
+		"0Id Software is not responsible for",
+		"0providing technical support for",
+		"0" PROGRAM ".",
+		"1NOTICE: The copyright and trademark",
+		"1 notices appearing  in your copy of",
+		"1Quake(r) are not modified by the use",
+		"1of " PROGRAM " and remain in full force.",
+		"0QuakeWorld(tm) is a trademark of",
+		"0Id Software, Inc.",
+		"0NIN(r) is a registered trademark",
+		"0licensed to Nothing Interactive, Inc.",
+		"0All rights reserved. Press y to exit",
+		NULL
+	};
+	char **p;
+	int x, y;
+
+	M_DrawTextBox (0, 0, 38, 23);
+	y = 12;
+	for (p = quitmsg; *p; p++, y += 8)
+	{
+		x = 16 + (36 - (strlen(*p + 1))) * 4;
+		if (**p == '0')
+			M_PrintWhite (x, y, *p + 1);
+		else
+			M_Print (x, y,	*p + 1);
+	}
 }
 
 //=============================================================================
@@ -2570,49 +2619,6 @@ void M_Setup_Key (int k)
 	if (setup_bottom < 0)
 		setup_bottom = 13;
 }
-
-
-void M_Quit_Draw (void)
-{
-	static char *quitmsg[] = {
-	"0" PROGRAM " " PROGRAM_VERSION,
-	"1based on QuakeWorld by Id Software",
-	"1",
-	"0Programming",
-	"1Anton 'Tonik' Gavrilov",
-	"1",
-	"0Additional Programming",
-	"1QuakeForge team",
-	"1Victor Luchits",
-	"1",
-	"0Id Software is not responsible for",
-    "0providing technical support for",
-	"0" PROGRAM ".",
-	"1NOTICE: The copyright and trademark",
-	"1 notices appearing  in your copy of",
-	"1Quake(r) are not modified by the use",
-	"1of " PROGRAM " and remain in full force.",
-	"0QuakeWorld(tm) is a trademark of",
-	"0Id Software, Inc.",
-	"0NIN(r) is a registered trademark",
-	"0licensed to Nothing Interactive, Inc.",
-	"0All rights reserved. Press y to exit",
-	NULL};
-	char **p;
-	int x, y;
-
-	M_DrawTextBox (0, 0, 38, 23);
-	y = 12;
-	for (p = quitmsg; *p; p++, y += 8)
-	{
-		x = 16 + (36 - (strlen(*p + 1))) * 4;
-		if (**p == '0')
-			M_PrintWhite (x, y, *p + 1);
-		else
-			M_Print (x, y,	*p + 1);
-	}
-}
-
 
 
 //=============================================================================

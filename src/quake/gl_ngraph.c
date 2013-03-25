@@ -99,7 +99,7 @@ void R_NetGraph (void)
 	
     GL_Bind(netgraphtexture);
 
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
 		GL_UNSIGNED_BYTE, ngraph_pixels);
 

@@ -12,7 +12,6 @@ LOAD / SAVE GAME
 // hmm...
 extern int CL_Stat_Monsters(void), CL_Stat_TotalMonsters(void);
 extern int CL_IntermissionRunning (void);
-extern qbool scr_disabled_for_loading;
 
 #define	SAVEGAME_COMMENT_LENGTH	39
 #define	SAVEGAME_VERSION	6
@@ -161,7 +160,6 @@ void SV_LoadGame_f (void)
 	int		entnum;
 	int		version;
 	float	spawn_parms[NUM_SPAWN_PARMS];
-	qbool	save_disabled_for_loading;
 
 	if (Cmd_Argc() != 2) {
 		Com_Printf ("load <savename> : load a game\n");
@@ -206,12 +204,7 @@ void SV_LoadGame_f (void)
 	fscanf (f, "%s\n",mapname);
 	fscanf (f, "%f\n",&time);
 
-	save_disabled_for_loading = scr_disabled_for_loading;
-
 	Host_EndGame ();
-
-	// Host_EndGame disables the loading plaque, restore it
-	scr_disabled_for_loading = save_disabled_for_loading;
 
 	CL_BeginLocalConnection ();
 

@@ -404,36 +404,24 @@ void R_DrawAliasModel (entity_t *ent)
 		glDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
 
-	if (fb_texture && gl_mtexfbskins) {
+	if (fb_texture) {
 		GL_SelectTexture (GL_TEXTURE0_ARB);
 		GL_Bind (texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-		GL_EnableMultitexture ();
+		GL_SelectTexture (GL_TEXTURE1_ARB);
 		GL_Bind (fb_texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
 
 		R_SetupAliasFrame (ent->frame, paliashdr, true);
-
-		GL_DisableMultitexture ();
 	}
 	else
 	{
-		GL_DisableMultitexture();
+		GL_SelectTexture (GL_TEXTURE0_ARB);
 		GL_Bind (texture->texnum);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		R_SetupAliasFrame (ent->frame, paliashdr, false);
-
-		if (fb_texture) {
-			glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			glEnable (GL_BLEND);
-			GL_Bind (fb_texture->texnum);
-
-			R_SetupAliasFrame (ent->frame, paliashdr, false);
-
-			glDisable (GL_BLEND);
-		}
 	}
 
 	if (ent->renderfx & RF_WEAPONMODEL)

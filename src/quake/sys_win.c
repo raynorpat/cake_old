@@ -35,9 +35,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MINIMUM_WIN_MEMORY	0x0c00000
 #define MAXIMUM_WIN_MEMORY	0x1000000
 
-#define PAUSE_SLEEP		50				// sleep time on pause or minimization
-#define NOT_FOCUS_SLEEP	20				// sleep time when not focus
-
 qbool		WinNT;
 
 #ifndef SERVERONLY
@@ -126,10 +123,8 @@ void Sys_Printf (char *fmt, ...)
 	char		text[1024];
 	DWORD		dummy;
 
-#ifndef AGRIP
 	if (!dedicated)
 		return;
-#endif
 
 	va_start (argptr,fmt);
 	_vsnprintf (text, sizeof(text) - 1, fmt, argptr);
@@ -137,17 +132,6 @@ void Sys_Printf (char *fmt, ...)
 	va_end (argptr);
 
 	WriteFile (houtput, text, strlen(text), &dummy, NULL);
-
-#ifdef AGRIP
-{
-	unsigned char *p = NULL;
-	for (p = (unsigned char *)text; *p; p++) {
-		if (!((*p > 128 || *p < 32) && *p != 10 && *p != 13 && *p != 9))
-			putc(*p, stdout);
-	}
-	fflush(stdout);
-}
-#endif
 }
 
 void Sys_Quit (void)
@@ -344,9 +328,6 @@ void Sys_SendKeyEvents (void)
 
 	while (PeekMessage (&msg, NULL, 0, 0, PM_NOREMOVE))
 	{
-	// we always update if there are any event, even if we're paused
-		scr_skipupdate = 0;
-
 		if (!GetMessage (&msg, NULL, 0, 0))
 			Host_Quit ();
       	TranslateMessage (&msg);
@@ -508,11 +489,6 @@ void ParseCommandLine (char *lpCmdLine)
 	}
 }
 
-void SleepUntilInput (int time)
-{
-	MsgWaitForMultipleObjects (1, &tevent, FALSE, time, QS_ALLINPUT);
-}
-
 
 /*
 ==================
@@ -604,22 +580,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     /* main window message loop */
 	while (1)
 	{
-	// yield the CPU for a little while when paused, minimized, or not the focus
-		if (dedicated)
-		{
-			NET_Sleep (1);
-		}
-		else
-		{
-			if ((cl.paused && !vid_activewindow) || vid_hidden || block_drawing)
-			{
-				SleepUntilInput (PAUSE_SLEEP);
-				scr_skipupdate = 1;		// no point in bothering to draw
-			}
-			else if (!vid_activewindow)
-				SleepUntilInput (NOT_FOCUS_SLEEP);
-		}
-
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 		Host_Frame (time);

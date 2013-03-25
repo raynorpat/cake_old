@@ -46,10 +46,12 @@ static qbool	vid_initialized = false;
 static qbool	vid_canalttab = false;
 static qbool	vid_wassuspended = false;
 static int		windowed_mouse;
-extern qbool	in_mouseactive;  // from in_win.c
 
 static HICON	hIcon;
-HWND mainwindow;
+
+HWND			mainwindow;
+static HDC		baseDC;
+static HGLRC	baseRC;
 
 static int vid_isfullscreen;
 
@@ -57,8 +59,6 @@ float vid_gamma = 1.0;
 
 cvar_t	gl_strings = {"gl_strings", "", CVAR_ROM};
 cvar_t	vid_hwgammacontrol = {"vid_hwgammacontrol","1"};
-cvar_t	gl_swapinterval = {"gl_swapinterval", "1"};
-cvar_t	gl_ext_swapinterval = {"gl_ext_swapinterval", "1"};
 
 cvar_t	m_filter = {"m_filter", "0"};
 cvar_t	in_dinput = {"in_dinput", "1", CVAR_ARCHIVE};
@@ -79,13 +79,6 @@ void AppActivate(BOOL fActive, BOOL minimize);
 
 void GL_Init (void);
 
-typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
-lp3DFXFUNC glColorTableEXT;
-qbool is8bit = false;
-qbool isPermedia = false;
-qbool gl_mtexable = false;
-qbool gl_mtexfbskins = false;
-
 //====================================
 
 cvar_t		_windowed_mouse = {"_windowed_mouse","0",CVAR_ARCHIVE};
@@ -105,8 +98,9 @@ static void IN_StartupMouse (void);
 static void IN_StartupJoystick (void);;
 static void IN_LoadKeys_f (void);
 
-qbool mouseinitialized;
-static qbool dinput;
+qbool			mouseactive;
+qbool			mouseinitialized;
+static qbool	dinput;
 
 /*
 ================
@@ -129,7 +123,7 @@ void VID_UpdateWindowStatus (void)
 	window_center_x = window_x + window_width / 2;
 	window_center_y = window_y + window_height / 2;
 
-	if (mouseinitialized && in_mouseactive && !dinput)
+	if (mouseinitialized && mouseactive && !dinput)
 	{
 		RECT window_rect;
 		window_rect.left = window_x;
@@ -163,31 +157,14 @@ void CheckMultiTextureExtensions (void)
 		if (!qglMultiTexCoord2f || !qglActiveTexture)
 			return;
 		Com_Printf ("Multitexture extensions found.\n");
-		gl_mtexable = true;
 	}
-
-	if (gl_mtexable && !COM_CheckParm("-nomtexfbskins"))
-		gl_mtexfbskins = true;
 }
 
 BOOL ( WINAPI * qwglSwapIntervalEXT)( int interval ) = NULL;
-
 void CheckSwapIntervalExtension (void)
 {
-	if (gl_ext_swapinterval.value && strstr(gl_extensions, "WGL_EXT_swap_control")) {
+	if (strstr(gl_extensions, "WGL_EXT_swap_control")) {
 		qwglSwapIntervalEXT = (void *) wglGetProcAddress("wglSwapIntervalEXT");
-	}
-}
-
-void UpdateSwapInterval (void)
-{
-	static float old_gl_swapinterval = 0;
-
-	if (qwglSwapIntervalEXT) {
-		if (gl_swapinterval.value != old_gl_swapinterval) {
-			old_gl_swapinterval = gl_swapinterval.value;
-			qwglSwapIntervalEXT (gl_swapinterval.value != 0);
-		}
 	}
 }
 
@@ -210,9 +187,6 @@ void GL_Init (void)
 	Cvar_Register (&gl_strings);
 	Cvar_ForceSet (&gl_strings, va("GL_VENDOR: %s\nGL_RENDERER: %s\n"
 		"GL_VERSION: %s\nGL_EXTENSIONS: %s", gl_vendor, gl_renderer, gl_version, gl_extensions));
-
-    if (strnicmp(gl_renderer,"Permedia",8)==0)
-         isPermedia = true;
 
 	CheckMultiTextureExtensions ();
 	CheckSwapIntervalExtension ();
@@ -238,10 +212,9 @@ void GL_Init (void)
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 }
 
-
-void GL_EndRendering (void)
+void VID_Finish (void)
 {
-	HDC hdc;
+	static int old_vsync = -1;
 
 	/*
 	static qbool old_hwgamma_enabled;
@@ -256,14 +229,17 @@ void GL_EndRendering (void)
 	}
 	*/
 
-	UpdateSwapInterval ();
+	if (old_vsync != vid_vsync.value)
+	{
+		old_vsync = bound(0, vid_vsync.value, 1);
+		Cvar_SetValue(&vid_vsync, old_vsync);
+		qwglSwapIntervalEXT (old_vsync);
+	}
 
-	if (!scr_skipupdate || block_drawing)
+	if (!vid_hidden)
 	{
 		glFinish();
-		hdc = GetDC(mainwindow);
-		SwapBuffers(hdc);
-		ReleaseDC(mainwindow, hdc);
+		SwapBuffers(baseDC);
 	}
 
 // handle the mouse state when windowed if that's changed
@@ -277,10 +253,10 @@ void GL_EndRendering (void)
 			}
 		} else {
 			windowed_mouse = true;
-			if (key_dest == key_game && !in_mouseactive && vid_activewindow) {
+			if (key_dest == key_game && !mouseactive && vid_activewindow) {
 				IN_ActivateMouse ();
 				IN_HideMouse ();
-			} else if (in_mouseactive && key_dest != key_game) {
+			} else if (mouseactive && key_dest != key_game) {
 				IN_DeactivateMouse ();
 				IN_ShowMouse ();
 			}
@@ -624,8 +600,6 @@ void VID_Init (void)
 	Cvar_Register (&_windowed_mouse);
 	Cvar_Register (&vid_hwgammacontrol);
 	Cvar_Register (&vid_displayfrequency);
-	Cvar_Register (&gl_swapinterval);
-	Cvar_Register (&gl_ext_swapinterval);
 
 	Cvar_Register (&m_filter);
 	Cvar_Register (&in_dinput);
@@ -683,7 +657,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 	};
 	int pixelformat;
 	DWORD WindowStyle, ExWindowStyle;
-	HGLRC baseRC;
 	int CenterX, CenterY;
 
 	if (vid_initialized)
@@ -691,7 +664,8 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 	memset(&gdevmode, 0, sizeof(gdevmode));
 
-	if (hwnd_dialog) {
+	if (hwnd_dialog)
+	{
 		DestroyWindow (hwnd_dialog);
 		hwnd_dialog = NULL;
 	}
@@ -772,11 +746,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 		return false;
 	}
 
-	/*
-	if (!fullscreen)
-		SetWindowPos (mainwindow, NULL, CenterX, CenterY, 0, 0,SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_DRAWFRAME);
-	*/
-
 	ShowWindow (mainwindow, SW_SHOWDEFAULT);
 	UpdateWindow (mainwindow);
 
@@ -809,37 +778,35 @@ int VID_InitMode (int fullscreen, int width, int height)
 	vid.height = height;
 	vid.numpages = 2;
 	
-	hdc = GetDC(mainwindow);
+	baseDC = GetDC(mainwindow);
 
-	if ((pixelformat = ChoosePixelFormat(hdc, &pfd)) == 0)
+	if ((pixelformat = ChoosePixelFormat(baseDC, &pfd)) == 0)
 	{
 		VID_Shutdown();
-		Com_Printf("ChoosePixelFormat(%d, %p) failed\n", hdc, &pfd);
+		Com_Printf("ChoosePixelFormat(%d, %p) failed\n", baseDC, &pfd);
 		return false;
 	}
 
-	if (SetPixelFormat(hdc, pixelformat, &pfd) == false)
+	if (SetPixelFormat(baseDC, pixelformat, &pfd) == false)
 	{
 		VID_Shutdown();
-		Com_Printf("SetPixelFormat(%d, %d, %p) failed\n", hdc, pixelformat, &pfd);
+		Com_Printf("SetPixelFormat(%d, %d, %p) failed\n", baseDC, pixelformat, &pfd);
 		return false;
 	}
 	
-	baseRC = wglCreateContext(hdc);
+	baseRC = wglCreateContext(baseDC);
 	if (!baseRC)
 	{
 		VID_Shutdown();
 		Com_Printf("Could not initialize GL (wglCreateContext failed).\n\nMake sure you are in 65536 color mode, and try running -window.\n");
 		return false;
 	}
-	if (!wglMakeCurrent(hdc, baseRC))
+	if (!wglMakeCurrent(baseDC, baseRC))
 	{
 		VID_Shutdown();
-		Com_Printf("wglMakeCurrent(%d, %d) failed\n", hdc, baseRC);
+		Com_Printf("wglMakeCurrent(%d, %d) failed\n", baseDC, baseRC);
 		return false;
 	}
-
-	ReleaseDC(mainwindow, hdc);
 
 	GL_Init ();
 
@@ -857,9 +824,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 void VID_Shutdown (void)
 {
-	HGLRC hRC = 0;
-	HDC hDC = 0;
-
 	if(!vid_initialized)
 		return;
 
@@ -868,19 +832,14 @@ void VID_Shutdown (void)
 	IN_DeactivateMouse ();
 	IN_ShowMouse ();
 
-	if (wglGetCurrentContext)
-		hRC = wglGetCurrentContext();
-	if (wglGetCurrentDC)
-		hDC = wglGetCurrentDC();
-
 	if (wglMakeCurrent)
 		wglMakeCurrent(NULL, NULL);
 
-	if (hRC && wglDeleteContext)
-		wglDeleteContext(hRC);
+	if (baseRC && wglDeleteContext)
+		wglDeleteContext(baseRC);
 
-	if (hDC && mainwindow)
-		ReleaseDC(mainwindow, hDC);
+	if (baseDC && mainwindow)
+		ReleaseDC(mainwindow, baseDC);
 
 	AppActivate(false, false);
 
@@ -897,8 +856,7 @@ void VID_Shutdown (void)
 static int		mouse_buttons = 0;
 static int		mouse_oldbuttonstate = 0;
 static POINT	current_pos;
-static double	mouse_x = 0.0, mouse_y = 0.0;
-static int		old_mouse_x = 0, old_mouse_y = 0;
+static int		mouse_x = 0, mouse_y = 0, old_mouse_x = 0, old_mouse_y = 0;
 
 static qbool	restore_spi = false;
 static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
@@ -906,8 +864,6 @@ static qbool	mouseparmsvalid = false, mouseactivatetoggle = false;
 static qbool	mouseshowtoggle = true;
 static qbool	dinput_acquired = false;
 static unsigned int		mstate_di = (unsigned int)0;
-
-qbool			in_mouseactive = false;
 
 // joystick defines and variables
 // where should defines be moved?
@@ -1097,7 +1053,7 @@ void IN_ActivateMouse (void)
 			ClipCursor (&window_rect);
 		}
 
-		in_mouseactive = true;
+		mouseactive = true;
 	}
 }
 
@@ -1146,7 +1102,7 @@ void IN_DeactivateMouse (void)
 		ReleaseCapture ();
 	}
 
-		in_mouseactive = false;
+		mouseactive = false;
 	}
 }
 
@@ -1346,7 +1302,7 @@ void IN_MouseEvent (int mstate)
 {
 	int		i;
 
-	if (in_mouseactive && !dinput)
+	if (mouseactive && !dinput)
 	{
 	// perform button actions
 		for (i=0 ; i<mouse_buttons ; i++)
@@ -1382,7 +1338,7 @@ static void IN_MouseMove (usercmd_t *cmd)
 	DWORD				dwElements;
 	HRESULT				hr;
 
-	if (!in_mouseactive)
+	if (!mouseactive)
 		return;
 
 	if (dinput)

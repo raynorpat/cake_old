@@ -37,16 +37,12 @@ extern	float	scr_conlines;		// lines of console to display
 extern	int		sb_lines;
 
 extern	int		clearnotify;	// set to 0 whenever notify text is drawn
-extern	qbool	scr_disabled_for_loading;
 
 extern	cvar_t	scr_viewsize;
 
 // only the refresh window will be updated unless these variables are flagged 
 extern	int		scr_copytop;
 extern	int		scr_copyeverything;
-
-extern qbool	scr_skipupdate;
-extern qbool	block_drawing;
 
 #endif /* _CL_SCREEN_H_ */
 

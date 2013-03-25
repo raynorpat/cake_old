@@ -30,6 +30,7 @@ int vid_activewindow = true;
 cvar_t vid_fullscreen = {"vid_fullscreen", "0"};
 cvar_t vid_width = {"vid_width", "1024"};
 cvar_t vid_height = {"vid_height", "768"};
+cvar_t vid_vsync = {"vid_vsync", "1", CVAR_ARCHIVE};
 
 int current_vid_fullscreen;
 int current_vid_width;
@@ -65,6 +66,7 @@ void VID_Shared_Init(void)
 	Cvar_Register(&vid_fullscreen);
 	Cvar_Register(&vid_width);
 	Cvar_Register(&vid_height);
+	Cvar_Register(&vid_vsync);
 
 	Cmd_AddCommand("vid_restart", VID_Restart_f);
 	

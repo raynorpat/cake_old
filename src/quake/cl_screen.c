@@ -125,13 +125,6 @@ viddef_t	vid;				// global video state
 
 vrect_t		scr_vrect;
 
-qbool		scr_skipupdate;
-
-qbool		scr_drawloading;
-qbool		scr_disabled_for_loading;
-float		scr_disabled_time;
-
-qbool		block_drawing;
 
 /*
 ===============================================================================
@@ -647,63 +640,28 @@ void SCR_DrawPause (void)
 #endif
 
 	pic = R_CachePic ("gfx/pause.lmp");
-	R_DrawPic ( (vid.width - pic->width)/2, 
-		(vid.height - 48 - pic->height)/2, pic);
-}
-
-
-/*
-==============
-SCR_DrawLoading
-==============
-*/
-void SCR_DrawLoading (void)
-{
-	mpic_t  *pic;
-
-	if (!scr_drawloading)
-		return;
-		
-	pic = R_CachePic ("gfx/loading.lmp");
-	R_DrawPic ( (vid.width - pic->width)/2, 
-		(vid.height - 48 - pic->height)/2, pic);
+	R_DrawPic ( (vid.width - pic->width)/2, (vid.height - 48 - pic->height)/2, pic);
 }
 
 
 /*
 ===============
 SCR_BeginLoadingPlaque
-
 ================
 */
 void SCR_BeginLoadingPlaque (void)
 {
-	if (cls.state != ca_active)
-		return;
-	if (key_dest == key_console)
-		return;
-
-// redraw with no console and the loading plaque
-	scr_fullupdate = 0;
-	scr_drawloading = true;
-	SCR_UpdateScreen ();
-	scr_drawloading = false;
-
-	scr_disabled_for_loading = true;
-	scr_disabled_time = cls.realtime;
-	scr_fullupdate = 0;
+	S_StopAllSounds (true);
+	R_LoadingScreen();
 }
 
 /*
 ===============
 SCR_EndLoadingPlaque
-
 ================
 */
 void SCR_EndLoadingPlaque (void)
 {
-	scr_disabled_for_loading = false;
-	scr_fullupdate = 0;
 }
 
 
@@ -720,14 +678,13 @@ void SCR_RunConsole (void)
 	Con_CheckResize ();
 
 	// decide on the height of the console
-	if (scr_disabled_for_loading)
-		scr_conlines = 0;
-	else if (cls.state != ca_active && !cl.intermission)
+	if (cls.state != ca_active && !cl.intermission)
 	{
 		scr_conlines = vid.height;		// full screen
 		scr_con_current = scr_conlines;
 	}
-	else if (key_dest == key_console) {
+	else if (key_dest == key_console)
+	{
 		scr_conlines = vid.height * scr_consize.value;
 		if (scr_conlines < 30)
 			scr_conlines = 30;
@@ -881,16 +838,8 @@ void SCR_UpdateScreen (void)
 	if (!scr_initialized)
 		return;
 
-	if (scr_skipupdate || block_drawing)
+	if (vid_hidden)
 		return;
-
-	if (scr_disabled_for_loading)
-	{
-		if (cls.realtime - scr_disabled_time > 20)
-			scr_disabled_for_loading = false;
-		else
-			return;
-	}
 
 	vid.numpages = 2 + gl_triplebuffer.value;
 
@@ -927,50 +876,42 @@ void SCR_UpdateScreen (void)
 	if (r_netgraph.value)
 		R_NetGraph ();
 
-	if (scr_drawloading)
+	if (cl.intermission == 1 && key_dest != key_menu)
 	{
-		SCR_DrawLoading ();
-		if (!cl.intermission)
-			Sbar_Draw ();
+		Sbar_IntermissionOverlay ();
+		Con_ClearNotify ();
 	}
-	else
+	else if (cl.intermission == 2 && key_dest != key_menu)
 	{
-		if (cl.intermission == 1 && key_dest != key_menu)
-		{
-			Sbar_IntermissionOverlay ();
-			Con_ClearNotify ();
-		}
-		else if (cl.intermission == 2 && key_dest != key_menu)
-		{
-			Sbar_FinaleOverlay ();
-			SCR_CheckDrawCenterString ();
-			Con_ClearNotify ();
-		}
+		Sbar_FinaleOverlay ();
+		SCR_CheckDrawCenterString ();
+		Con_ClearNotify ();
+	}
 		
-		if (cls.state == ca_active)
+	if (cls.state == ca_active)
+	{
+		SCR_DrawRam ();
+		SCR_DrawNet ();
+		SCR_DrawTurtle ();
+		SCR_DrawPause ();
+		if (!cl.intermission)
 		{
-			SCR_DrawRam ();
-			SCR_DrawNet ();
-			SCR_DrawTurtle ();
-			SCR_DrawPause ();
-			if (!cl.intermission) {
-				if (key_dest != key_menu)
-					Draw_Crosshair ();
-				SCR_CheckDrawCenterString ();
-				SCR_DrawSpeed ();
-				SCR_DrawClock ();
-				SCR_DrawFPS ();
-				Sbar_Draw ();
-			}
+			if (key_dest != key_menu)
+				Draw_Crosshair ();
+			SCR_CheckDrawCenterString ();
+			SCR_DrawSpeed ();
+			SCR_DrawClock ();
+			SCR_DrawFPS ();
+			Sbar_Draw ();
 		}
-	
-		SCR_DrawConsole ();	
-		M_Draw ();
 	}
+	
+	SCR_DrawConsole ();	
+	M_Draw ();
 
 	R_BrightenScreen ();
 
 	V_UpdatePalette ();
 
-	GL_EndRendering ();
+	VID_Finish ();
 }

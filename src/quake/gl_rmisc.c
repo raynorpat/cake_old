@@ -52,9 +52,7 @@ void R_TranslatePlayerSkin (int playernum)
 	extern	byte		player_8bit_texels[320*200];
 	char s[512];
 
-	GL_DisableMultitexture();
-
-	player = &cl.players[playernum];
+	GL_SelectTexture (GL_TEXTURE0_ARB);	player = &cl.players[playernum];
 	if (!player->name[0])
 		return;
 
@@ -186,7 +184,7 @@ void R_TranslatePlayerSkin (int playernum)
 				}
 			}
 
-			glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 
+			glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 				scaled_width, scaled_height, 0, GL_RGBA, 
 				GL_UNSIGNED_BYTE, pixels);
 
@@ -269,7 +267,7 @@ void R_TimeRefresh_f (void)
 	Com_Printf ("%f seconds (%f fps)\n", time, 128/time);
 
 	glDrawBuffer  (GL_BACK);
-	GL_EndRendering ();
+	VID_Finish ();
 }
 
 void D_FlushCaches (void)

@@ -34,8 +34,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <GL/gl.h>
 #endif
 
-void GL_EndRendering (void);
-
 extern	float	gldepthmin, gldepthmax;
 
 #define ALIAS_BASE_SIZE_RATIO	(1.0 / 11.0) // normalizing factor so player model works out to about 1 pixel per triangle
@@ -95,7 +93,6 @@ extern	cvar_t	r_skycolor;
 extern	cvar_t	gl_subdivide_size;
 extern	cvar_t	gl_clear;
 extern	cvar_t	gl_cull;
-extern	cvar_t	gl_texsort;
 extern	cvar_t	gl_smoothmodels;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_polyblend;
@@ -104,7 +101,6 @@ extern	cvar_t	gl_finish;
 extern	cvar_t	gl_fb_depthhack;
 extern	cvar_t	gl_fb_bmodels;
 extern	cvar_t	gl_fb_models;
-extern	cvar_t	gl_colorlights;
 extern	cvar_t	gl_loadlitfiles;
 extern	cvar_t	gl_contrast;
 extern	cvar_t	gl_gamma;
@@ -112,10 +108,6 @@ extern	cvar_t	gl_lightmode;
 extern	cvar_t	gl_solidparticles;
 
 extern	int		lightmode;		// set to gl_lightmode on mapchange
-
-extern	int		gl_lightmap_format;
-extern	int		gl_solid_format;
-extern	int		gl_alpha_format;
 
 extern	cvar_t	gl_playermip;
 
@@ -142,12 +134,6 @@ extern lpMTexFUNC qglMultiTexCoord2f;
 extern lpSelTexFUNC qglActiveTexture;
 #endif
 
-extern qbool gl_mtexable;
-extern qbool gl_mtexfbskins;
-
-void GL_DisableMultitexture(void);
-void GL_EnableMultitexture(void);
-
 //
 // gl_texture.c
 //
@@ -164,6 +150,8 @@ void GL_EnableMultitexture(void);
 #define TEXPREF_CONCHARS		0x0200	// use conchars palette
 
 enum srcformat {SRC_INDEXED, SRC_LIGHTMAP, SRC_RGBA};
+
+#define	MAX_GLTEXTURES			1024
 
 typedef struct gltexture_s
 {

@@ -25,13 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t	gl_picmip = {"gl_picmip", "0"};
 
-int		gl_lightmap_format = 4;
-int		gl_solid_format = 3;
-int		gl_alpha_format = 4;
-
 int		gl_hardware_maxsize;
 
-#define	MAX_GLTEXTURES	1024
 gltexture_t	*active_gltextures, *free_gltextures;
 int		numgltextures;
 
@@ -42,7 +37,6 @@ unsigned	d_8to24table[256];
 //====================================================================
 
 int	currenttexture = -1;
-qbool	mtexenabled = false;
 
 #ifdef _WIN32
 lpMTexFUNC qglMultiTexCoord2f = NULL;
@@ -80,24 +74,6 @@ void GL_SelectTexture (GLenum target)
 	}
 
 	currenttarget = target;
-}
-
-void GL_DisableMultitexture (void)
-{
-	if (mtexenabled) {
-		glDisable (GL_TEXTURE_2D);
-		GL_SelectTexture (GL_TEXTURE0_ARB);
-		mtexenabled = false;
-	}
-}
-
-void GL_EnableMultitexture (void)
-{
-	if (gl_mtexable) {
-		GL_SelectTexture (GL_TEXTURE1_ARB);
-		glEnable (GL_TEXTURE_2D);
-		mtexenabled = true;
-	}
 }
 
 //====================================================================
@@ -274,7 +250,7 @@ gltexture_t *TexMgr_NewTexture (void)
 	glt->next = active_gltextures;
 	active_gltextures = glt;
 
-	glGenTextures(1, &glt->texnum);
+	glGenTextures (1, (GLuint *) &glt->texnum);
 	numgltextures++;
 	return glt;
 }
@@ -291,13 +267,13 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 	if (kill == NULL)
 		return;
 
-	glDeleteTextures(1, &kill->texnum);
-
 	if (active_gltextures == kill)
 	{
 		active_gltextures = kill->next;
 		kill->next = free_gltextures;
 		free_gltextures = kill;
+
+		glDeleteTextures (1, (const GLuint *) &kill->texnum);
 		numgltextures--;
 		return;
 	}
@@ -309,6 +285,8 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 			glt->next = kill->next;
 			kill->next = free_gltextures;
 			free_gltextures = kill;
+
+			glDeleteTextures (1, (const GLuint *) &kill->texnum);
 			numgltextures--;
 			return;
 		}
@@ -324,38 +302,14 @@ compares each bit in "flags" to the one in glt->flags only if that bit is active
 */
 void TexMgr_FreeTextures (int flags, int mask)
 {
-	gltexture_t *glt, *kill;
+	gltexture_t *glt, *next;
 
-	// clear out the front of the list
-	while (active_gltextures && (active_gltextures->flags & mask) == (flags & mask))
+	for (glt = active_gltextures; glt; glt = next)
 	{
-		kill = active_gltextures;
+		next = glt->next;
 
-		numgltextures--;
-		glDeleteTextures(1, &kill->texnum);
-
-		active_gltextures = active_gltextures->next;
-		kill->next = free_gltextures;
-		free_gltextures = kill;
-	}
-
-	// clear out the rest of the list (if any are left)
-	for (glt = active_gltextures; glt; )
-	{
-		kill = glt->next;
-		if (kill && (kill->flags & mask) == (flags & mask))
-		{
-			numgltextures--;
-			glDeleteTextures(1, &kill->texnum);
-
-			glt->next = kill->next;
-			kill->next = free_gltextures;
-			free_gltextures = kill;
-		}
-		else
-		{
-			glt = glt->next;
-		}
+		if ((glt->flags & mask) == (flags & mask))
+			TexMgr_FreeTexture (glt);
 	}
 }
 
@@ -366,38 +320,14 @@ TexMgr_FreeTexturesForOwner
 */
 void TexMgr_FreeTexturesForOwner (model_t *owner)
 {
-	gltexture_t *glt, *kill;
+	gltexture_t *glt, *next;
 
-	//clear out the front of the list
-	while (active_gltextures && active_gltextures->owner == owner)
+	for (glt = active_gltextures; glt; glt = next)
 	{
-		kill = active_gltextures;
+		next = glt->next;
 
-		numgltextures--;
-		glDeleteTextures(1, &kill->texnum);
-
-		active_gltextures = active_gltextures->next;
-		kill->next = free_gltextures;
-		free_gltextures = kill;
-	}
-
-	//clear out the rest of the list (if any are left)
-	for (glt = active_gltextures; glt; )
-	{
-		kill = glt->next;
-		if (kill && kill->owner == owner)
-		{
-			numgltextures--;
-			glDeleteTextures(1, &kill->texnum);
-
-			glt->next = kill->next;
-			kill->next = free_gltextures;
-			free_gltextures = kill;
-		}
-		else
-		{
-			glt = glt->next;
-		}
+		if (glt && glt->owner == owner)
+			TexMgr_FreeTexture (glt);
 	}
 }
 
@@ -662,10 +592,8 @@ handles 32bit source data
 */
 void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 {
-	int	internalformat;
-
 	// resample up
-	data = TexMgr_ResampleTexture (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA);
+	data = TexMgr_ResampleTexture (data, glt->width, glt->height, (glt->flags & TEXPREF_ALPHA));
 	glt->width = TexMgr_Pad(glt->width);
 	glt->height = TexMgr_Pad(glt->height);
 
@@ -679,8 +607,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 
 	// upload
 	GL_Bind (glt->texnum);
-	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
-	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
@@ -697,7 +624,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 			mipwidth = max (mipwidth>>1, 1);
 			mipheight = max (mipheight>>1, 1);
 
-			glTexImage2D (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 	}
 	
@@ -766,7 +693,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 							   byte *data, char *source_file, unsigned source_offset, unsigned flags)
 {
 	unsigned short crc;
-	gltexture_t *glt;
+	gltexture_t *glt = NULL;
 	int mark;
 
 	// cache check
@@ -879,7 +806,7 @@ void TexMgr_ReloadImages (void)
 
 	for (glt=active_gltextures; glt; glt=glt->next)
 	{
-		glGenTextures(1, &glt->texnum);
+		glGenTextures (1, (GLuint *) &glt->texnum);
 		TexMgr_ReloadImage (glt);
 	}
 }

@@ -327,7 +327,7 @@ will have them chained together.
 */
 void EmitBothSkyLayers (msurface_t *fa)
 {
-	GL_DisableMultitexture();
+	GL_SelectTexture (GL_TEXTURE0_ARB);
 
 	if (r_fastsky.value) {
 		glDisable (GL_TEXTURE_2D);
@@ -863,7 +863,7 @@ static void R_DrawSkyDome (void)
 {
 	int i;
 
-	GL_DisableMultitexture();
+	GL_SelectTexture (GL_TEXTURE0_ARB);
 	GL_Bind (solidskytexture->texnum);
 
 	speedscale = r_refdef2.time*8;
@@ -901,7 +901,7 @@ void R_DrawSky (void)
 	qbool		ignore_z;
 	extern msurface_t *skychain;
 
-	GL_DisableMultitexture ();
+	GL_SelectTexture (GL_TEXTURE0_ARB);
 
 	if (r_fastsky.value) {
 		glDisable (GL_TEXTURE_2D);
