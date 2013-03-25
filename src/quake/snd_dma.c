@@ -204,12 +204,7 @@ void S_Init (void)
 		Com_Printf ("sound initialization skipped\n");
 		return;
 	}
-
-	if (!snd_initialized && host_memsize < 0x800000) {
-		Cvar_Set (&s_loadas8bit, "1");
-		Com_Printf ("loading all sounds as 8bit\n");
-	}
-
+	
 	S_Startup ();
 
 	if (!sound_started)

@@ -22,18 +22,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SERVERONLY
 #include "common.h"
 #include <winsock.h>
-#include <limits.h>
-#include <direct.h>		// _mkdir
 #else
 #include "quakedef.h"
 #include "winquake.h"
 #include "msvc\resource.h"
+#endif
 #include <limits.h>
 #include <direct.h>		// _mkdir
-#endif
-
-#define MINIMUM_WIN_MEMORY	0x0c00000
-#define MAXIMUM_WIN_MEMORY	0x1000000
 
 #ifndef SERVERONLY
 static HANDLE	qwclsemaphore;
@@ -396,9 +391,7 @@ HWND		hwnd_dialog;	// startup dialog box
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-	int				memsize;
 	double			time, oldtime, newtime;
-	MEMORYSTATUS	lpBuffer;
 	RECT			rect;
 
 	global_hInstance = hInstance;
@@ -442,23 +435,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 
-	// take the greater of all the available memory or half the total memory,
-	// but at least 8 Mb and no more than 16 Mb, unless they explicitly
-	// request otherwise
-	lpBuffer.dwLength = sizeof(MEMORYSTATUS);
-	GlobalMemoryStatus (&lpBuffer);
-
-	memsize = lpBuffer.dwAvailPhys;
-
-	if (memsize < MINIMUM_WIN_MEMORY)
-		memsize = MINIMUM_WIN_MEMORY;
-
-	if (memsize < (lpBuffer.dwTotalPhys >> 1))
-		memsize = lpBuffer.dwTotalPhys >> 1;
-
-	if (memsize > MAXIMUM_WIN_MEMORY)
-		memsize = MAXIMUM_WIN_MEMORY;
-
 	tevent = CreateEvent (NULL, FALSE, FALSE, NULL);
 	if (!tevent)
 		Sys_Error ("Couldn't create event");
@@ -482,7 +458,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			"qwcl"); /* Semaphore name      */
 	}
 
-	Host_Init (argc, argv, memsize);
+	Host_Init (argc, argv);
 
 	oldtime = Sys_DoubleTime ();
 
@@ -516,7 +492,7 @@ int main (int argc, char **argv)
 	hinput = GetStdHandle (STD_INPUT_HANDLE);
 	houtput = GetStdHandle (STD_OUTPUT_HANDLE);
 
-	Host_Init (argc, argv, 16*1024*1024);
+	Host_Init (argc, argv);
 
 //
 // main loop

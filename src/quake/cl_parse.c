@@ -270,8 +270,6 @@ void CL_Prespawn (void)
 
 	TP_NewMap ();
 
-	Hunk_Check ();		// make sure nothing is hurt
-
 	CL_TransmitModelCrc (cl_playerindex, "pmodel");
 	CL_TransmitModelCrc (cl_eyesindex, "emodel");
 

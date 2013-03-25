@@ -21,66 +21,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define _ZONE_H_
 
 /*
- memory allocation
+================================================================
 
+memory allocation
 
-H_??? The hunk manages the entire memory block given to quake.  It must be
+================================================================
+
+The hunk manages the entire memory block given to quake.  It must be
 contiguous.  Memory can be allocated from either the low or high end in a
 stack fashion.  The only way memory is released is by resetting one of the
 pointers.
 
-Hunk allocations should be given a name, so the Hunk_Print () function
-can display usage.
-
-Hunk allocations are guaranteed to be 16 byte aligned.
-
-The video buffers are allocated high to avoid leaving a hole underneath
-server allocations when changing to a higher video mode.
-
-
-Cache_??? Cache memory is for objects that can be dynamically loaded and
+Cache memory is for objects that can be dynamically loaded and
 can usefully stay persistent between levels.  The size of the cache
 fluctuates from level to level.
 
-To allocate a cachable object
-
-
-Temp_??? Temp memory is used for file loading and surface caching.  The size
-of the cache memory is adjusted so that there is a minimum of 512k remaining
-for temp memory.
-
-
------- Top of Memory -------
-
-high hunk allocations
-
-<--- high hunk reset point held by vid
-
-video buffer
-
-z buffer
-
-surface cache
-
-<--- high hunk used
-
-cachable memory
-
-<--- low hunk used
-
-client and server low hunk allocations
-
-<-- low hunk reset point held by host
-
-startup hunk allocations
-
------ Bottom of Memory -----
-
-
+================================================================
 
 */
-
-void Memory_Init (void *buf, int size);
 
 void *Hunk_Alloc (int size);		// returns 0 filled memory
 void *Hunk_AllocName (int size, char *name);
@@ -95,7 +53,7 @@ void Hunk_FreeToHighMark (int mark);
 
 void *Hunk_TempAlloc (int size);
 
-void Hunk_Check (void);
+// ========================================================================
 
 typedef struct cache_user_s
 {
@@ -105,16 +63,13 @@ typedef struct cache_user_s
 void Cache_Flush (void);
 
 void *Cache_Check (cache_user_t *c);
-// returns the cached data, and moves to the head of the LRU list
-// if present, otherwise returns NULL
+// returns the cached data
 
 void Cache_Free (cache_user_t *c);
 
 void *Cache_Alloc (cache_user_t *c, int size, char *name);
 // Returns NULL if all purgeable data was tossed and there still
 // wasn't enough room.
-
-void Cache_Report (void);
 
 #endif /* _ZONE_H_ */
 

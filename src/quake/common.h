@@ -238,14 +238,7 @@ void COM_CheckRegistered (void);
 //============================================================================
 
 #define MAX_INFO_KEY			64
-
-#ifndef AGRIP
-    #define	MAX_INFO_STRING			196
-#else
-// AGRIP needs large userinfo strings (FIXME)
-    #define	MAX_INFO_STRING			1024
-#endif
-
+#define	MAX_INFO_STRING			196
 #define	MAX_SERVERINFO_STRING	512
 #define	MAX_LOCALINFO_STRING	32768
 
@@ -292,13 +285,12 @@ extern double	curtime;	// not bounded or scaled, shared by
 // host
 //
 extern qbool	host_initialized;
-extern int		host_memsize;
 
 extern cvar_t	host_mapname;
 
 // functions that may be called accross subsystems (host, client, server)
 
-void Host_Init (int argc, char **argv, int default_memsize);
+void Host_Init (int argc, char **argv);
 void Host_ClearMemory ();
 void Host_Shutdown (void);
 void Host_Frame (double time);

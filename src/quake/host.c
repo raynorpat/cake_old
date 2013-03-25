@@ -34,8 +34,6 @@ double		curtime;
 
 qbool		host_initialized;		// true if into command execution
 int			host_hunklevel;
-int			host_memsize;
-void		*host_membase;
 
 jmp_buf 	host_abort;
 
@@ -127,35 +125,6 @@ void Host_InitLocal (void)
 	Cvar_Register (&host_mapname);
 }
 
-/*
-===============
-Host_InitMemory
-
-memsize is the recommended amount of memory to use for hunk
-===============
-*/
-void Host_InitMemory (int memsize)
-{
-	int		t;
-
-	if (COM_CheckParm ("-minmemory"))
-		memsize = MINIMUM_MEMORY;
-
-	if ((t = COM_CheckParm ("-heapsize")) != 0 && t + 1 < com_argc)
-		memsize = Q_atoi (com_argv[t + 1]) * 1024;
-
-	if ((t = COM_CheckParm ("-mem")) != 0 && t + 1 < com_argc)
-		memsize = Q_atoi (com_argv[t + 1]) * 1024 * 1024;
-
-	if (memsize < MINIMUM_MEMORY)
-		Sys_Error ("Only %4.1f megs of memory reported, can't execute game", memsize / (float)0x100000);
-
-	host_memsize = memsize;
-	host_membase = Q_malloc (host_memsize);
-	Memory_Init (host_membase, host_memsize);
-}
-
-
 extern void D_FlushCaches (void);
 extern void Mod_ClearAll (void);
 
@@ -209,7 +178,7 @@ void Host_Frame (double time)
 Host_Init
 ====================
 */
-void Host_Init (int argc, char **argv, int default_memsize)
+void Host_Init (int argc, char **argv)
 {
 	COM_InitArgv (argc, argv);
 
@@ -217,9 +186,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	if (COM_CheckParm("-dedicated"))
 		dedicated = true;
 #endif
-
-	Host_InitMemory (default_memsize);
-
+	
 	Cbuf_Init ();
 	Cmd_Init ();
 	Cvar_Init ();
@@ -258,7 +225,6 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	host_initialized = true;
 
 	Com_Printf ("Exe: "__TIME__" "__DATE__"\n");
-	Com_Printf ("%4.1f megs RAM used.\n", host_memsize / (1024*1024.0));
 	Com_Printf ("\n========= " PROGRAM " Initialized =========\n");
 
 	if (dedicated)

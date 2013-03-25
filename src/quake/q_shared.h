@@ -77,8 +77,6 @@ typedef enum {false, true} qbool;
 
 //============================================================================
 
-#define	MINIMUM_MEMORY		0x550000
-
 #define	MAX_QPATH			64			// max length of a quake game pathname
 #define	MAX_OSPATH			128			// max length of a filesystem pathname
 

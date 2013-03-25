@@ -439,8 +439,6 @@ static void NQD_ParseServerData (void)
 
 	TP_NewMap ();
 
-	Hunk_Check ();		// make sure nothing is hurt
-
 	nq_signon = 0;
 	nq_num_entities = 0;
 	nq_drawpings = false;	// unless we have the ProQuake extension
