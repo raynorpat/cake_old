@@ -470,11 +470,20 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 			break;
 
 		case WM_SYSCHAR:
-		// keep Alt-Space from happening
+			// keep Alt-Space from happening
 			break;
 
-	// this is complicated because Win32 seems to pack multiple mouse events into
-	// one update sometimes, so we always check all states and look for events
+		case WM_SYSCOMMAND:
+			// prevent screensaver from occuring while the active window
+			// note: password-locked screensavers on Vista+ still work
+			if (fActive && ((wParam & 0xFFF0) == SC_SCREENSAVE || (wParam & 0xFFF0) == SC_MONITORPOWER))
+				lRet = 0;
+			else
+				lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+			break;
+
+		// this is complicated because Win32 seems to pack multiple mouse events into
+		// one update sometimes, so we always check all states and look for events
 		case WM_LBUTTONDOWN:
 		case WM_LBUTTONUP:
 		case WM_RBUTTONDOWN:
