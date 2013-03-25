@@ -159,10 +159,6 @@ void CL_GamedirChanged (void)
 	// free old data and load a new gfx.wad
 	TexMgr_Flush ();
 	R_FlushPics ();
-
-	// register the pics we need
-	SCR_RegisterPics ();
-	Sbar_RegisterPics ();
 }
 
 /*
@@ -836,6 +832,8 @@ void CL_Init (void)
 	if (dedicated)
 		return;
 
+	Com_Printf("Initializing client\n");
+
 	cls.state = ca_disconnected;
 
 	strcpy (cls.gamedirfile, com_gamedirfile);
@@ -851,12 +849,11 @@ void CL_Init (void)
 
 	V_Init ();
 
+	R_Modules_Init();
 	VID_Shared_Init();
 	VID_Init();
 
 	R_Init ();
-
-	VID_Open();
 
 	S_Init ();
 	CDAudio_Init ();
@@ -874,9 +871,6 @@ void CL_Init (void)
 	M_Init ();
 
 	NET_ClientConfig (true);
-
-	// bring up the main menu
-	M_Menu_Main_f ();
 
 	cls.initialized = true;
 }

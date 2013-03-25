@@ -98,7 +98,6 @@ extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_polyblend;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
-extern	cvar_t	gl_fb_depthhack;
 extern	cvar_t	gl_fb_bmodels;
 extern	cvar_t	gl_fb_models;
 extern	cvar_t	gl_loadlitfiles;

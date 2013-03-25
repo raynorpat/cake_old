@@ -79,14 +79,12 @@ cvar_t	r_fastturb = {"r_fastturb", "0"};
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
 cvar_t	gl_clear = {"gl_clear","0"};
 cvar_t	gl_cull = {"gl_cull","1"};
-cvar_t	gl_ztrick = {"gl_ztrick", "1"};
 cvar_t	gl_smoothmodels = {"gl_smoothmodels","1"};
 cvar_t	gl_affinemodels = {"gl_affinemodels","0"};
 cvar_t	gl_polyblend = {"gl_polyblend","1"};
 cvar_t	gl_playermip = {"gl_playermip","0"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
-cvar_t	gl_fb_depthhack = {"gl_fb_depthhack","1"};
 cvar_t	gl_fb_bmodels = {"gl_fb_bmodels","1"};
 cvar_t	gl_fb_models = {"gl_fb_models","1"};
 cvar_t	gl_loadlitfiles = {"gl_loadlitfiles","1"};
@@ -613,14 +611,12 @@ void GL_Main_Init(void)
 	Cvar_Register (&gl_subdivide_size);
 	Cvar_Register (&gl_clear);
 	Cvar_Register (&gl_cull);
-	Cvar_Register (&gl_ztrick);
 	Cvar_Register (&gl_smoothmodels);
 	Cvar_Register (&gl_affinemodels);
 	Cvar_Register (&gl_polyblend);
 	Cvar_Register (&gl_playermip);
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);
-	Cvar_Register (&gl_fb_depthhack);
 	Cvar_Register (&gl_fb_bmodels);
 	Cvar_Register (&gl_fb_models);
 	Cvar_Register (&gl_loadlitfiles);
@@ -678,7 +674,6 @@ void R_RenderScene (void)
 R_Clear
 =============
 */
-int gl_ztrickframe = 0;
 void R_Clear (void)
 {
 	static qbool cleartogray;
@@ -691,43 +686,14 @@ void R_Clear (void)
 			cleartogray = false;
 		}
 	}
-	else if (!vid_hwgamma_enabled && gl_contrast.value > 1) {
-		clear = true;
-		if (!cleartogray) {
-			glClearColor (0.1, 0.1, 0.1, 0);
-			cleartogray = true;
-		}
-	}
 
-	if (gl_ztrick.value)
-	{
-		if (clear)
-			glClear (GL_COLOR_BUFFER_BIT);
-
-		gl_ztrickframe = !gl_ztrickframe;
-		if (gl_ztrickframe)
-		{
-			gldepthmin = 0;
-			gldepthmax = 0.49999;
-			glDepthFunc (GL_LEQUAL);
-		}
-		else
-		{
-			gldepthmin = 1;
-			gldepthmax = 0.5;
-			glDepthFunc (GL_GEQUAL);
-		}
-	}
+	if (clear)
+		glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	else
-	{
-		if (clear)
-			glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		else
-			glClear (GL_DEPTH_BUFFER_BIT);
-		gldepthmin = 0;
-		gldepthmax = 1;
-		glDepthFunc (GL_LEQUAL);
-	}
+		glClear (GL_DEPTH_BUFFER_BIT);
+	gldepthmin = 0;
+	gldepthmax = 1;
+	glDepthFunc (GL_LEQUAL);
 
 	glDepthRange (gldepthmin, gldepthmax);
 }

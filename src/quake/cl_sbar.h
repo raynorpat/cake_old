@@ -32,7 +32,6 @@ extern qbool	sb_oldmanssbar;
 extern qbool	sb_oldmanssbar2;
 
 void Sbar_Init (void);
-void Sbar_RegisterPics (void);
 
 // call whenever any of the client stats represented on the sbar changes
 void Sbar_Changed (void);

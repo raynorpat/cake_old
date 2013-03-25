@@ -153,12 +153,7 @@ void Sbar_Changed (void)
 	sb_updates = 0;	// update next frame
 }
 
-/*
-===============
-Sbar_RegisterHipnoticPics
-===============
-*/
-void Sbar_RegisterHipnoticPics (void)
+static void Sbar_RegisterHipnoticPics (void)
 {
 	int i, j;
 
@@ -202,12 +197,7 @@ void Sbar_RegisterHipnoticPics (void)
 	sb_hipnotic = true;
 }
 
-/*
-===============
-Sbar_RegisterPics
-===============
-*/
-void Sbar_RegisterPics (void)
+static void sbar_start (void)
 {
 	int		i;
 
@@ -296,6 +286,14 @@ void Sbar_RegisterPics (void)
 		Sbar_RegisterHipnoticPics ();
 }
 
+static void sbar_shutdown(void)
+{
+}
+
+static void sbar_newmap(void)
+{
+}
+
 /*
 ===============
 Sbar_Init
@@ -311,7 +309,7 @@ void Sbar_Init (void)
 	Cmd_AddCommand ("+showteamscores", Sbar_ShowTeamScores);
 	Cmd_AddCommand ("-showteamscores", Sbar_DontShowTeamScores);
 
-	Sbar_RegisterPics ();
+	R_RegisterModule("sbar", sbar_start, sbar_shutdown, sbar_newmap);
 }
 
 
@@ -1052,6 +1050,7 @@ void Sbar_Draw (void)
 	else if (sb_showteamscores)
 		Sbar_TeamOverlay (0);
 
+	/*
 #ifdef GLQUAKE
 	if (sb_showscores || sb_showteamscores ||
 		cl.stats[STAT_HEALTH] <= 0)
@@ -1068,6 +1067,7 @@ void Sbar_Draw (void)
 	if (!inventory_area_drawn && (sb_lines > SBAR_HEIGHT))
 		R_DrawTile (sbar_xofs, vid.height - sb_lines, 320, sb_lines - SBAR_HEIGHT, scr_backtile);
 #endif
+	*/
 
 	if (sb_drawmain && cl.gametype == GAME_DEATHMATCH && !scr_centerSbar.value)
 		Sbar_MiniDeathmatchOverlay ();

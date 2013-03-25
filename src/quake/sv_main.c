@@ -1627,6 +1627,8 @@ SV_Init
 */
 void SV_Init (void)
 {
+	Com_Printf("Initializing server\n");
+
 	PR_Init ();
 	SV_InitLocal ();
 

@@ -228,25 +228,6 @@ void SCR_CheckDrawCenterString (void)
 	SCR_DrawCenterString ();
 }
 
-void SCR_EraseCenterString (void)
-{
-	int		y;
-
-	if (scr_erase_center++ > vid.numpages)
-	{
-		scr_erase_lines = 0;
-		return;
-	}
-
-	if (scr_center_lines <= 4)
-		y = vid.height*0.35;
-	else
-		y = 48;
-
-	scr_copytop = 1;
-	R_DrawTile (0, y, vid.width, min(8*scr_erase_lines, vid.height - y - 1), scr_backtile);
-}
-
 //=============================================================================
 
 /*
@@ -388,11 +369,7 @@ void SCR_SizeDown_f (void)
 	scr_fullupdate = 0;
 }
 
-
-/*
-** SCR_RegisterPics
-*/
-void SCR_RegisterPics (void)
+static void scr_start (void)
 {
 	scr_backtile = R_CacheWadPic ("backtile");
 	if (!scr_backtile)
@@ -402,6 +379,13 @@ void SCR_RegisterPics (void)
 	scr_turtle = R_CacheWadPic ("turtle");
 }
 
+static void scr_shutdown(void)
+{
+}
+
+static void scr_newmap(void)
+{
+}
 
 /*
 ==================
@@ -437,7 +421,7 @@ void SCR_Init (void)
 	Cmd_AddCommand ("sizeup", SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown", SCR_SizeDown_f);
 
-	SCR_RegisterPics ();
+	R_RegisterModule("scr", scr_start, scr_shutdown, scr_newmap);
 
 	scr_initialized = true;
 }
@@ -643,6 +627,7 @@ void SCR_DrawPause (void)
 	R_DrawPic ( (vid.width - pic->width)/2, (vid.height - 48 - pic->height)/2, pic);
 }
 
+extern void Host_StartVideo (void);
 
 /*
 ===============
@@ -651,6 +636,7 @@ SCR_BeginLoadingPlaque
 */
 void SCR_BeginLoadingPlaque (void)
 {
+	Host_StartVideo();
 	S_StopAllSounds (true);
 	R_LoadingScreen();
 }
@@ -866,11 +852,12 @@ void SCR_UpdateScreen (void)
 	//
 	// draw any areas not covered by the refresh
 	//
+	/*
 	if (cls.state != ca_active && cl.intermission)
 		R_DrawTile (0, 0, vid.width, vid.height, scr_backtile);
 	else
 		SCR_TileClear (0, vid.height - sb_lines);
-
+	*/
 	if (scr_fullupdate++ < vid.numpages || scr_drawall.value)
 		Sbar_Changed ();
 

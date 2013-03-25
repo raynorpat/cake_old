@@ -117,6 +117,19 @@ void Host_Error (char *error, ...)
 	Host_Abort ();
 }
 
+extern void VID_Open (void);
+extern void SCR_BeginLoadingPlaque (void);
+
+qbool vid_opened = false;
+void Host_StartVideo(void)
+{
+	if (!vid_opened && !dedicated)
+	{
+		vid_opened = true;
+		VID_Open();
+		SCR_BeginLoadingPlaque();
+	}
+}
 
 // init whatever commands/cvars we need
 // not many, really
@@ -198,7 +211,8 @@ void Host_Init (int argc, char **argv)
 
 	Con_Init ();
 
-	if (!dedicated) {
+	if (!dedicated)
+	{
 		Cbuf_AddText ("exec default.cfg\n");
 		Cbuf_AddText ("exec config.cfg\n");
 		Cbuf_Execute ();
@@ -224,9 +238,6 @@ void Host_Init (int argc, char **argv)
 
 	host_initialized = true;
 
-	Com_Printf ("Exe: "__TIME__" "__DATE__"\n");
-	Com_Printf ("\n========= " PROGRAM " Initialized =========\n");
-
 	if (dedicated)
 	{
 		Cbuf_AddText ("exec server.cfg\n");
@@ -248,6 +259,10 @@ void Host_Init (int argc, char **argv)
 		// start the demo list
 		Cbuf_AddText("startdemos demo1 demo2 demo3\n");
 	}
+
+	Com_DPrintf ("\n========= " PROGRAM " Initialized =========\n");
+
+	Host_StartVideo();
 }
 
 
