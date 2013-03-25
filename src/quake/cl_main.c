@@ -1077,6 +1077,10 @@ CL_Shutdown
 */
 void CL_Shutdown (void)
 {
+	// be quiet while shutting down
+	S_StopAllSounds(true);
+
+	// disconnect client from server if active
 	CL_Disconnect ();
 
 	CL_WriteConfiguration ();
@@ -1084,5 +1088,6 @@ void CL_Shutdown (void)
 	CDAudio_Shutdown ();
 	S_Shutdown();
 
-	VID_Close();
+	R_Modules_Shutdown();
+	VID_Shutdown();
 }
