@@ -743,7 +743,8 @@ void SCR_DrawConsole (void)
 	float	alpha;
 	mpic_t	*conback;
 
-	if (!scr_con_current) {
+	if (!scr_con_current)
+	{
 		// console is up, draw notify instead
 		if (key_dest == key_game || key_dest == key_message)
 			Con_DrawNotify ();	// only draw notify in game

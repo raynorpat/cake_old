@@ -35,8 +35,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MINIMUM_WIN_MEMORY	0x0c00000
 #define MAXIMUM_WIN_MEMORY	0x1000000
 
-qbool		WinNT;
-
 #ifndef SERVERONLY
 static HANDLE	qwclsemaphore;
 #endif
@@ -71,21 +69,6 @@ SYSTEM IO
 
 ===============================================================================
 */
-
-/*
-================
-Sys_MakeCodeWriteable
-================
-*/
-void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
-{
-	DWORD  flOldProtect;
-
-//@@@ copy on write or just read-write?
-	if (!VirtualProtect((LPVOID)startaddr, length, PAGE_READWRITE, &flOldProtect))
-   		Sys_Error("Protection change failed");
-}
-
 
 void Sys_Error (char *error, ...)
 {
@@ -150,65 +133,40 @@ void Sys_Quit (void)
 	exit (0);
 }
 
-
-static double pfreq;
-static qbool hwtimer = false;
-
-void Sys_InitDoubleTime (void)
-{
-	__int64 freq;
-
-	if (WinNT && !COM_CheckParm("-nohwtimer") &&
-		QueryPerformanceFrequency ((LARGE_INTEGER *)&freq) && freq > 0)
-	{
-		// hardware timer available
-		pfreq = (double)freq;
-		hwtimer = true;
-	}
-	else
-	{
-		// make sure the timer is high precision, otherwise
-		// NT gets 18ms resolution
-		timeBeginPeriod (1);
-	}
-}
-
 double Sys_DoubleTime (void)
 {
-	__int64 pcount;
-	static __int64 startcount;
+	static int first = true;
+	static double oldtime = 0.0, curtime = 0.0;
+	double newtime;
 
-	static DWORD starttime;
-	static qbool first = true;
-	DWORD now;
+	// make sure the timer is high precision, otherwise different versions of windows have varying accuracy
+	if (first)
+		timeBeginPeriod (1);
 
-	if (hwtimer)
+	newtime = (double) timeGetTime () / 1000.0;
+
+	if (first)
 	{
-		QueryPerformanceCounter ((LARGE_INTEGER *)&pcount);
-		if (first) {
-			first = false;
-			startcount = pcount;
-			return 0.0;
-		}
-		// TODO: check for wrapping
-		return (pcount - startcount) / pfreq;
-	}
-
-	now = timeGetTime();
-
-	if (first) {
 		first = false;
-		starttime = now;
-		return 0.0;
+		oldtime = newtime;
 	}
-	
-	if (now < starttime) // wrapped?
-		return (now / 1000.0) + (LONG_MAX - starttime / 1000.0);
 
-	if (now - starttime == 0)
-		return 0.0;
+	if (newtime < oldtime)
+	{
+		// warn if it's significant
+		if (newtime - oldtime < -0.01)
+			Com_Printf("Sys_DoubleTime: time stepped backwards (went from %f to %f, difference %f)\n", oldtime, newtime, newtime - oldtime);
+	}
+	else if (newtime > oldtime + 1800)
+	{
+		Com_Printf("Sys_DoubleTime: time stepped forward (went from %f to %f, difference %f)\n", oldtime, newtime, newtime - oldtime);
+	}
+	else
+		curtime += newtime - oldtime;
 
-	return (now - starttime) / 1000.0;
+	oldtime = newtime;
+
+	return newtime;
 }
 
 // if successful, returns Q_malloc'ed string (make sure to free it afterwards)
@@ -366,21 +324,6 @@ is marked
 void Sys_Init (void)
 {
 #ifdef SERVERONLY
-	OSVERSIONINFO	vinfo;
-
-	// make sure the timer is high precision, otherwise
-	// NT gets 18ms resolution
-	timeBeginPeriod (1);
-
-	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
-	if (!GetVersionEx (&vinfo))
-		Sys_Error ("Couldn't get OS info");
-	if ((vinfo.dwMajorVersion < 4) ||
-		(vinfo.dwPlatformId == VER_PLATFORM_WIN32s)) {
-		Sys_Error (PROGRAM " requires at least Win95 or NT 4.0");
-	}
-	WinNT = (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT);
-
 	Cvar_Register (&sys_sleep);
 	Cvar_Register (&sys_nostdout);
 
@@ -394,57 +337,9 @@ void Sys_Init (void)
 			Com_Printf ("SetPriorityClass() failed\n");
 		else
 			Com_Printf ("Process priority class set to HIGH\n");
-
-		// sys_sleep > 0 seems to cause packet loss on WinNT (why?)
-		if (WinNT)
-			Cvar_Set (&sys_sleep, "0");
 	}
 #endif
 }
-
-
-#ifndef SERVERONLY
-void Sys_Init_ (void)
-{
-	OSVERSIONINFO	vinfo;
-
-	// allocate a named semaphore on the client so the
-	// front end can tell if it is alive
-
-	if (!dedicated && !COM_CheckParm("-allowmultiple"))
-	{
-		// mutex will fail if semaphore already exists
-		qwclsemaphore = CreateMutex(
-			NULL,         /* Security attributes */
-			0,            /* owner       */
-			"qwcl"); /* Semaphore name      */
-		if (!qwclsemaphore)
-			Sys_Error ("QuakeWorld is already running on this system");
-		CloseHandle (qwclsemaphore);
-		
-		qwclsemaphore = CreateSemaphore(
-			NULL,         /* Security attributes */
-			0,            /* Initial count       */
-			1,            /* Maximum count       */
-			"qwcl"); /* Semaphore name      */
-	}
-
-#ifdef id386
-	Sys_SetFPCW ();
-#endif
-
-	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
-	if (!GetVersionEx (&vinfo))
-		Sys_Error ("Couldn't get OS info");
-	if ((vinfo.dwMajorVersion < 4) ||
-		(vinfo.dwPlatformId == VER_PLATFORM_WIN32s)) {
-		Sys_Error (PROGRAM " requires at least Win95 or NT 4.0");
-	}
-	WinNT = (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT);
-
-	Sys_InitDoubleTime ();
-}
-#endif
 
 
 /*
@@ -528,7 +423,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	else
 	{
 		hwnd_dialog = CreateDialog (hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, NULL);
-
 		if (hwnd_dialog)
 		{
 			if (GetWindowRect (hwnd_dialog, &rect))
@@ -548,10 +442,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 
-
-// take the greater of all the available memory or half the total memory,
-// but at least 8 Mb and no more than 16 Mb, unless they explicitly
-// request otherwise
+	// take the greater of all the available memory or half the total memory,
+	// but at least 8 Mb and no more than 16 Mb, unless they explicitly
+	// request otherwise
 	lpBuffer.dwLength = sizeof(MEMORYSTATUS);
 	GlobalMemoryStatus (&lpBuffer);
 
@@ -566,12 +459,28 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (memsize > MAXIMUM_WIN_MEMORY)
 		memsize = MAXIMUM_WIN_MEMORY;
 
-
 	tevent = CreateEvent (NULL, FALSE, FALSE, NULL);
 	if (!tevent)
 		Sys_Error ("Couldn't create event");
 
-	Sys_Init_ ();
+	// allocate a named semaphore on the client so the front end can tell if it is alive
+	if (!dedicated && !COM_CheckParm("-allowmultiple"))
+	{
+		// mutex will fail if semaphore already exists
+		qwclsemaphore = CreateMutex(
+			NULL,         /* Security attributes */
+			0,            /* owner       */
+			"qwcl"); /* Semaphore name      */
+		if (!qwclsemaphore)
+			Sys_Error ("QuakeWorld is already running on this system");
+		CloseHandle (qwclsemaphore);
+		
+		qwclsemaphore = CreateSemaphore(
+			NULL,         /* Security attributes */
+			0,            /* Initial count       */
+			1,            /* Maximum count       */
+			"qwcl"); /* Semaphore name      */
+	}
 
 	Host_Init (argc, argv, memsize);
 

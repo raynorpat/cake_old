@@ -31,7 +31,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // uncategorized Win32 stuff
 //
 extern HINSTANCE	global_hInstance;
-extern qbool		WinNT;
 extern HWND			hwnd_dialog;	// startup screen handle
 
 
