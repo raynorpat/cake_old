@@ -238,7 +238,8 @@ void VID_Finish (void)
 
 	if (!vid_hidden)
 	{
-		glFinish();
+		if (gl_finish.value)
+			glFinish();
 		SwapBuffers(baseDC);
 	}
 
