@@ -341,10 +341,6 @@ R_PolyBlend
 */
 void R_PolyBlend (void)
 {
-	extern cvar_t	gl_hwblend;
-
-	if (vid_hwgamma_enabled && (gl_hwblend.value && !cl.teamfortress))
-		return;
 	if (!v_blend[3])
 		return;
 
@@ -502,7 +498,7 @@ void R_SetupFrame (void)
 	}
 
 	V_SetContentsColor (r_viewleaf->contents);
-	V_CalcBlend ();
+	V_PrepBlend ();
 
 	r_cache_thrash = false;
 

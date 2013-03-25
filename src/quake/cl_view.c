@@ -279,11 +279,11 @@ void V_DriftPitch (void)
 ============================================================================== 
 */ 
 
-//                                  r   g   b   frac
-const cshift_t	cshift_empty = { {  0,  0,  0},   0 };
-const cshift_t	cshift_water = { {130, 80, 50}, 128 };
-const cshift_t	cshift_slime = { {  0, 25,  5}, 150 };
-const cshift_t	cshift_lava =  { {255, 80,  0}, 150 };
+cshift_t    cshift_empty = { {130, 80, 50}, 0};
+cshift_t    cshift_water = { {130, 80, 50}, 128};
+cshift_t    cshift_slime = { {0, 25, 5}, 150};
+cshift_t    cshift_lava = { {255, 80, 0}, 150};
+cshift_t    cshift_bonus = { {215, 186, 60}, 50};
 
 #define ONCHANGE(FUNC, VAR)									\
 void FUNC (cvar_t *var, char *string, qbool *cancel) {	\
@@ -306,8 +306,6 @@ ONCHANGE(ch_gl_gamma, gammavar)	ONCHANGE(ch_gl_contrast, contrast)
 
 cvar_t		gl_gamma = {"gl_gamma", "1", CVAR_USER_ARCHIVE, ch_gl_gamma};
 cvar_t		gl_contrast = {"gl_contrast", "1", CVAR_USER_ARCHIVE, ch_gl_contrast};
-cvar_t		gl_cshiftpercent = {"gl_cshiftpercent", "100"};
-cvar_t		gl_hwblend = {"gl_hwblend","0"};
 
 
 float		v_blend[4];		// rgba 0.0 - 1.0
@@ -431,6 +429,9 @@ void V_ParseDamage (void)
 		cl.cshifts[CSHIFT_DAMAGE].destcolor[2] = 0;
 	}
 
+	cl.cshifts[CSHIFT_DAMAGE].initialpct = cl.cshifts[CSHIFT_DAMAGE].percent;
+	cl.cshifts[CSHIFT_DAMAGE].time = cl.time;
+
 //
 // calculate view angle kicks
 //
@@ -465,6 +466,8 @@ void V_BonusFlash_f (void)
 	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
 	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 69;
 	cl.cshifts[CSHIFT_BONUS].percent = 50;
+	cl.cshifts[CSHIFT_BONUS].initialpct = 50;
+	cl.cshifts[CSHIFT_BONUS].time = cl.time;
 }
 
 /*
@@ -534,78 +537,83 @@ void V_CalcPowerupCshift (void)
 		cl.cshifts[CSHIFT_POWERUP].percent = 0;
 }
 
+static void V_DropCShift (cshift_t *cs, float droprate)
+{
+	if (cs->time < 0)
+	{
+		cs->percent = 0;
+	}
+	else if ((cs->percent = cs->initialpct - (cl.time - cs->time) * droprate) <= 0)
+	{
+		cs->percent = 0;
+		cs->time = -1;
+	}
+}
 
-// This is to make things work more or less like they used to work in Quake
-// where cshifts.percent was an int and values dropped faster because of rounding down
-#define FLASHSPEEDADJUST 1.2
+static void V_CalcBlend (void)
+{
+	float       a2, a3;
+	float       r = 0, g = 0, b = 0, a = 0;
+	int         i;
+
+	for (i = 0; i < NUM_CSHIFTS; i++)
+	{
+		a2 = cl.cshifts[i].percent / 255.0;
+
+		if (!a2)
+			continue;
+
+		a2 = min (a2, 1.0);
+		r += (cl.cshifts[i].destcolor[0] - r) * a2;
+		g += (cl.cshifts[i].destcolor[1] - g) * a2;
+		b += (cl.cshifts[i].destcolor[2] - b) * a2;
+
+		a3 = (1.0 - a) * (1.0 - a2);
+		a = 1.0 - a3;
+	}
+
+	// LordHavoc: saturate color
+	if (a)
+	{
+		a2 = 1.0 / a;
+		r *= a2;
+		g *= a2;
+		b *= a2;
+	}
+
+	v_blend[0] = min (r, 255.0) / 255.0;
+	v_blend[1] = min (g, 255.0) / 255.0;
+	v_blend[2] = min (b, 255.0) / 255.0;
+	v_blend[3] = bound (0.0, a, 1.0);
+}
+
 
 /*
 =============
-V_CalcBlend
+V_PrepBlend
 =============
 */
-#ifdef	GLQUAKE
-void V_CalcBlend (void)
+void V_PrepBlend (void)
 {
-	float	r, g, b, a, a2;
-	int		j;
-
-	r = 0;
-	g = 0;
-	b = 0;
-	a = 0;
-
-	if (cls.state != ca_active) {
+	if (cls.state != ca_active)
+	{
 		cl.cshifts[CSHIFT_CONTENTS].percent = 0;
 		cl.cshifts[CSHIFT_POWERUP].percent = 0;
 		cl.cshifts[CSHIFT_CUSTOM].percent = 0;
 	}
 	else
-		V_CalcPowerupCshift ();
-
-// drop the damage value
-	cl.cshifts[CSHIFT_DAMAGE].percent -= cls.frametime * (150 * FLASHSPEEDADJUST);
-	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
-
-// drop the bonus value
-	cl.cshifts[CSHIFT_BONUS].percent -= cls.frametime * (100 * FLASHSPEEDADJUST);
-	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
-		cl.cshifts[CSHIFT_BONUS].percent = 0;
-
-	for (j=0 ; j<NUM_CSHIFTS ; j++)	
 	{
-		if ((!gl_cshiftpercent.value || !gl_polyblend.value) && j != CSHIFT_CUSTOM)
-			continue;
-
-		if (j == CSHIFT_CUSTOM) {
-			if (cl.cshifts[CSHIFT_CONTENTS].percent)
-				continue;	// bug-to-bug compatibility with id code
-			a2 = cl.cshifts[j].percent / 255.0;
-		} else
-			a2 = cl.cshifts[j].percent * (gl_cshiftpercent.value / 100.0) / 255.0;
-
-		if (!a2)
-			continue;
-		a = a + a2*(1-a);
-//Com_Printf ("j:%i a:%f\n", j, a);
-		a2 = a2/a;
-		r = r*(1-a2) + cl.cshifts[j].destcolor[0]*a2;
-		g = g*(1-a2) + cl.cshifts[j].destcolor[1]*a2;
-		b = b*(1-a2) + cl.cshifts[j].destcolor[2]*a2;
+		V_CalcPowerupCshift ();
 	}
 
-	v_blend[0] = r/255.0;
-	v_blend[1] = g/255.0;
-	v_blend[2] = b/255.0;
-	v_blend[3] = a;
-	if (v_blend[3] > 1)
-		v_blend[3] = 1;
-	if (v_blend[3] < 0)
-		v_blend[3] = 0;
-}
+	// drop the damage value
+	V_DropCShift (&cl.cshifts[CSHIFT_DAMAGE], 150);
 
-#endif
+	// drop the bonus value
+	V_DropCShift (&cl.cshifts[CSHIFT_BONUS], 100);
+
+	V_CalcBlend ();
+}
 
 
 /*
@@ -645,17 +653,12 @@ void V_UpdatePalette (void)
 		new = true;
 	}
 
-	if (gl_hwblend.value != old_hwblend) {
-		new = true;
-		old_hwblend = gl_hwblend.value;
-	}
-
 	if (!new)
 		return;
 
 	a = v_blend[3];
 
-	if (!vid_hwgamma_enabled || !(gl_hwblend.value && !cl.teamfortress))
+	if (!vid_hwgamma_enabled)
 		a = 0;
 
 	rgb[0] = 255*v_blend[0]*a;
@@ -1036,19 +1039,16 @@ void V_RenderView (void)
 //		Sys_Error ("cl.simangles[ROLL]");	// DEBUG
 cl.simangles[ROLL] = 0;	// FIXME @@@ 
 
-	if (cls.state != ca_active) {
-#ifdef GLQUAKE
-		V_CalcBlend ();
-#endif
+	if (cls.state != ca_active)
 		return;
-	}
 
 	if (cl.validsequence)
 		view_message = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.viewplayernum];
 
 	DropPunchAngle ();
 	if (cl.intermission)
-	{	// intermission / finale rendering
+	{
+		// intermission / finale rendering
 		V_CalcIntermissionRefdef ();	
 	}
 	else
@@ -1122,8 +1122,6 @@ void V_Init (void)
 #ifdef GLQUAKE
 	Cvar_Register (&gl_gamma);
 	Cvar_Register (&gl_contrast);
-	Cvar_Register (&gl_cshiftpercent);
-	Cvar_Register (&gl_hwblend);
 #else
 	// this nastyness is to make "gamma foo" in config.cfg work
 	// FIXME: cvar.c should fire OnChange in Cvar_Register!
