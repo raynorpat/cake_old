@@ -77,8 +77,7 @@ void VID_SetCaption (char *text);
 
 void VID_Restart_f(void);
 
-void VID_Open (void);
-void VID_Close (void);
+void VID_Start (void);
 
 // oldman: gamma variables for glx linux
 void VID_SetDeviceGammaRamp (unsigned short *ramps);

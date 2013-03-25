@@ -96,8 +96,8 @@ void VID_Restart_f(void)
 	Com_Printf("VID_Restart: changing from %s %dx%d, to %s %dx%d.\n",
 		current_vid_fullscreen ? "fullscreen" : "window", current_vid_width, current_vid_height, 
 		vid_fullscreen.value ? "fullscreen" : "window", vid_width.value, vid_height.value);
-
-	VID_Close();
+	VID_CloseSystems();
+	VID_Shutdown();
 	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
 	{
 		Com_Printf("Video mode change failed\n");
@@ -109,7 +109,8 @@ void VID_Restart_f(void)
 	TexMgr_ReloadImages();
 }
 
-void VID_Open(void)
+// this is only called once by Host_StartVideo
+void VID_Start(void)
 {
 	Com_Printf("Starting video system\n");
 	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
@@ -128,10 +129,4 @@ void VID_Open(void)
 	}
 
 	VID_OpenSystems();
-}
-
-void VID_Close(void)
-{
-	VID_CloseSystems();
-	VID_Shutdown();
 }

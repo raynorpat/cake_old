@@ -117,7 +117,7 @@ void Host_Error (char *error, ...)
 	Host_Abort ();
 }
 
-extern void VID_Open (void);
+extern void VID_Start (void);
 extern void SCR_BeginLoadingPlaque (void);
 
 qbool vid_opened = false;
@@ -126,8 +126,7 @@ void Host_StartVideo(void)
 	if (!vid_opened && !dedicated)
 	{
 		vid_opened = true;
-		VID_Open();
-		SCR_BeginLoadingPlaque();
+		VID_Start();
 	}
 }
 
@@ -238,6 +237,9 @@ void Host_Init (int argc, char **argv)
 
 	host_initialized = true;
 
+	// put up the loading image so the user doesn't stare at a black screen...
+	SCR_BeginLoadingPlaque();
+
 	if (dedicated)
 	{
 		Cbuf_AddText ("exec server.cfg\n");
@@ -261,8 +263,6 @@ void Host_Init (int argc, char **argv)
 	}
 
 	Com_DPrintf ("\n========= " PROGRAM " Initialized =========\n");
-
-	Host_StartVideo();
 }
 
 
