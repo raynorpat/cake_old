@@ -250,9 +250,9 @@ typedef struct
 	sizebuf_t	demomessage;
 	qbool		demomessage_skipwrite;
 	qbool		timedemo;
-	float		td_lastframe;		// to meter out one message a frame
+	double		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// cls.framecount at start
-	float		td_starttime;		// realtime at second frame of timedemo
+	double		td_starttime;		// realtime at second frame of timedemo
 
 	int			challenge;
 
