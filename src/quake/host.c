@@ -246,7 +246,7 @@ void Host_Init (int argc, char **argv)
 		Cmd_StuffCmds_f ();		// process command line arguments
 		Cbuf_Execute ();
 
-	// if a map wasn't specified on the command line, spawn start map
+		// if a map wasn't specified on the command line, spawn start map
 		if (!com_serveractive)
 			Cmd_ExecuteString ("map start");
 		if (!com_serveractive)
