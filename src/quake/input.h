@@ -68,8 +68,6 @@ extern cvar_t	m_yaw;
 extern cvar_t	m_forward;
 extern cvar_t	m_side;
 
-extern cvar_t	_windowed_mouse;
-
 #define mlook_active	(freelook.value || (in_mlook.state&1))
 
 #endif /* _INPUT_H_ */

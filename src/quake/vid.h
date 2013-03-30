@@ -60,6 +60,7 @@ extern int vid_usinghwgamma;
 extern cvar_t vid_fullscreen;
 extern cvar_t vid_width;
 extern cvar_t vid_height;
+extern cvar_t vid_mouse;
 extern cvar_t vid_vsync;
 
 // brand of graphics chip

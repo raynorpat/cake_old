@@ -426,8 +426,8 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValue (&cl_hudswap, !cl_hudswap.value);
 		break;
 
-	case 17:	// _windowed_mouse
-		Cvar_SetValue (&_windowed_mouse, !_windowed_mouse.value);
+	case 17:	// vid_mouse
+		Cvar_SetValue (&vid_mouse, !vid_mouse.value);
 		break;
 	}
 }
@@ -522,7 +522,7 @@ void M_Options_Draw (void)
 	M_PrintWhite (16, 160, "         Video Options");
 
 	M_Print (16, 168, "             Use Mouse");
-	M_DrawCheckbox (220, 168, _windowed_mouse.value);
+	M_DrawCheckbox (220, 168, vid_mouse.value);
 
 // cursor
 	M_DrawChar (200, 32 + options_cursor*8, 12+((int)(curtime*4)&1));

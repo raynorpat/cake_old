@@ -37,16 +37,17 @@ int vid_usinghwgamma = false;
 unsigned short vid_gammaramps[768];
 unsigned short vid_systemgammaramps[768];
 
-cvar_t vid_fullscreen = {"vid_fullscreen", "0"};
-cvar_t vid_width = {"vid_width", "1024"};
-cvar_t vid_height = {"vid_height", "768"};
+cvar_t vid_fullscreen = {"vid_fullscreen", "0", CVAR_ARCHIVE};
+cvar_t vid_width = {"vid_width", "1024", CVAR_ARCHIVE};
+cvar_t vid_height = {"vid_height", "768", CVAR_ARCHIVE};
+cvar_t vid_mouse = {"vid_mouse", "1", CVAR_ARCHIVE};
 cvar_t vid_vsync = {"vid_vsync", "1", CVAR_ARCHIVE};
 
 cvar_t v_gamma = {"v_gamma", "1", CVAR_ARCHIVE};
 cvar_t v_contrast = {"v_contrast", "1", CVAR_ARCHIVE};
 cvar_t v_brightness = {"v_brightness", "0", CVAR_ARCHIVE};
 cvar_t v_overbrightbits = {"v_overbrightbits", "0", CVAR_ARCHIVE};
-cvar_t v_hwgamma = {"v_hwgamma", "1", 0};
+cvar_t v_hwgamma = {"v_hwgamma", "1", CVAR_ARCHIVE};
 
 // brand of graphics chip
 const char *gl_vendor;
@@ -161,7 +162,7 @@ void (GLAPIENTRY *qglClearStencil)(GLint s);
 
 void (GLAPIENTRY *qglTexEnvf)(GLenum target, GLenum pname, GLfloat param);
 void (GLAPIENTRY *qglTexEnvi)(GLenum target, GLenum pname, GLint param);
-//void (GLAPIENTRY *qglTexParameterf)(GLenum target, GLenum pname, GLfloat param);
+void (GLAPIENTRY *qglTexParameterf)(GLenum target, GLenum pname, GLfloat param);
 //void (GLAPIENTRY *qglTexParameterfv)(GLenum target, GLenum pname, GLfloat *params);
 void (GLAPIENTRY *qglTexParameteri)(GLenum target, GLenum pname, GLint param);
 
@@ -324,7 +325,7 @@ static dllfunction_t opengl110funcs[] =
 	{"glClearStencil", (void **) &qglClearStencil},
 	{"glTexEnvf", (void **) &qglTexEnvf},
 	{"glTexEnvi", (void **) &qglTexEnvi},
-//	{"glTexParameterf", (void **) &qglTexParameterf},
+	{"glTexParameterf", (void **) &qglTexParameterf},
 //	{"glTexParameterfv", (void **) &qglTexParameterfv},
 	{"glTexParameteri", (void **) &qglTexParameteri},
 //	{"glPixelStoref", (void **) &qglPixelStoref},
@@ -511,6 +512,7 @@ void VID_Shared_Init(void)
 	Cvar_Register(&vid_fullscreen);
 	Cvar_Register(&vid_width);
 	Cvar_Register(&vid_height);
+	Cvar_Register(&vid_mouse);
 	Cvar_Register(&vid_vsync);
 
 	Cmd_AddCommand("vid_restart", VID_Restart_f);
@@ -550,6 +552,9 @@ void VID_Restart_f(void)
 			Sys_Error("Unable to restore to last working video mode\n");
 	}
 	VID_OpenSystems();
+
+	TexMgr_ReloadImages ();
+	GL_Init ();
 }
 
 // this is only called once by Host_StartVideo

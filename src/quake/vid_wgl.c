@@ -36,19 +36,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 	LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
 
-int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
-int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
-//int (WINAPI *qwglGetPixelFormat)(HDC);
-BOOL (WINAPI *qwglSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
-BOOL (WINAPI *qwglSwapBuffers)(HDC);
-HGLRC (WINAPI *qwglCreateContext)(HDC);
-BOOL (WINAPI *qwglDeleteContext)(HGLRC);
-HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
-HDC (WINAPI *qwglGetCurrentDC)(VOID);
-PROC (WINAPI *qwglGetProcAddress)(LPCSTR);
-BOOL (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
-BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
-const char *(WINAPI *qwglGetExtensionsStringARB)(HDC hdc);
+static int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
+static int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
+//static int (WINAPI *qwglGetPixelFormat)(HDC);
+static BOOL (WINAPI *qwglSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
+static BOOL (WINAPI *qwglSwapBuffers)(HDC);
+static HGLRC (WINAPI *qwglCreateContext)(HDC);
+static BOOL (WINAPI *qwglDeleteContext)(HGLRC);
+static HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
+static HDC (WINAPI *qwglGetCurrentDC)(VOID);
+static PROC (WINAPI *qwglGetProcAddress)(LPCSTR);
+static BOOL (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
+static BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
+static const char *(WINAPI *qwglGetExtensionsStringARB)(HDC hdc);
 
 static dllfunction_t wglfuncs[] =
 {
@@ -74,19 +74,20 @@ static dllfunction_t wglswapintervalfuncs[] =
 
 static DEVMODE	gdevmode;
 static qbool	vid_initialized = false;
-static qbool	vid_canalttab = false;
 static qbool	vid_wassuspended = false;
-static int		windowed_mouse;
-
+static qbool 	vid_usingmouse = false;
+static qbool 	vid_usingvsync = false;
+static qbool 	vid_usemouse = false;
+static qbool	vid_usevsync = false;
 static HICON	hIcon;
 
+// used by cd_win.c and snd_win.c
 HWND			mainwindow;
+
 static HDC		baseDC;
 static HGLRC	baseRC;
 
 static int vid_isfullscreen;
-
-float vid_gamma = 1.0;
 
 cvar_t	m_filter = {"m_filter", "0"};
 cvar_t	in_dinput = {"in_dinput", "1", CVAR_ARCHIVE};
@@ -95,18 +96,15 @@ cvar_t	in_joystick = {"joystick","0", CVAR_ARCHIVE};
 // compatibility with old Quake -- setting to 0 disables KP_* codes
 cvar_t	cl_keypad = {"cl_keypad","1"};
 
-float		gldepthmin, gldepthmax;
-
-LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-void AppActivate(BOOL fActive, BOOL minimize);
+float		gldepthmax;
 
 //====================================
-
-cvar_t		_windowed_mouse = {"_windowed_mouse","1",CVAR_ARCHIVE};
 
 int window_x, window_y, window_width, window_height;
 int window_center_x, window_center_y;
 unsigned int uiWheelMessage = (unsigned int)0;
+
+static void IN_Activate (qbool grab);
 
 void IN_ShowMouse (void);
 void IN_DeactivateMouse (void);
@@ -181,32 +179,21 @@ void VID_Finish (void)
 			qwglSwapIntervalEXT (old_vsync);
 	}
 
+	// handle the mouse state when windowed if that's changed
+	vid_usemouse = false;
+	if (vid_mouse.value && key_dest == key_game)
+		vid_usemouse = true;
+	if (vid_isfullscreen)
+		vid_usemouse = true;
+	if (!vid_activewindow)
+		vid_usemouse = false;
+	IN_Activate(vid_usemouse);
+
 	if (!vid_hidden)
 	{
 		if (gl_finish.value)
 			qglFinish();
 		SwapBuffers(baseDC);
-	}
-
-// handle the mouse state when windowed if that's changed
-	if (!vid_isfullscreen)
-	{
-		if (!_windowed_mouse.value) {
-			if (windowed_mouse)	{
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-				windowed_mouse = false;
-			}
-		} else {
-			windowed_mouse = true;
-			if (key_dest == key_game && !mouseactive && vid_activewindow) {
-				IN_ActivateMouse ();
-				IN_HideMouse ();
-			} else if (mouseactive && key_dest != key_game) {
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-			}
-		}
 	}
 }
 
@@ -336,47 +323,26 @@ void AppActivate(BOOL fActive, BOOL minimize)
 		vid_allowhwgamma = true;
 		if (vid_isfullscreen)
 		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-
-			if (vid_canalttab && vid_wassuspended)
+			if (vid_wassuspended)
 			{
 				vid_wassuspended = false;
-				if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
-					Sys_Error ("Couldn't set fullscreen DIB mode");
+				ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN);
 				ShowWindow (mainwindow, SW_SHOWNORMAL);
-
-				// Fix for alt-tab bug in NVidia drivers
-				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
-
-				SCR_InvalidateScreen ();
 			}
-		}
-		else if (!vid_isfullscreen && vid_hidden)
-			ShowWindow (mainwindow, SW_RESTORE);
-		else if (!vid_isfullscreen && _windowed_mouse.value && key_dest == key_game)
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
+
+			// Fix for alt-tab bug in NVidia drivers
+			MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
 		}
 	}
 
 	if (!fActive)
 	{
 		vid_allowhwgamma = false;
+		IN_Activate (false);
 		if (vid_isfullscreen)
 		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
-			if (vid_canalttab) {
-				ChangeDisplaySettings (NULL, 0);
-				vid_wassuspended = true;
-			}
-		}
-		else if (!vid_isfullscreen && _windowed_mouse.value)
-		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
+			ChangeDisplaySettings (NULL, 0);
+			vid_wassuspended = true;
 		}
 		VID_RestoreSystemGamma();
 	}
@@ -474,7 +440,8 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 			if (wParam & MK_XBUTTON2)
 				temp |= 16;
 
-			IN_MouseEvent (temp);
+			if (vid_usingmouse)
+				IN_MouseEvent (temp);
 
 			break;
 
@@ -537,18 +504,10 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 VID_Init
 ===================
 */
+static void IN_Init(void);
 void VID_Init (void)
 {
 	WNDCLASS wc;
-
-	Cvar_Register (&_windowed_mouse);
-
-	Cvar_Register (&m_filter);
-	Cvar_Register (&in_dinput);
-	Cvar_Register (&in_joystick);
-	Cvar_Register (&cl_keypad);
-
-	Cmd_AddCommand ("loadkeys", IN_LoadKeys_f);
 
 	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_APPICON));
 
@@ -567,7 +526,7 @@ void VID_Init (void)
 	if (!RegisterClass (&wc))
 		Sys_Error("Couldn't register window class\n");
 
-	uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
+	IN_Init();
 }
 
 int VID_InitMode (int fullscreen, int width, int height)
@@ -790,9 +749,12 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 	gl_videosyncavailable = GL_CheckExtension("WGL_EXT_swap_control", wglswapintervalfuncs, NULL, false);
 
+	VID_CheckExtensions();
+
 	GL_Init ();
 
-	vid_canalttab = true;
+	vid_usingmouse = false;
+	vid_usingvsync = false;
 	vid_hidden = false;
 	vid_initialized = true;
 
@@ -804,6 +766,7 @@ int VID_InitMode (int fullscreen, int width, int height)
 	return true;
 }
 
+static void IN_Shutdown(void);
 void VID_Shutdown (void)
 {
 	if(!vid_initialized)
@@ -812,10 +775,7 @@ void VID_Shutdown (void)
 	VID_RestoreSystemGamma();
 
 	vid_initialized = false;
-
-	IN_DeactivateMouse ();
-	IN_ShowMouse ();
-
+	IN_Shutdown();
 	if (qwglMakeCurrent)
 		qwglMakeCurrent(NULL, NULL);
 
@@ -968,149 +928,57 @@ static DIDATAFORMAT	df = {
 static void Joy_AdvancedUpdate_f (void);
 static void IN_JoyMove (usercmd_t *cmd);
 
-/*
-===========
-IN_ShowMouse
-===========
-*/
-void IN_ShowMouse (void)
+static void IN_Activate (qbool grab)
 {
-	if (!mouseshowtoggle)
+	if (!mouseinitialized)
+		return;
+
+	if (grab)
 	{
-		ShowCursor (TRUE);
-		mouseshowtoggle = 1;
-	}
-}
-
-
-/*
-===========
-IN_HideMouse
-===========
-*/
-void IN_HideMouse (void)
-{
-	if (mouseshowtoggle)
-	{
-		ShowCursor (FALSE);
-		mouseshowtoggle = 0;
-	}
-}
-
-
-/*
-===========
-IN_ActivateMouse
-===========
-*/
-void IN_ActivateMouse (void)
-{
-	mouseactivatetoggle = true;
-
-	if (mouseinitialized)
-	{
-		if (dinput)
+		if (!vid_usingmouse)
 		{
-			if (g_pMouse)
+			vid_usingmouse = true;
+			if (dinput && g_pMouse)
 			{
-				if (!dinput_acquired)
-				{
-					IDirectInputDevice_Acquire(g_pMouse);
-					dinput_acquired = true;
-				}
+				IDirectInputDevice_Acquire(g_pMouse);
+				dinput_acquired = true;
 			}
 			else
 			{
-				return;
+				RECT window_rect;
+				window_rect.left = window_x;
+				window_rect.top = window_y;
+				window_rect.right = window_x + vid.width;
+				window_rect.bottom = window_y + vid.height;
+				if (mouseparmsvalid)
+					restore_spi = SystemParametersInfo (SPI_SETMOUSE, 0, newmouseparms, 0);
+				SetCursorPos ((window_x + vid.width / 2), (window_y + vid.height / 2));
+				SetCapture (mainwindow);
+				ClipCursor (&window_rect);
 			}
+			ShowCursor (false);
 		}
-		else
-		{
-			RECT window_rect;
-			window_rect.left = window_x;
-			window_rect.top = window_y;
-			window_rect.right = window_x + window_width;
-			window_rect.bottom = window_y + window_height;
-
-			if (mouseparmsvalid)
-				restore_spi = SystemParametersInfo (SPI_SETMOUSE, 0, newmouseparms, 0);
-
-			SetCursorPos (window_center_x, window_center_y);
-			SetCapture (mainwindow);
-			ClipCursor (&window_rect);
-		}
-
-		mouseactive = true;
 	}
-}
-
-
-/*
-===========
-IN_SetQuakeMouseState
-===========
-*/
-void IN_SetQuakeMouseState (void)
-{
-	if (mouseactivatetoggle)
-		IN_ActivateMouse ();
-}
-
-
-/*
-===========
-IN_DeactivateMouse
-===========
-*/
-void IN_DeactivateMouse (void)
-{
-
-	mouseactivatetoggle = false;
-
-	if (mouseinitialized)
+	else
 	{
-		if (dinput)
+		if (vid_usingmouse)
 		{
-			if (g_pMouse)
+			vid_usingmouse = false;
+			if (dinput_acquired)
 			{
-				if (dinput_acquired)
-				{
-					IDirectInputDevice_Unacquire(g_pMouse);
-					dinput_acquired = false;
-				}
+				IDirectInputDevice_Unacquire(g_pMouse);
+				dinput_acquired = false;
 			}
+			else
+			{
+				if (restore_spi)
+					SystemParametersInfo (SPI_SETMOUSE, 0, originalmouseparms, 0);
+				ClipCursor (NULL);
+				ReleaseCapture ();
+			}
+			ShowCursor (true);
 		}
-		else
-		{
-		if (restore_spi)
-			SystemParametersInfo (SPI_SETMOUSE, 0, originalmouseparms, 0);
-
-		ClipCursor (NULL);
-		ReleaseCapture ();
 	}
-
-		mouseactive = false;
-	}
-}
-
-
-/*
-===========
-IN_RestoreOriginalMouseState
-===========
-*/
-void IN_RestoreOriginalMouseState (void)
-{
-	if (mouseactivatetoggle)
-	{
-		IN_DeactivateMouse ();
-		mouseactivatetoggle = true;
-	}
-
-// try to redraw the cursor so it gets reinitialized, because sometimes it
-// has garbage after the mode switch
-	ShowCursor (TRUE);
-	ShowCursor (FALSE);
 }
 
 
@@ -1272,11 +1140,6 @@ static void IN_StartupMouse (void)
 			}
 		}
 	}
-
-// if a fullscreen video mode was set before the mouse was initialized,
-// set the mouse state appropriately
-	if (mouseactivatetoggle)
-		IN_ActivateMouse ();
 }
 
 
@@ -1325,7 +1188,7 @@ static void IN_MouseMove (usercmd_t *cmd)
 	DWORD				dwElements;
 	HRESULT				hr;
 
-	if (!mouseactive)
+	if (!vid_usingmouse)
 		return;
 
 	if (dinput)
@@ -1509,27 +1372,6 @@ static void IN_StartupJoystick (void)
 	// only initialize if the user wants it
 	if (!COM_CheckParm ("-joystick"))
 		return;
-
-	Cvar_Register (&joy_name);
-	Cvar_Register (&joy_advanced);
-	Cvar_Register (&joy_advaxisx);
-	Cvar_Register (&joy_advaxisy);
-	Cvar_Register (&joy_advaxisz);
-	Cvar_Register (&joy_advaxisr);
-	Cvar_Register (&joy_advaxisu);
-	Cvar_Register (&joy_advaxisv);
-	Cvar_Register (&joy_forwardthreshold);
-	Cvar_Register (&joy_sidethreshold);
-	Cvar_Register (&joy_pitchthreshold);
-	Cvar_Register (&joy_yawthreshold);
-	Cvar_Register (&joy_forwardsensitivity);
-	Cvar_Register (&joy_sidesensitivity);
-	Cvar_Register (&joy_pitchsensitivity);
-	Cvar_Register (&joy_yawsensitivity);
-	Cvar_Register (&joy_wwhack1);
-	Cvar_Register (&joy_wwhack2);
-
-	Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
 
 	// verify joystick driver is present
 	if ((numdevs = joyGetNumDevs ()) == 0)
@@ -2222,4 +2064,50 @@ static void IN_LoadKeys_f (void)
 
 	if (cl_warncmd.value || developer.value)
 		Com_Printf ("%s keymap loaded\n", layout);
+}
+
+static void IN_Init(void)
+{
+	uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
+
+	Cvar_Register (&m_filter);
+	Cvar_Register (&in_dinput);
+	Cvar_Register (&cl_keypad);
+
+	// joystick variables
+	Cvar_Register (&in_joystick);
+	Cvar_Register (&joy_name);
+	Cvar_Register (&joy_advanced);
+	Cvar_Register (&joy_advaxisx);
+	Cvar_Register (&joy_advaxisy);
+	Cvar_Register (&joy_advaxisz);
+	Cvar_Register (&joy_advaxisr);
+	Cvar_Register (&joy_advaxisu);
+	Cvar_Register (&joy_advaxisv);
+	Cvar_Register (&joy_forwardthreshold);
+	Cvar_Register (&joy_sidethreshold);
+	Cvar_Register (&joy_pitchthreshold);
+	Cvar_Register (&joy_yawthreshold);
+	Cvar_Register (&joy_forwardsensitivity);
+	Cvar_Register (&joy_sidesensitivity);
+	Cvar_Register (&joy_pitchsensitivity);
+	Cvar_Register (&joy_yawsensitivity);
+	Cvar_Register (&joy_wwhack1);
+	Cvar_Register (&joy_wwhack2);
+
+	Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
+	Cmd_AddCommand ("loadkeys", IN_LoadKeys_f);
+}
+
+static void IN_Shutdown(void)
+{
+	IN_Activate (false);
+
+	if (g_pMouse)
+		IDirectInputDevice_Release(g_pMouse);
+	g_pMouse = NULL;
+
+	if (g_pdi)
+		IDirectInput_Release(g_pdi);
+	g_pdi = NULL;
 }
