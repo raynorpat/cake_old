@@ -184,13 +184,13 @@ void R_TranslatePlayerSkin (int playernum)
 				}
 			}
 
-			glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
+			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 				scaled_width, scaled_height, 0, GL_RGBA, 
 				GL_UNSIGNED_BYTE, pixels);
 
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
 */
 	}
@@ -235,40 +235,6 @@ void R_NewMap (struct model_s *worldmodel)
 	r_skyboxloaded = false;
 }
 
-
-/*
-====================
-R_TimeRefresh_f
-
-For program optimization
-====================
-*/
-void R_TimeRefresh_f (void)
-{
-	int			i;
-	float		start, stop, time;
-
-	if (cls.state != ca_active)
-		return;
-
-	glDrawBuffer  (GL_FRONT);
-	glFinish ();
-
-	start = Sys_DoubleTime ();
-	for (i = 0; i < 128; i++)
-	{
-		r_refdef2.viewangles[1] = i * (360.0 / 128.0);
-		R_RenderView ();
-	}
-
-	glFinish ();
-	stop = Sys_DoubleTime ();
-	time = stop-start;
-	Com_Printf ("%f seconds (%f fps)\n", time, 128/time);
-
-	glDrawBuffer  (GL_BACK);
-	VID_Finish ();
-}
 
 void D_FlushCaches (void)
 {
@@ -364,7 +330,7 @@ void R_ScreenShot_f (void)
 	buffer[15] = vid.realheight>>8;
 	buffer[16] = 24;        // pixel size
 
-	glReadPixels (0, 0, vid.realwidth, vid.realheight, GL_RGB, GL_UNSIGNED_BYTE, buffer+18 ); 
+	qglReadPixels (0, 0, vid.realwidth, vid.realheight, GL_RGB, GL_UNSIGNED_BYTE, buffer+18 ); 
 
 	// swap rgb to bgr
 	c = 18 + vid.realwidth * vid.realheight * 3;
@@ -488,7 +454,7 @@ void R_RSShot (byte **pcxdata, int *pcxsize)
 // 
 	newbuf = Q_malloc (vid.realheight * vid.realwidth * 3);
 
-	glReadPixels (0, 0, vid.realwidth, vid.realheight, GL_RGB, GL_UNSIGNED_BYTE, newbuf);
+	qglReadPixels (0, 0, vid.realwidth, vid.realheight, GL_RGB, GL_UNSIGNED_BYTE, newbuf);
 
 	w = min (vid.realwidth, RSSHOT_WIDTH);
 	h = min (vid.realheight, RSSHOT_HEIGHT);

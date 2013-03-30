@@ -333,8 +333,8 @@ void M_Main_Key (int key)
 
 static int		options_cursor;
 
-extern cvar_t	gammavar;
-extern cvar_t	contrast;
+extern cvar_t	v_gamma;
+extern cvar_t	v_contrast;
 extern cvar_t	cl_run;
 
 void M_Menu_Options_f (void)
@@ -358,20 +358,20 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValue (&scr_viewsize, scr_viewsize.value);
 		break;
 	case 4:	// gamma
-		gammavar.value -= dir * 0.05;
-		if (gammavar.value < 0.5)
-			gammavar.value = 0.5;
-		if (gammavar.value > 1)
-			gammavar.value = 1;
-		Cvar_SetValue (&gammavar, gammavar.value);
+		v_gamma.value += dir * 0.0625;
+		if (v_gamma.value < 0.5)
+			v_gamma.value = 0.5;
+		if (v_gamma.value > 3)
+			v_gamma.value = 3;
+		Cvar_SetValue (&v_gamma, v_gamma.value);
 		break;
 	case 5:	// contrast
-		contrast.value += dir * 0.1;
-		if (contrast.value < 1)
-			contrast.value = 1;
-		if (contrast.value > 2)
-			contrast.value = 2;
-		Cvar_SetValue (&contrast, contrast.value);
+		v_contrast.value += dir * 0.0625;
+		if (v_contrast.value < 1)
+			v_contrast.value = 1;
+		if (v_contrast.value > 4)
+			v_contrast.value = 4;
+		Cvar_SetValue (&v_contrast, v_contrast.value);
 		break;
 	case 6:	// mouse speed
 		sensitivity.value += dir * 0.5;
@@ -480,11 +480,11 @@ void M_Options_Draw (void)
 	M_DrawSlider (220, 56, r);
 
 	M_Print (16, 64, "                 Gamma");
-	r = (1.0 - gammavar.value) / 0.5;
+	r = v_gamma.value - 1.0;
 	M_DrawSlider (220, 64, r);
 
 	M_Print (16, 72, "              Contrast");
-	r = contrast.value - 1.0;
+	r = v_contrast.value - 1.0;
 	M_DrawSlider (220, 72, r);
 
 	M_Print (16, 80, "           Mouse Speed");
@@ -2668,9 +2668,9 @@ void M_Draw (void)
 	if (scr_scaleMenu.value) {
 		menuwidth = 320;
 		menuheight = min (vid.height, 240);
-		glMatrixMode(GL_PROJECTION);
-		glLoadIdentity ();
-		glOrtho  (0, menuwidth, menuheight, 0, -99999, 99999);
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadIdentity ();
+		qglOrtho  (0, menuwidth, menuheight, 0, -99999, 99999);
 	} else {
 		menuwidth = vid.width;
 		menuheight = vid.height;
@@ -2747,9 +2747,9 @@ void M_Draw (void)
 
 #ifdef GLQUAKE
 	if (scr_scaleMenu.value) {
-		glMatrixMode (GL_PROJECTION);
-		glLoadIdentity ();
-		glOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
+		qglMatrixMode (GL_PROJECTION);
+		qglLoadIdentity ();
+		qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 	}
 #endif
 

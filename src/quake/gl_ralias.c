@@ -68,7 +68,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 
 	if (currententity->renderfx & RF_TRANSLUCENT)
 	{
-		glEnable (GL_BLEND);
+		qglEnable (GL_BLEND);
 		l_v[3] = currententity->alpha;
 	}
 	else
@@ -89,20 +89,20 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		if (count < 0)
 		{
 			count = -count;
-			glBegin (GL_TRIANGLE_FAN);
+			qglBegin (GL_TRIANGLE_FAN);
 		}
 		else
-			glBegin (GL_TRIANGLE_STRIP);
+			qglBegin (GL_TRIANGLE_STRIP);
 
 		do
 		{
 			// texture coordinates come from the draw list
-			if (mtex) {
+			if (qglMultiTexCoord2f) {
 				qglMultiTexCoord2f (GL_TEXTURE0_ARB, hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
 				qglMultiTexCoord2f (GL_TEXTURE1_ARB, hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
 			}
 			else {
-				glTexCoord2f (hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
+				qglTexCoord2f (hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
 			}
 
 			order += 2;
@@ -114,16 +114,16 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 				if (l_v[i] > 1)
 					l_v[i] = 1;
 			}
-			glColor4fv (l_v);
-			glVertex3f (verts->v[0], verts->v[1], verts->v[2]);
+			qglColor4fv (l_v);
+			qglVertex3f (verts->v[0], verts->v[1], verts->v[2]);
 			verts++;
 		} while (--count);
 
-		glEnd ();
+		qglEnd ();
 	}
 
 	if (currententity->renderfx & RF_TRANSLUCENT)
-		glDisable (GL_BLEND);
+		qglDisable (GL_BLEND);
 }
 
 
@@ -153,15 +153,15 @@ void GL_DrawAliasShadow (aliashdr_t *paliashdr, int posenum)
 		if (count < 0)
 		{
 			count = -count;
-			glBegin (GL_TRIANGLE_FAN);
+			qglBegin (GL_TRIANGLE_FAN);
 		}
 		else
-			glBegin (GL_TRIANGLE_STRIP);
+			qglBegin (GL_TRIANGLE_STRIP);
 
 		do
 		{
 			// texture coordinates come from the draw list
-			// (skipped for shadows) glTexCoord2fv ((float *)order);
+			// (skipped for shadows) qglTexCoord2fv ((float *)order);
 			order += 2;
 
 			// normals and vertexes come from the frame list
@@ -173,12 +173,12 @@ void GL_DrawAliasShadow (aliashdr_t *paliashdr, int posenum)
 			point[1] -= shadevector[1]*(point[2]+lheight);
 			point[2] = height;
 //			height -= 0.001;
-			glVertex3fv (point);
+			qglVertex3fv (point);
 
 			verts++;
 		} while (--count);
 
-		glEnd ();
+		qglEnd ();
 	}	
 }
 
@@ -349,16 +349,16 @@ void R_DrawAliasModel (entity_t *ent)
 	// draw all the triangles
 	//
 
-	glPushMatrix ();
+	qglPushMatrix ();
 	R_RotateForEntity (ent);
 
 	if (clmodel->modhint == MOD_EYES) {
-		glTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2] - (22 + 8));
+		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2] - (22 + 8));
 	// double size of eyes, since they are really hard to see in gl
-		glScalef (paliashdr->scale[0]*2, paliashdr->scale[1]*2, paliashdr->scale[2]*2);
+		qglScalef (paliashdr->scale[0]*2, paliashdr->scale[1]*2, paliashdr->scale[2]*2);
 	} else {
-		glTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
-		glScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
+		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
+		qglScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
 	}
 
 	anim = (int)(r_refdef2.time*10) & 3;
@@ -392,26 +392,19 @@ void R_DrawAliasModel (entity_t *ent)
 		fb_texture = 0;
 	}
 
-	if (gl_smoothmodels.value)
-		glShadeModel (GL_SMOOTH);
-
-	if (gl_affinemodels.value)
-		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
-
-
 	// hack the depth range to prevent view model from poking into walls
 	if (ent->renderfx & RF_WEAPONMODEL)
-		glDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
 
 	if (fb_texture) {
 		GL_SelectTexture (GL_TEXTURE0_ARB);
 		GL_Bind (texture->texnum);
-		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		GL_SelectTexture (GL_TEXTURE1_ARB);
 		GL_Bind (fb_texture->texnum);
-		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
 
 		R_SetupAliasFrame (ent->frame, paliashdr, true);
 	}
@@ -419,20 +412,15 @@ void R_DrawAliasModel (entity_t *ent)
 	{
 		GL_SelectTexture (GL_TEXTURE0_ARB);
 		GL_Bind (texture->texnum);
-		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		R_SetupAliasFrame (ent->frame, paliashdr, false);
 	}
 
 	if (ent->renderfx & RF_WEAPONMODEL)
-		glDepthRange (gldepthmin, gldepthmax);	// restore normal depth range
+		qglDepthRange (gldepthmin, gldepthmax);	// restore normal depth range
 
-
-	glShadeModel (GL_FLAT);
-	if (gl_affinemodels.value)
-		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-	glPopMatrix ();
+	qglPopMatrix ();
 
 	if (r_shadows.value && !full_light && !(ent->renderfx & RF_WEAPONMODEL))
 	{
@@ -445,23 +433,23 @@ void R_DrawAliasModel (entity_t *ent)
 		shadevector[1] = sin(an) * shadescale;
 		shadevector[2] = shadescale;
 
-		glPushMatrix ();
+		qglPushMatrix ();
 
-		glTranslatef (ent->origin[0],  ent->origin[1],  ent->origin[2]);
-		glRotatef (ent->angles[1],  0, 0, 1);
+		qglTranslatef (ent->origin[0],  ent->origin[1],  ent->origin[2]);
+		qglRotatef (ent->angles[1],  0, 0, 1);
 
-		//FIXME glRotatef (-ent->angles[0],  0, 1, 0);
-		//FIXME glRotatef (ent->angles[2],  1, 0, 0);
+		//FIXME qglRotatef (-ent->angles[0],  0, 1, 0);
+		//FIXME qglRotatef (ent->angles[2],  1, 0, 0);
 
-		glDisable (GL_TEXTURE_2D);
-		glEnable (GL_BLEND);
-		glColor4f (0, 0, 0, 0.5);
+		qglDisable (GL_TEXTURE_2D);
+		qglEnable (GL_BLEND);
+		qglColor4f (0, 0, 0, 0.5);
 		GL_DrawAliasShadow (paliashdr, lastposenum);
-		glEnable (GL_TEXTURE_2D);
-		glDisable (GL_BLEND);
-		glPopMatrix ();
+		qglEnable (GL_TEXTURE_2D);
+		qglDisable (GL_BLEND);
+		qglPopMatrix ();
 	}
 
-	glColor3f (1, 1, 1);
+	qglColor3f (1, 1, 1);
 }
 

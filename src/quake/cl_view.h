@@ -21,9 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CL_VIEW_H_
 #define _CL_VIEW_H_
 
-extern	cvar_t		sw_gamma;
-extern	cvar_t		sw_contrast;
-
 #ifdef GLQUAKE
 extern float v_blend[4];
 #endif
@@ -36,7 +33,6 @@ void V_AddParticle (vec3_t origin, int color, float alpha);
 void V_Init (void);
 void V_NewMap (void);
 void V_RenderView (void);
-void V_UpdatePalette (void);
 void V_ParseDamage (void);
 void V_SetContentsColor (int contents);
 void V_PrepBlend (void);

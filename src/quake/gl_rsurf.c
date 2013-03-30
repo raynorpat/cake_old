@@ -66,11 +66,11 @@ void R_RenderFullbrights (void)
 /*
 	GL_SelectTexture (GL_TEXTURE0_ARB);
 
-	glDepthMask (GL_FALSE);	// don't bother writing Z
+	qglDepthMask (GL_FALSE);	// don't bother writing Z
 
-	glEnable (GL_BLEND);
-//	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglEnable (GL_BLEND);
+//	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 	for (i=1 ; i<MAX_GLTEXTURES ; i++) {
 		if (!fullbright_polys[i])
@@ -82,10 +82,10 @@ void R_RenderFullbrights (void)
 		fullbright_polys[i] = NULL;
 	}
 
-	glDisable (GL_BLEND);
-	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	qglDisable (GL_BLEND);
+	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 	
-	glDepthMask (GL_TRUE);
+	qglDepthMask (GL_TRUE);
 */
 
 	drawfullbrights = false;
@@ -431,7 +431,7 @@ void R_UploadLightMap (int lightmapnum)
 
 	lightmap_modified[lightmapnum] = false;
 	theRect = &lightmap_rectchange[lightmapnum];
-	glTexSubImage2D (GL_TEXTURE_2D, 0, 0, theRect->t, 
+	qglTexSubImage2D (GL_TEXTURE_2D, 0, 0, theRect->t, 
 		BLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
 		lightmaps+(lightmapnum*BLOCK_HEIGHT + theRect->t)*BLOCK_WIDTH*lightmap_bytes);
 	theRect->l = BLOCK_WIDTH;
@@ -498,14 +498,14 @@ void DrawGLPoly (glpoly_t *p)
 	int		i;
 	float	*v;
 
-	glBegin (GL_POLYGON);
+	qglBegin (GL_POLYGON);
 	v = p->verts[0];
 	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
 	{
-		glTexCoord2f (v[3], v[4]);
-		glVertex3fv (v);
+		qglTexCoord2f (v[3], v[4]);
+		qglVertex3fv (v);
 	}
-	glEnd ();
+	qglEnd ();
 }
 
 
@@ -523,11 +523,11 @@ void R_BlendLightmaps (void)
 	if (r_fullbright.value && r_refdef2.allowCheats)
 		return;
 
-	glDepthMask (GL_FALSE);		// don't bother writing Z
-	glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
+	qglDepthMask (GL_FALSE);		// don't bother writing Z
+	qglBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
 
 	if (!(r_lightmap.value && r_refdef2.allowCheats)) {
-		glEnable (GL_BLEND);
+		qglEnable (GL_BLEND);
 	}
 
 	for (i=0 ; i<MAX_LIGHTMAPS ; i++)
@@ -541,20 +541,20 @@ void R_BlendLightmaps (void)
 
 		for ( ; p ; p=p->chain)
 		{
-			glBegin (GL_POLYGON);
+			qglBegin (GL_POLYGON);
 			v = p->verts[0];
 			for (j=0 ; j<p->numverts ; j++, v+= VERTEXSIZE)
 			{
-				glTexCoord2f (v[5], v[6]);
-				glVertex3fv (v);
+				qglTexCoord2f (v[5], v[6]);
+				qglVertex3fv (v);
 			}
-			glEnd ();
+			qglEnd ();
 		}
 	}
 
-	glDisable (GL_BLEND);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glDepthMask (GL_TRUE);		// back to normal Z buffering
+	qglDisable (GL_BLEND);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDepthMask (GL_TRUE);		// back to normal Z buffering
 }
 
 /*
@@ -624,11 +624,11 @@ void R_DrawWaterSurfaces (void)
 		return;
 
 	if (wateralpha < 1.0) {
-		glEnable (GL_BLEND);
-		glColor4f (1, 1, 1, wateralpha);
-		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglEnable (GL_BLEND);
+		qglColor4f (1, 1, 1, wateralpha);
+		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		if (wateralpha < 0.9)
-			glDepthMask (GL_FALSE);
+			qglDepthMask (GL_FALSE);
 	}
 
 	for (i = 0; i < r_worldmodel->numtextures; i++)
@@ -652,12 +652,12 @@ void R_DrawWaterSurfaces (void)
 	}
 
 	if (wateralpha < 1.0) {
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-		glColor3f (1, 1, 1);
-		glDisable (GL_BLEND);
+		qglColor3f (1, 1, 1);
+		qglDisable (GL_BLEND);
 		if (wateralpha < 0.9)
-			glDepthMask (GL_TRUE);
+			qglDepthMask (GL_TRUE);
 	}
 }
 
@@ -764,12 +764,12 @@ void R_DrawBrushModel (entity_t *e)
 		}
 	}
 
-    glPushMatrix ();
+    qglPushMatrix ();
 
-	glTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
-	glRotatef (e->angles[1], 0, 0, 1);
-	glRotatef (e->angles[0], 0, 1, 0);
-	glRotatef (e->angles[2], 1, 0, 0);
+	qglTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
+	qglRotatef (e->angles[1], 0, 0, 1);
+	qglRotatef (e->angles[0], 0, 1, 0);
+	qglRotatef (e->angles[2], 1, 0, 0);
 
 	//
 	// draw texture
@@ -793,7 +793,7 @@ void R_DrawBrushModel (entity_t *e)
 
 	R_RenderFullbrights ();
 
-	glPopMatrix ();
+	qglPopMatrix ();
 }
 
 /*
@@ -929,7 +929,7 @@ void R_DrawWorld (void)
 
 	currententity = &ent;
 
-	glColor3f (1, 1, 1);
+	qglColor3f (1, 1, 1);
 	memset (lightmap_polys, 0, sizeof(lightmap_polys));
 	if (gl_fb_bmodels.value)
 		memset (fullbright_polys, 0, sizeof(fullbright_polys));
@@ -1183,9 +1183,9 @@ void GL_BuildLightmaps (void)
 
 	memset (allocated, 0, sizeof(allocated));
 
-	glDeleteTextures(MAX_LIGHTMAPS, lightmap_textures);
+	qglDeleteTextures(MAX_LIGHTMAPS, lightmap_textures);
 	memset(lightmap_textures, 0, sizeof(lightmap_textures));
-	glGenTextures(MAX_LIGHTMAPS, lightmap_textures); 
+	qglGenTextures(MAX_LIGHTMAPS, lightmap_textures); 
 
 	lightmap_bytes = 3;
 
@@ -1221,9 +1221,9 @@ void GL_BuildLightmaps (void)
 		lightmap_rectchange[i].w = 0;
 		lightmap_rectchange[i].h = 0;
 		GL_Bind(lightmap_textures[i]);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH, BLOCK_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH, BLOCK_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
 	}
  	GL_SelectTexture(GL_TEXTURE0_ARB);
 }

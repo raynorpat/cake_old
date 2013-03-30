@@ -38,18 +38,13 @@ unsigned	d_8to24table[256];
 
 int	currenttexture = -1;
 
-#ifdef _WIN32
-lpMTexFUNC qglMultiTexCoord2f = NULL;
-lpSelTexFUNC qglActiveTexture = NULL;
-#endif
-
 void GL_Bind (int texnum)
 {
 	if (currenttexture == texnum)
 		return;
 
 	currenttexture = texnum;
-	glBindTexture (GL_TEXTURE_2D, texnum);
+	qglBindTexture (GL_TEXTURE_2D, texnum);
 }
 
 void GL_SelectTexture (GLenum target)
@@ -60,7 +55,8 @@ void GL_SelectTexture (GLenum target)
 	if (target == currenttarget)
 		return;
 
-	qglActiveTexture (target);
+	if(qglActiveTexture)
+		qglActiveTexture (target);
 
 	if (target == GL_TEXTURE0_ARB)
 	{
@@ -106,23 +102,23 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 
 	if (glt->flags & TEXPREF_NEAREST)
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
 	else if (glt->flags & TEXPREF_LINEAR)
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	}
 	else if (glt->flags & TEXPREF_MIPMAP)
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
 	}
 	else
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
 	}
 }
 
@@ -250,7 +246,7 @@ gltexture_t *TexMgr_NewTexture (void)
 	glt->next = active_gltextures;
 	active_gltextures = glt;
 
-	glGenTextures (1, (GLuint *) &glt->texnum);
+	qglGenTextures (1, (GLuint *) &glt->texnum);
 	numgltextures++;
 	return glt;
 }
@@ -273,7 +269,7 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 		kill->next = free_gltextures;
 		free_gltextures = kill;
 
-		glDeleteTextures (1, (const GLuint *) &kill->texnum);
+		qglDeleteTextures (1, (const GLuint *) &kill->texnum);
 		numgltextures--;
 		return;
 	}
@@ -286,7 +282,7 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 			kill->next = free_gltextures;
 			free_gltextures = kill;
 
-			glDeleteTextures (1, (const GLuint *) &kill->texnum);
+			qglDeleteTextures (1, (const GLuint *) &kill->texnum);
 			numgltextures--;
 			return;
 		}
@@ -607,7 +603,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 
 	// upload
 	GL_Bind (glt->texnum);
-	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
@@ -624,7 +620,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 			mipwidth = max (mipwidth>>1, 1);
 			mipheight = max (mipheight>>1, 1);
 
-			glTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 	}
 	
@@ -806,7 +802,7 @@ void TexMgr_ReloadImages (void)
 
 	for (glt=active_gltextures; glt; glt=glt->next)
 	{
-		glGenTextures (1, (GLuint *) &glt->texnum);
+		qglGenTextures (1, (GLuint *) &glt->texnum);
 		TexMgr_ReloadImage (glt);
 	}
 }
@@ -884,7 +880,7 @@ static void r_textures_start(void)
 	static byte notexture_data[16] = {159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255}; // black and pink checker
 
 	// poll max size from hardware
-	glGetIntegerv (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
+	qglGetIntegerv (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
 
 	// load palette
 	TexMgr_LoadPalette ();
@@ -906,7 +902,7 @@ static void r_textures_shutdown(void)
 		kill = active_gltextures;
 
 		numgltextures--;
-		glDeleteTextures(1, &kill->texnum);
+		qglDeleteTextures(1, &kill->texnum);
 
 		active_gltextures = active_gltextures->next;
 		kill->next = free_gltextures;

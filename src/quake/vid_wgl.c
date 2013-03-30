@@ -36,10 +36,41 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 	LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
 
-const char *gl_vendor;
-const char *gl_renderer;
-const char *gl_version;
-const char *gl_extensions;
+int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
+int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
+//int (WINAPI *qwglGetPixelFormat)(HDC);
+BOOL (WINAPI *qwglSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
+BOOL (WINAPI *qwglSwapBuffers)(HDC);
+HGLRC (WINAPI *qwglCreateContext)(HDC);
+BOOL (WINAPI *qwglDeleteContext)(HGLRC);
+HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
+HDC (WINAPI *qwglGetCurrentDC)(VOID);
+PROC (WINAPI *qwglGetProcAddress)(LPCSTR);
+BOOL (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
+BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
+const char *(WINAPI *qwglGetExtensionsStringARB)(HDC hdc);
+
+static dllfunction_t wglfuncs[] =
+{
+	{"wglChoosePixelFormat", (void **) &qwglChoosePixelFormat},
+	{"wglDescribePixelFormat", (void **) &qwglDescribePixelFormat},
+//	{"wglGetPixelFormat", (void **) &qwglGetPixelFormat},
+	{"wglSetPixelFormat", (void **) &qwglSetPixelFormat},
+	{"wglSwapBuffers", (void **) &qwglSwapBuffers},
+	{"wglCreateContext", (void **) &qwglCreateContext},
+	{"wglDeleteContext", (void **) &qwglDeleteContext},
+	{"wglGetProcAddress", (void **) &qwglGetProcAddress},
+	{"wglMakeCurrent", (void **) &qwglMakeCurrent},
+	{"wglGetCurrentContext", (void **) &qwglGetCurrentContext},
+	{"wglGetCurrentDC", (void **) &qwglGetCurrentDC},
+	{NULL, NULL}
+};
+
+static dllfunction_t wglswapintervalfuncs[] =
+{
+	{"wglSwapIntervalEXT", (void **) &qwglSwapIntervalEXT},
+	{NULL, NULL}
+};
 
 static DEVMODE	gdevmode;
 static qbool	vid_initialized = false;
@@ -57,9 +88,6 @@ static int vid_isfullscreen;
 
 float vid_gamma = 1.0;
 
-cvar_t	gl_strings = {"gl_strings", "", CVAR_ROM};
-cvar_t	vid_hwgammacontrol = {"vid_hwgammacontrol","1"};
-
 cvar_t	m_filter = {"m_filter", "0"};
 cvar_t	in_dinput = {"in_dinput", "1", CVAR_ARCHIVE};
 cvar_t	in_joystick = {"joystick","0", CVAR_ARCHIVE};
@@ -67,22 +95,14 @@ cvar_t	in_joystick = {"joystick","0", CVAR_ARCHIVE};
 // compatibility with old Quake -- setting to 0 disables KP_* codes
 cvar_t	cl_keypad = {"cl_keypad","1"};
 
-qbool	vid_gammaworks = false;
-qbool	vid_hwgamma_enabled = false;
-unsigned short *currentgammaramp = NULL;
-void RestoreHWGamma (void);
-
 float		gldepthmin, gldepthmax;
 
 LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void AppActivate(BOOL fActive, BOOL minimize);
 
-void GL_Init (void);
-
 //====================================
 
-cvar_t		_windowed_mouse = {"_windowed_mouse","0",CVAR_ARCHIVE};
-cvar_t		vid_displayfrequency = {"vid_displayfrequency", "0"};
+cvar_t		_windowed_mouse = {"_windowed_mouse","1",CVAR_ARCHIVE};
 
 int window_x, window_y, window_width, window_height;
 int window_center_x, window_center_y;
@@ -149,97 +169,22 @@ void VID_GetWindowSize (int *x, int *y, int *width, int *height)
 
 //====================================
 
-void CheckMultiTextureExtensions (void)
-{
-	if (strstr(gl_extensions, "GL_ARB_multitexture ") && !COM_CheckParm("-nomtex")) {
-		qglMultiTexCoord2f = (void *) wglGetProcAddress("glMultiTexCoord2fARB");
-		qglActiveTexture = (void *) wglGetProcAddress("glActiveTextureARB");
-		if (!qglMultiTexCoord2f || !qglActiveTexture)
-			return;
-		Com_Printf ("Multitexture extensions found.\n");
-	}
-}
-
-BOOL ( WINAPI * qwglSwapIntervalEXT)( int interval ) = NULL;
-void CheckSwapIntervalExtension (void)
-{
-	if (strstr(gl_extensions, "WGL_EXT_swap_control")) {
-		qwglSwapIntervalEXT = (void *) wglGetProcAddress("wglSwapIntervalEXT");
-	}
-}
-
-/*
-===============
-GL_Init
-===============
-*/
-void GL_Init (void)
-{
-	gl_vendor = (const char *) glGetString (GL_VENDOR);
-	Com_Printf ("GL_VENDOR: %s\n", gl_vendor);
-	gl_renderer = (const char *) glGetString (GL_RENDERER);
-	Com_Printf ("GL_RENDERER: %s\n", gl_renderer);
-	gl_version = (const char *) glGetString (GL_VERSION);
-	Com_Printf ("GL_VERSION: %s\n", gl_version);
-	gl_extensions = (const char *) glGetString (GL_EXTENSIONS);
-//	Com_Printf ("GL_EXTENSIONS: %s\n", gl_extensions);
-
-	Cvar_Register (&gl_strings);
-	Cvar_ForceSet (&gl_strings, va("GL_VENDOR: %s\nGL_RENDERER: %s\n"
-		"GL_VERSION: %s\nGL_EXTENSIONS: %s", gl_vendor, gl_renderer, gl_version, gl_extensions));
-
-	CheckMultiTextureExtensions ();
-	CheckSwapIntervalExtension ();
-
-	glClearColor (1,0,0,0);
-	glCullFace(GL_FRONT);
-	glEnable(GL_TEXTURE_2D);
-
-	glEnable(GL_ALPHA_TEST);
-	glAlphaFunc(GL_GREATER, 0.666);
-
-	glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-	glShadeModel (GL_FLAT);
-
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-//	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-}
-
 void VID_Finish (void)
 {
 	static int old_vsync = -1;
-
-	/*
-	static qbool old_hwgamma_enabled;
-
-	vid_hwgamma_enabled = vid_hwgammacontrol.value && vid_gammaworks && vid_activewindow && !vid_hidden && modestate == MS_FULLDIB;
-	if (vid_hwgamma_enabled != old_hwgamma_enabled) {
-		old_hwgamma_enabled = vid_hwgamma_enabled;
-		if (vid_hwgamma_enabled && currentgammaramp)
-			VID_SetDeviceGammaRamp (currentgammaramp);
-		else
-			RestoreHWGamma ();
-	}
-	*/
 
 	if (old_vsync != vid_vsync.value)
 	{
 		old_vsync = bound(0, vid_vsync.value, 1);
 		Cvar_SetValue(&vid_vsync, old_vsync);
-		qwglSwapIntervalEXT (old_vsync);
+		if(gl_videosyncavailable && qwglSwapIntervalEXT)
+			qwglSwapIntervalEXT (old_vsync);
 	}
 
 	if (!vid_hidden)
 	{
 		if (gl_finish.value)
-			glFinish();
+			qglFinish();
 		SwapBuffers(baseDC);
 	}
 
@@ -265,49 +210,67 @@ void VID_Finish (void)
 	}
 }
 
-static byte	systemgammaramp[3][256][2];
-static qbool customgamma = false;
 
-/*
-======================
-VID_SetDeviceGammaRamp
-
-Note: ramps must point to a static array
-======================
-*/
-void VID_SetDeviceGammaRamp (unsigned short *ramps)
+int VID_SetGamma(unsigned short *ramps)
 {
-	/*
-	if (vid_gammaworks) {
-		currentgammaramp = ramps;
-		if (vid_hwgamma_enabled) {
-			SetDeviceGammaRamp (maindc, ramps);
-			customgamma = true;
-		}
+	HDC hdc = GetDC (NULL);
+	int i = SetDeviceGammaRamp(hdc, ramps);
+	ReleaseDC (NULL, hdc);
+	return i; // return success or failure
+}
+
+int VID_GetGamma(unsigned short *ramps)
+{
+	HDC hdc = GetDC (NULL);
+	int i = GetDeviceGammaRamp(hdc, ramps);
+	ReleaseDC (NULL, hdc);
+	return i; // return success or failure
+}
+
+static HINSTANCE gldll;
+
+int GL_OpenLibrary(const char *name)
+{
+	Com_Printf("Loading GL driver %s\n", name);
+	GL_CloseLibrary();
+	if (!(gldll = LoadLibrary(name)))
+	{
+		Com_Printf("Unable to LoadLibrary %s\n", name);
+		return false;
 	}
-	*/
+	strcpy(gl_driver, name);
+	return true;
 }
 
-void InitHWGamma (void)
+void GL_CloseLibrary(void)
 {
-	/*
-	if (COM_CheckParm("-nohwgamma"))
-		return;
-	vid_gammaworks = GetDeviceGammaRamp (maindc, systemgammaramp);
-	vid_hwgamma_enabled = vid_hwgammacontrol.value && vid_gammaworks
-		&& vid_activewindow && !vid_hidden && modestate == MS_FULLDIB;
-	*/
-}
-
-void RestoreHWGamma (void)
-{
-	/*
-	if (vid_gammaworks && customgamma) {
-		customgamma = false;
-		SetDeviceGammaRamp (maindc, systemgammaramp);
+	if (gldll)
+	{
+		FreeLibrary(gldll);
+		gldll = 0;
+		gl_driver[0] = 0;
+		qwglGetProcAddress = NULL;
+		gl_extensions = "";
+		gl_platform = "";
+		gl_platformextensions = "";
 	}
-	*/
 }
+
+void *GL_GetProcAddress(const char *name)
+{
+	if (gldll)
+	{
+		void *p = NULL;
+		if (qwglGetProcAddress != NULL)
+			p = (void *) qwglGetProcAddress(name);
+		if (p == NULL)
+			p = (void *) GetProcAddress(gldll, name);
+		return p;
+	}
+	else
+		return NULL;
+}
+
 
 /*
 ===================================================================
@@ -370,15 +333,14 @@ void AppActivate(BOOL fActive, BOOL minimize)
 
 	if (fActive)
 	{
+		vid_allowhwgamma = true;
 		if (vid_isfullscreen)
 		{
 			IN_ActivateMouse ();
 			IN_HideMouse ();
 
-			if (vid_canalttab && !vid_hidden && currentgammaramp)
-				VID_SetDeviceGammaRamp (currentgammaramp);
-
-			if (vid_canalttab && vid_wassuspended) {
+			if (vid_canalttab && vid_wassuspended)
+			{
 				vid_wassuspended = false;
 				if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
 					Sys_Error ("Couldn't set fullscreen DIB mode");
@@ -401,11 +363,11 @@ void AppActivate(BOOL fActive, BOOL minimize)
 
 	if (!fActive)
 	{
+		vid_allowhwgamma = false;
 		if (vid_isfullscreen)
 		{
 			IN_DeactivateMouse ();
 			IN_ShowMouse ();
-			RestoreHWGamma ();
 			if (vid_canalttab) {
 				ChangeDisplaySettings (NULL, 0);
 				vid_wassuspended = true;
@@ -416,6 +378,7 @@ void AppActivate(BOOL fActive, BOOL minimize)
 			IN_DeactivateMouse ();
 			IN_ShowMouse ();
 		}
+		VID_RestoreSystemGamma();
 	}
 }
 
@@ -570,35 +533,6 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 }
 
 /*
-static void Check_Gamma (unsigned char *pal)
-{
-	float	f, inf;
-	unsigned char	palette[768];
-	int		i;
-
-	if ((i = COM_CheckParm("-gamma")) != 0 && i+1 < com_argc)
-		vid_gamma = bound (0.3, Q_atof(com_argv[i+1]), 1);
-	else
-		vid_gamma = 1;
-
-	Cvar_SetValue (&gl_gamma, vid_gamma);
-
-	for (i=0 ; i<768 ; i++)
-	{
-		f = powf ( (pal[i]+1)/256.0 , vid_gamma );
-		inf = f*255 + 0.5;
-		if (inf < 0)
-			inf = 0;
-		if (inf > 255)
-			inf = 255;
-		palette[i] = inf;
-	}
-
-	memcpy (pal, palette, sizeof(palette));
-}
-*/
-
-/*
 ===================
 VID_Init
 ===================
@@ -608,8 +542,6 @@ void VID_Init (void)
 	WNDCLASS wc;
 
 	Cvar_Register (&_windowed_mouse);
-	Cvar_Register (&vid_hwgammacontrol);
-	Cvar_Register (&vid_displayfrequency);
 
 	Cvar_Register (&m_filter);
 	Cvar_Register (&in_dinput);
@@ -668,9 +600,20 @@ int VID_InitMode (int fullscreen, int width, int height)
 	int pixelformat;
 	DWORD WindowStyle, ExWindowStyle;
 	int CenterX, CenterY;
+	const char *gldrivername;
 
 	if (vid_initialized)
 		Sys_Error("VID_InitMode called when video is already initialised\n");
+
+	gldrivername = "opengl32.dll";
+	i = COM_CheckParm("-gl_driver");
+	if (i && i < com_argc - 1)
+		gldrivername = com_argv[i + 1];
+	if (!GL_OpenLibrary(gldrivername))
+	{
+		Com_Printf("Unable to load GL driver %s\n", gldrivername);
+		return false;
+	}
 
 	memset(&gdevmode, 0, sizeof(gdevmode));
 
@@ -679,10 +622,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 		DestroyWindow (hwnd_dialog);
 		hwnd_dialog = NULL;
 	}
-
-//	Check_Gamma(host_basepal);
-
-	InitHWGamma ();
 
 	vid_isfullscreen = false;
 	if (fullscreen)
@@ -803,20 +742,53 @@ int VID_InitMode (int fullscreen, int width, int height)
 		Com_Printf("SetPixelFormat(%d, %d, %p) failed\n", baseDC, pixelformat, &pfd);
 		return false;
 	}
+
+	if (!GL_CheckExtension("wgl", wglfuncs, NULL, false))
+	{
+		VID_Shutdown();
+		Con_Print("wgl functions not found\n");
+		return false;
+	}
 	
-	baseRC = wglCreateContext(baseDC);
+	baseRC = qwglCreateContext(baseDC);
 	if (!baseRC)
 	{
 		VID_Shutdown();
 		Com_Printf("Could not initialize GL (wglCreateContext failed).\n\nMake sure you are in 65536 color mode, and try running -window.\n");
 		return false;
 	}
-	if (!wglMakeCurrent(baseDC, baseRC))
+	if (!qwglMakeCurrent(baseDC, baseRC))
 	{
 		VID_Shutdown();
 		Com_Printf("wglMakeCurrent(%d, %d) failed\n", baseDC, baseRC);
 		return false;
 	}
+
+	if ((qglGetString = (const GLubyte* (GLAPIENTRY *)(GLenum name))GL_GetProcAddress("glGetString")) == NULL)
+	{
+		VID_Shutdown();
+		Com_Printf("glGetString not found\n");
+		return false;
+	}
+	if ((qwglGetExtensionsStringARB = (const char *(WINAPI *)(HDC hdc))GL_GetProcAddress("wglGetExtensionsStringARB")) == NULL)
+		Com_Printf("wglGetExtensionsStringARB not found\n");
+
+	gl_renderer = (const char *)qglGetString(GL_RENDERER);
+	gl_vendor = (const char *)qglGetString(GL_VENDOR);
+	gl_version = (const char *)qglGetString(GL_VERSION);
+	gl_extensions = (const char *)qglGetString(GL_EXTENSIONS);
+	gl_platform = "WGL";
+	gl_platformextensions = "";
+
+	if (qwglGetExtensionsStringARB)
+		gl_platformextensions = (const char *)qwglGetExtensionsStringARB(hdc);
+
+	if (!gl_extensions)
+		gl_extensions = "";
+	if (!gl_platformextensions)
+		gl_platformextensions = "";
+
+	gl_videosyncavailable = GL_CheckExtension("WGL_EXT_swap_control", wglswapintervalfuncs, NULL, false);
 
 	GL_Init ();
 
@@ -837,16 +809,21 @@ void VID_Shutdown (void)
 	if(!vid_initialized)
 		return;
 
+	VID_RestoreSystemGamma();
+
 	vid_initialized = false;
 
 	IN_DeactivateMouse ();
 	IN_ShowMouse ();
 
-	if (wglMakeCurrent)
-		wglMakeCurrent(NULL, NULL);
+	if (qwglMakeCurrent)
+		qwglMakeCurrent(NULL, NULL);
 
-	if (baseRC && wglDeleteContext)
-		wglDeleteContext(baseRC);
+	if (baseRC && qwglDeleteContext)
+		qwglDeleteContext(baseRC);
+
+	// close the library before we get rid of the window
+	GL_CloseLibrary();
 
 	if (baseDC && mainwindow)
 		ReleaseDC(mainwindow, baseDC);

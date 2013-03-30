@@ -822,6 +822,8 @@ needs almost the entire 256k of stack space!
 */
 void SCR_UpdateScreen (void)
 {
+	VID_UpdateGamma(false);
+
 	if (!scr_initialized)
 		return;
 
@@ -834,9 +836,6 @@ void SCR_UpdateScreen (void)
 	scr_copyeverything = 0;
 
 	SCR_CalcRefdef ();
-
-	if (gl_contrast.value > 1 && !vid_hwgamma_enabled)
-		scr_fullupdate = true;
 
 	//
 	// do 3D refresh drawing, and then update the screen
@@ -852,12 +851,11 @@ void SCR_UpdateScreen (void)
 	//
 	// draw any areas not covered by the refresh
 	//
-	/*
 	if (cls.state != ca_active && cl.intermission)
 		R_DrawTile (0, 0, vid.width, vid.height, scr_backtile);
 	else
 		SCR_TileClear (0, vid.height - sb_lines);
-	*/
+
 	if (scr_fullupdate++ < vid.numpages || scr_drawall.value)
 		Sbar_Changed ();
 
@@ -896,10 +894,6 @@ void SCR_UpdateScreen (void)
 	
 	SCR_DrawConsole ();	
 	M_Draw ();
-
-	R_BrightenScreen ();
-
-	V_UpdatePalette ();
 
 	VID_Finish ();
 }

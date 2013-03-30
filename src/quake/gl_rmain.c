@@ -80,24 +80,16 @@ cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
 cvar_t	gl_clear = {"gl_clear","0"};
 cvar_t	gl_cull = {"gl_cull","1"};
 cvar_t	gl_smoothmodels = {"gl_smoothmodels","1"};
-cvar_t	gl_affinemodels = {"gl_affinemodels","0"};
 cvar_t	gl_polyblend = {"gl_polyblend","1"};
 cvar_t	gl_playermip = {"gl_playermip","0"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fb_bmodels = {"gl_fb_bmodels","1"};
 cvar_t	gl_fb_models = {"gl_fb_models","1"};
-cvar_t	gl_loadlitfiles = {"gl_loadlitfiles","1"};
 cvar_t	gl_lightmode = {"gl_lightmode","2"};
 cvar_t	gl_solidparticles = {"gl_solidparticles", "0"};
 
 int		lightmode = 2;
-
-
-#ifndef _WIN32
-qbool vid_hwgamma_enabled = false;	// dummy
-#endif
-
 
 void R_MarkLeaves (void);
 
@@ -181,11 +173,11 @@ qbool R_CullSphere (vec3_t centre, float radius)
 
 void R_RotateForEntity (entity_t *e)
 {
-	glTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
+	qglTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
 
-	glRotatef (e->angles[1], 0, 0, 1);
-	glRotatef (-e->angles[0], 0, 1, 0);
-	glRotatef (e->angles[2], 1, 0, 0);
+	qglRotatef (e->angles[1], 0, 0, 1);
+	qglRotatef (-e->angles[0], 0, 1, 0);
+	qglRotatef (e->angles[2], 1, 0, 0);
 }
 
 //==================================================================================
@@ -236,8 +228,8 @@ void R_DrawEntitiesOnList (void)
 	if (draw_sprites)
 	{
 		GL_SelectTexture (GL_TEXTURE0_ARB);
-		glEnable (GL_ALPHA_TEST);
-//		glDepthMask (GL_FALSE);
+		qglEnable (GL_ALPHA_TEST);
+//		qglDepthMask (GL_FALSE);
 
 		for (i = 0; i < cl_numvisedicts; i++)
 		{
@@ -247,14 +239,14 @@ void R_DrawEntitiesOnList (void)
 				R_DrawSpriteModel (currententity);
 		}
 
-		glDisable (GL_ALPHA_TEST);
-//		glDepthMask (GL_TRUE);
+		qglDisable (GL_ALPHA_TEST);
+//		qglDepthMask (GL_TRUE);
 	}
 
 	// draw translucent models
 	if (draw_translucent)
 	{
-//		glDepthMask (GL_FALSE);		// no z writes
+//		qglDepthMask (GL_FALSE);		// no z writes
 		for (i = 0; i < cl_numvisedicts; i++)
 		{
 			currententity = &cl_visedicts[i];
@@ -263,7 +255,7 @@ void R_DrawEntitiesOnList (void)
 					&& (currententity->renderfx & RF_TRANSLUCENT))
 				R_DrawAliasModel (currententity);
 		}
-//		glDepthMask (GL_TRUE);
+//		qglDepthMask (GL_TRUE);
 	}
 }
 
@@ -285,12 +277,12 @@ void R_DrawParticles (void)
 
 	GL_Bind (particletexture->texnum);
 	
-	glEnable (GL_BLEND);
+	qglEnable (GL_BLEND);
 	if (!gl_solidparticles.value)
-		glDepthMask (GL_FALSE);
-	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglDepthMask (GL_FALSE);
+	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	glBegin (GL_QUADS);
+	qglBegin (GL_QUADS);
 	for (i = 0, p = r_refdef2.particles; i < r_refdef2.numParticles; i++, p++)
 	{
 		// hack a scale up to keep particles from disapearing
@@ -307,29 +299,29 @@ void R_DrawParticles (void)
 		*(int *)color = d_8to24table[p->color];
 		color[3] = p->alpha * 255;
 
-		glColor4ubv (color);
+		qglColor4ubv (color);
 
-		glTexCoord2f (0, 0);
-		glVertex3fv (p->org);
+		qglTexCoord2f (0, 0);
+		qglVertex3fv (p->org);
 
-		glTexCoord2f (0.5, 0);
+		qglTexCoord2f (0.5, 0);
 		VectorMA (p->org, scale, up, p_up);
-		glVertex3fv (p_up);
+		qglVertex3fv (p_up);
 
-		glTexCoord2f (0.5,0.5);
+		qglTexCoord2f (0.5,0.5);
 		VectorMA (p_up, scale, right, p_upright);
-		glVertex3fv (p_upright);
+		qglVertex3fv (p_upright);
 
-		glTexCoord2f (0,0.5);
+		qglTexCoord2f (0,0.5);
 		VectorMA (p->org, scale, right, p_right);
-		glVertex3fv (p_right);
+		qglVertex3fv (p_right);
 	}
-	glEnd ();
+	qglEnd ();
 
-	glDisable (GL_BLEND);
-	glDepthMask (GL_TRUE);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glColor3f (1, 1, 1);
+	qglDisable (GL_BLEND);
+	qglDepthMask (GL_TRUE);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	qglColor3f (1, 1, 1);
 }
 
 /*
@@ -342,68 +334,24 @@ void R_PolyBlend (void)
 	if (!v_blend[3])
 		return;
 
-	glDisable (GL_ALPHA_TEST);
-	glEnable (GL_BLEND);
-	glDisable (GL_TEXTURE_2D);
+	qglDisable (GL_ALPHA_TEST);
+	qglEnable (GL_BLEND);
+	qglDisable (GL_TEXTURE_2D);
 
-	glColor4fv (v_blend);
+	qglColor4fv (v_blend);
 
-	glBegin (GL_QUADS);
-	glVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y);
-	glVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y);
-	glVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y + r_refdef2.vrect.height);
-	glVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y + r_refdef2.vrect.height);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y);
+	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y);
+	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y + r_refdef2.vrect.height);
+	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y + r_refdef2.vrect.height);
+	qglEnd ();
 
-	glDisable (GL_BLEND);
-	glEnable (GL_TEXTURE_2D);
-	glEnable (GL_ALPHA_TEST);
+	qglDisable (GL_BLEND);
+	qglEnable (GL_TEXTURE_2D);
+	qglEnable (GL_ALPHA_TEST);
 
-	glColor3f (1, 1, 1);
-}
-
-/*
-================
-R_BrightenScreen
-================
-*/
-void R_BrightenScreen (void)
-{
-	extern float	vid_gamma;
-	float	f;
-
-	if (vid_hwgamma_enabled)
-		return;
-	if (gl_contrast.value <= 1.0)
-		return;
-
-	f = gl_contrast.value;
-	if (f > 3)
-		f = 3;
-
-	f = pow (f, vid_gamma);
-	
-	glDisable (GL_TEXTURE_2D);
-	glEnable (GL_BLEND);
-	glBlendFunc (GL_DST_COLOR, GL_ONE);
-	glBegin (GL_QUADS);
-	while (f > 1)
-	{
-		if (f >= 2)
-			glColor3f (1, 1, 1);
-		else
-			glColor3f (f - 1, f - 1, f - 1);
-		glVertex2f (0, 0);
-		glVertex2f (vid.width, 0);
-		glVertex2f (vid.width, vid.height);
-		glVertex2f (0, vid.height);
-		f *= 0.5;
-	}
-	glEnd ();
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable (GL_TEXTURE_2D);
-	glDisable (GL_BLEND);
-	glColor3f (1, 1, 1);
+	qglColor3f (1, 1, 1);
 }
 
 int SignbitsForPlane (mplane_t *out)
@@ -411,7 +359,6 @@ int SignbitsForPlane (mplane_t *out)
 	int	bits, j;
 
 	// for fast box on planeside test
-
 	bits = 0;
 	for (j=0 ; j<3 ; j++)
 	{
@@ -506,8 +453,7 @@ void R_SetupFrame (void)
 }
 
 
-void MYgluPerspective( GLdouble fovy, GLdouble aspect,
-			GLdouble zNear, GLdouble zFar )
+void MYgluPerspective( GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar )
 {
 	GLdouble xmin, xmax, ymin, ymax;
 	
@@ -517,7 +463,7 @@ void MYgluPerspective( GLdouble fovy, GLdouble aspect,
 	xmin = ymin * aspect;
 	xmax = ymax * aspect;
 	
-	glFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
+	qglFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
 }
 
 
@@ -534,8 +480,8 @@ void R_SetupGL (void)
 	//
 	// set up viewpoint
 	//
-	glMatrixMode(GL_PROJECTION);
-    glLoadIdentity ();
+	qglMatrixMode(GL_PROJECTION);
+    qglLoadIdentity ();
 	x = (r_refdef2.vrect.x * vid.realwidth) / vid.width;
 	x2 = ((r_refdef2.vrect.x + r_refdef2.vrect.width) * vid.realwidth) / vid.width;
 	y = ((vid.height - r_refdef2.vrect.y) * vid.realheight) / vid.height;
@@ -544,33 +490,33 @@ void R_SetupGL (void)
 	w = x2 - x;
 	h = y - y2;
 
-	glViewport (x, y2, w, h);
+	qglViewport (x, y2, w, h);
 	screenaspect = (float)r_refdef2.vrect.width/r_refdef2.vrect.height;
 	MYgluPerspective (r_refdef2.fov_y,  screenaspect,  4,  4096);
 
-	glCullFace(GL_FRONT);
+	qglCullFace(GL_FRONT);
 
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity ();
+	qglMatrixMode(GL_MODELVIEW);
+	qglLoadIdentity ();
 
-	glRotatef (-90,  1, 0, 0);		// put Z going up
-	glRotatef (90,	0, 0, 1);		// put Z going up
-	glRotatef (-r_refdef2.viewangles[2],  1, 0, 0);
-	glRotatef (-r_refdef2.viewangles[0],  0, 1, 0);
-	glRotatef (-r_refdef2.viewangles[1],  0, 0, 1);
-	glTranslatef (-r_refdef2.vieworg[0], -r_refdef2.vieworg[1], -r_refdef2.vieworg[2]);
+	qglRotatef (-90,  1, 0, 0);		// put Z going up
+	qglRotatef (90,	0, 0, 1);		// put Z going up
+	qglRotatef (-r_refdef2.viewangles[2],  1, 0, 0);
+	qglRotatef (-r_refdef2.viewangles[0],  0, 1, 0);
+	qglRotatef (-r_refdef2.viewangles[1],  0, 0, 1);
+	qglTranslatef (-r_refdef2.vieworg[0], -r_refdef2.vieworg[1], -r_refdef2.vieworg[2]);
 
 	//
 	// set drawing parms
 	//
 	if (gl_cull.value)
-		glEnable(GL_CULL_FACE);
+		qglEnable(GL_CULL_FACE);
 	else
-		glDisable(GL_CULL_FACE);
+		qglDisable(GL_CULL_FACE);
 
-	glDisable(GL_BLEND);
-	glDisable(GL_ALPHA_TEST);
-	glEnable(GL_DEPTH_TEST);
+	qglDisable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable(GL_DEPTH_TEST);
 }
 
 void gl_main_start(void)
@@ -588,7 +534,6 @@ void gl_main_newmap(void)
 
 void GL_Main_Init(void)
 {
-	Cmd_AddCommand ("timerefresh", R_TimeRefresh_f);
 	Cmd_AddCommand ("screenshot", R_ScreenShot_f);
 	Cmd_AddCommand ("loadsky", R_LoadSky_f);
 
@@ -612,14 +557,12 @@ void GL_Main_Init(void)
 	Cvar_Register (&gl_clear);
 	Cvar_Register (&gl_cull);
 	Cvar_Register (&gl_smoothmodels);
-	Cvar_Register (&gl_affinemodels);
 	Cvar_Register (&gl_polyblend);
 	Cvar_Register (&gl_playermip);
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);
 	Cvar_Register (&gl_fb_bmodels);
 	Cvar_Register (&gl_fb_models);
-	Cvar_Register (&gl_loadlitfiles);
 	Cvar_Register (&gl_lightmode);
 	Cvar_Register (&gl_solidparticles);
 
@@ -670,6 +613,37 @@ void R_RenderScene (void)
 
 
 /*
+===============
+GL_Init
+===============
+*/
+void GL_Init (void)
+{
+	VID_CheckExtensions();
+
+	qglClearColor (1,0,0,0);
+	qglCullFace(GL_FRONT);
+	qglEnable(GL_TEXTURE_2D);
+
+	qglEnable(GL_ALPHA_TEST);
+	qglAlphaFunc(GL_GREATER, 0.666);
+
+//	glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
+//	glShadeModel (GL_FLAT);
+
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+//	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+}
+
+
+/*
 =============
 R_Clear
 =============
@@ -682,20 +656,20 @@ void R_Clear (void)
 	if (gl_clear.value) {
 		clear = true;
 		if (cleartogray) {
-			glClearColor (1, 0, 0, 0);
+			qglClearColor (1, 0, 0, 0);
 			cleartogray = false;
 		}
 	}
 
 	if (clear)
-		glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	else
-		glClear (GL_DEPTH_BUFFER_BIT);
+		qglClear (GL_DEPTH_BUFFER_BIT);
 	gldepthmin = 0;
 	gldepthmax = 1;
-	glDepthFunc (GL_LEQUAL);
+	qglDepthFunc (GL_LEQUAL);
 
-	glDepthRange (gldepthmin, gldepthmax);
+	qglDepthRange (gldepthmin, gldepthmax);
 }
 
 /*
@@ -717,14 +691,11 @@ void R_RenderView (void)
 
 	if (r_speeds.value)
 	{
-		glFinish ();
+		qglFinish ();
 		time1 = Sys_DoubleTime ();
 		c_brush_polys = 0;
 		c_alias_polys = 0;
 	}
-
-	if (gl_finish.value)
-		glFinish ();
 
 	R_Clear ();
 
@@ -735,7 +706,7 @@ void R_RenderView (void)
 
 	if (r_speeds.value)
 	{
-//		glFinish ();
+//		qglFinish ();
 		time2 = Sys_DoubleTime ();
 		Com_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
 	}

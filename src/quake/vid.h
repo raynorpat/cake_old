@@ -53,13 +53,44 @@ extern	unsigned	d_8to24table[256];
 
 extern int vid_hidden;
 extern int vid_activewindow;
+extern int vid_allowhwgamma;
+extern int vid_hardwaregammasupported;
+extern int vid_usinghwgamma;
 
 extern cvar_t vid_fullscreen;
 extern cvar_t vid_width;
 extern cvar_t vid_height;
 extern cvar_t vid_vsync;
 
+// brand of graphics chip
+extern const char *gl_vendor;
+// graphics chip model and other information
+extern const char *gl_renderer;
+// begins with 1.0.0, 1.1.0, 1.2.0, 1.2.1, 1.3.0, 1.3.1, or 1.4.0
+extern const char *gl_version;
+// extensions list, space separated
+extern const char *gl_extensions;
+// WGL, GLX, or AGL
+extern const char *gl_platform;
+// another extensions list, containing platform-specific extensions that are
+// not in the main list
+extern const char *gl_platformextensions;
+// name of driver library (opengl32.dll, libGL.so.1, or whatever)
+extern char gl_driver[256];
+
+// GLX_SGI_video_sync and WGL_EXT_swap_control
+extern int gl_videosyncavailable;
+
+int GL_OpenLibrary(const char *name);
+void GL_CloseLibrary(void);
+void *GL_GetProcAddress(const char *name);
+int GL_CheckExtension(const char *name, const dllfunction_t *funcs, char *disableparm, int silent);
+
 void	VID_Shared_Init(void);
+
+void	GL_Init (void);
+
+void VID_CheckExtensions(void);
 
 void	VID_Init (void);
 int		VID_Mode(int fullscreen, int width, int height);
@@ -67,6 +98,16 @@ int		VID_Mode(int fullscreen, int width, int height);
 
 void	VID_Shutdown (void);
 // Called at shutdown
+
+// sets hardware gamma correction, returns false if the device does not
+// support gamma control
+int VID_SetGamma (unsigned short *ramps);
+// gets hardware gamma correction, returns false if the device does not
+// support gamma control
+int VID_GetGamma (unsigned short *ramps);
+
+void VID_UpdateGamma(qbool force);
+void VID_RestoreSystemGamma(void);
 
 void	VID_Finish (void);
 // Called at end of each frame
@@ -78,15 +119,6 @@ void VID_SetCaption (char *text);
 void VID_Restart_f(void);
 
 void VID_Start (void);
-
-// oldman: gamma variables for glx linux
-void VID_SetDeviceGammaRamp (unsigned short *ramps);
-extern qbool vid_hwgamma_enabled;
-
-#ifdef _WIN32
-void VID_SetDeviceGammaRamp (unsigned short *ramps);
-extern qbool vid_hwgamma_enabled;
-#endif
 
 #endif /* _VID_H_ */
 

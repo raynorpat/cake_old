@@ -248,13 +248,13 @@ void EmitWaterPolys (msurface_t *fa)
 
 	for (p=fa->polys ; p ; p=p->next)
 	{
-		glBegin (GL_POLYGON);
+		qglBegin (GL_POLYGON);
 		for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 		{
-			glTexCoord2f (TURBWARP_NEW(v[3], v[4]), TURBWARP_NEW(v[4], v[3]));
-			glVertex3fv (v);
+			qglTexCoord2f (TURBWARP_NEW(v[3], v[4]), TURBWARP_NEW(v[4], v[3]));
+			qglVertex3fv (v);
 		}
-		glEnd ();
+		qglEnd ();
 	}
 }
 
@@ -274,7 +274,7 @@ static void EmitSkyPolys (msurface_t *fa)
 
 	for (p=fa->polys ; p ; p=p->next)
 	{
-		glBegin (GL_POLYGON);
+		qglBegin (GL_POLYGON);
 		for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 		{
 			VectorSubtract (v, r_origin, dir);
@@ -289,10 +289,10 @@ static void EmitSkyPolys (msurface_t *fa)
 			s = (speedscale + dir[0]) * (1.0/128);
 			t = (speedscale + dir[1]) * (1.0/128);
 
-			glTexCoord2f (s, t);
-			glVertex3fv (v);
+			qglTexCoord2f (s, t);
+			qglVertex3fv (v);
 		}
-		glEnd ();
+		qglEnd ();
 	}
 }
 
@@ -309,10 +309,10 @@ void EmitFlatPoly (msurface_t *fa)
 
 	for (p=fa->polys ; p ; p=p->next)
 	{
-		glBegin (GL_POLYGON);
+		qglBegin (GL_POLYGON);
 		for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
-			glVertex3fv (v);
-		glEnd ();
+			qglVertex3fv (v);
+		qglEnd ();
 	}
 }
 
@@ -330,13 +330,13 @@ void EmitBothSkyLayers (msurface_t *fa)
 	GL_SelectTexture (GL_TEXTURE0_ARB);
 
 	if (r_fastsky.value) {
-		glDisable (GL_TEXTURE_2D);
-		glColor3ubv ((byte *)&d_8to24table[(byte)r_skycolor.value]);
+		qglDisable (GL_TEXTURE_2D);
+		qglColor3ubv ((byte *)&d_8to24table[(byte)r_skycolor.value]);
 
 		EmitFlatPoly (fa);
 
-		glEnable (GL_TEXTURE_2D);
-		glColor3f (1, 1, 1);
+		qglEnable (GL_TEXTURE_2D);
+		qglColor3f (1, 1, 1);
 		return;
 	}
 
@@ -346,14 +346,14 @@ void EmitBothSkyLayers (msurface_t *fa)
 
 	EmitSkyPolys (fa);
 
-	glEnable (GL_BLEND);
+	qglEnable (GL_BLEND);
 	GL_Bind (alphaskytexture->texnum);
 	speedscale = r_refdef2.time*16;
 	speedscale -= (int)speedscale & ~127;
 
 	EmitSkyPolys (fa);
 
-	glDisable (GL_BLEND);
+	qglDisable (GL_BLEND);
 }
 
 //===============================================================
@@ -744,8 +744,8 @@ static void MakeSkyVec (float s, float t, int axis)
 		t = 511.0/512;
 
 	t = 1.0 - t;
-	glTexCoord2f (s, t);
-	glVertex3fv (v);
+	qglTexCoord2f (s, t);
+	qglVertex3fv (v);
 }
 
 /*
@@ -765,12 +765,12 @@ static void R_DrawSkyBox (void)
 
 		GL_Bind (skyboxtextures[skytexorder[i]]->texnum);
 
-		glBegin (GL_QUADS);
+		qglBegin (GL_QUADS);
 		MakeSkyVec (skymins[0][i], skymins[1][i], i);
 		MakeSkyVec (skymins[0][i], skymaxs[1][i], i);
 		MakeSkyVec (skymaxs[0][i], skymaxs[1][i], i);
 		MakeSkyVec (skymaxs[0][i], skymins[1][i], i);
-		glEnd ();
+		qglEnd ();
 	}
 }
 
@@ -792,8 +792,8 @@ static void EmitSkyVert (vec3_t v)
 	s = (speedscale + dir[0]) * (1.0/128);
 	t = (speedscale + dir[1]) * (1.0/128);
 
-	glTexCoord2f (s, t);
-	glVertex3fv (v);
+	qglTexCoord2f (s, t);
+	qglVertex3fv (v);
 }
 
 // s and t range from -1 to 1
@@ -828,7 +828,7 @@ static void DrawSkyFace (int axis)
 
 	float fstep = 2.0 / SUBDIVISIONS;
 
-	glBegin (GL_QUADS);
+	qglBegin (GL_QUADS);
 
 	for (i = 0; i < SUBDIVISIONS; i++)
 	{
@@ -855,7 +855,7 @@ static void DrawSkyFace (int axis)
 		}
 	}
 
-	glEnd ();
+	qglEnd ();
 }
 
 
@@ -875,7 +875,7 @@ static void R_DrawSkyDome (void)
 		DrawSkyFace (i);
 	}
 
-	glEnable (GL_BLEND);
+	qglEnable (GL_BLEND);
 	GL_Bind (alphaskytexture->texnum);
 
 	speedscale = r_refdef2.time*16;
@@ -904,15 +904,15 @@ void R_DrawSky (void)
 	GL_SelectTexture (GL_TEXTURE0_ARB);
 
 	if (r_fastsky.value) {
-		glDisable (GL_TEXTURE_2D);
-		glColor3ubv ((byte *)&d_8to24table[(byte)r_skycolor.value]);
+		qglDisable (GL_TEXTURE_2D);
+		qglColor3ubv ((byte *)&d_8to24table[(byte)r_skycolor.value]);
 		
 		for (fa = skychain; fa; fa = fa->texturechain)
 			EmitFlatPoly (fa);
 		skychain = NULL;
 
-		glEnable (GL_TEXTURE_2D);
-		glColor3f (1, 1, 1);
+		qglEnable (GL_TEXTURE_2D);
+		qglColor3f (1, 1, 1);
 		return;
 	}
 
@@ -939,7 +939,7 @@ void R_DrawSky (void)
 	}
 
 	// turn off Z tests & writes to avoid problems on large maps
-	glDisable (GL_DEPTH_TEST);
+	qglDisable (GL_DEPTH_TEST);
 
 	// draw a skybox or classic quake clouds
 	if (r_skyboxloaded)
@@ -947,24 +947,24 @@ void R_DrawSky (void)
 	else
 		R_DrawSkyDome ();
 
-	glEnable (GL_DEPTH_TEST);
+	qglEnable (GL_DEPTH_TEST);
 
 	// draw the sky polys into the Z buffer
 	// don't need depth test yet
 	if (!ignore_z) {
-		glDisable(GL_TEXTURE_2D);
-		glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+		qglDisable(GL_TEXTURE_2D);
+		qglColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_ZERO, GL_ONE);
+		qglEnable(GL_BLEND);
+		qglBlendFunc(GL_ZERO, GL_ONE);
 
 		for (fa = skychain; fa; fa = fa->texturechain)
 			EmitFlatPoly (fa);
 
-		glEnable (GL_TEXTURE_2D);
-		glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		glDisable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglEnable (GL_TEXTURE_2D);
+		qglColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		qglDisable(GL_BLEND);
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 
 	skychain = NULL;

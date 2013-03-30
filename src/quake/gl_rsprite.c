@@ -125,28 +125,28 @@ void R_DrawSpriteModel (entity_t *e)
 
     GL_Bind(frame->gl_texture->texnum);
 
-	glBegin (GL_QUADS);
+	qglBegin (GL_QUADS);
 
-	glTexCoord2f (0, 1);
+	qglTexCoord2f (0, 1);
 	VectorMA (e->origin, frame->down, up, point);
 	VectorMA (point, frame->left, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 
-	glTexCoord2f (0, 0);
+	qglTexCoord2f (0, 0);
 	VectorMA (e->origin, frame->up, up, point);
 	VectorMA (point, frame->left, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 
-	glTexCoord2f (1, 0);
+	qglTexCoord2f (1, 0);
 	VectorMA (e->origin, frame->up, up, point);
 	VectorMA (point, frame->right, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 
-	glTexCoord2f (1, 1);
+	qglTexCoord2f (1, 1);
 	VectorMA (e->origin, frame->down, up, point);
 	VectorMA (point, frame->right, right, point);
-	glVertex3fv (point);
+	qglVertex3fv (point);
 	
-	glEnd ();
+	qglEnd ();
 }
 

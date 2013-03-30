@@ -285,97 +285,9 @@ cshift_t    cshift_slime = { {0, 25, 5}, 150};
 cshift_t    cshift_lava = { {255, 80, 0}, 150};
 cshift_t    cshift_bonus = { {215, 186, 60}, 50};
 
-#define ONCHANGE(FUNC, VAR)									\
-void FUNC (cvar_t *var, char *string, qbool *cancel) {	\
-	Cvar_SetValue (&VAR, Q_atof(string));					\
-}
-
-#ifdef GLQUAKE
-ONCHANGE(ch_gamma, gl_gamma)	ONCHANGE(ch_contrast, gl_contrast)
-#else
-ONCHANGE(ch_gamma, sw_gamma)	ONCHANGE(ch_contrast, sw_contrast)
-#endif
-
-cvar_t		gammavar = {"gamma", "1", CVAR_ARCHIVE, ch_gamma};
-cvar_t		contrast = {"contrast", "1", 0, ch_contrast};
-
-
 #ifdef	GLQUAKE
-
-ONCHANGE(ch_gl_gamma, gammavar)	ONCHANGE(ch_gl_contrast, contrast)
-
-cvar_t		gl_gamma = {"gl_gamma", "1", CVAR_USER_ARCHIVE, ch_gl_gamma};
-cvar_t		gl_contrast = {"gl_contrast", "1", CVAR_USER_ARCHIVE, ch_gl_contrast};
-
-
 float		v_blend[4];		// rgba 0.0 - 1.0
-unsigned short	ramps[3][256];
-
-#else
-
-ONCHANGE(ch_sw_gamma, gammavar)	ONCHANGE(ch_sw_contrast, contrast)
-
-cvar_t		sw_gamma = {"sw_gamma", "1", CVAR_USER_ARCHIVE, ch_sw_gamma};
-cvar_t		sw_contrast = {"sw_contrast", "1", CVAR_USER_ARCHIVE, ch_sw_contrast};
-
-byte		gammatable[256];	// palette is sent through this
-
-byte		current_pal[768];	// Tonik: used for screenshots
-
 #endif
-
-
-
-
-#ifndef GLQUAKE
-void BuildGammaTable (float g, float c)
-{
-	int		i, inf;
-
-	g = bound (0.3, g, 3);
-	c = bound (1, c, 3);
-
-	if (g == 1 && c == 1)
-	{
-		for (i=0 ; i<256 ; i++)
-			gammatable[i] = i;
-		return;
-	}
-	
-	for (i=0 ; i<256 ; i++)
-	{
-		inf = 255 * pow ((i+0.5)/255.5*c, g) + 0.5;
-		if (inf < 0)
-			inf = 0;
-		if (inf > 255)
-			inf = 255;
-		gammatable[i] = inf;
-	}
-}
-
-/*
-=================
-V_CheckGamma
-=================
-*/
-qbool V_CheckGamma (void)
-{
-	static float old_gamma;
-	static float old_contrast;
-	
-	if (sw_gamma.value == old_gamma && sw_contrast.value == old_contrast)
-		return false;
-	old_gamma = sw_gamma.value;
-	old_contrast = sw_contrast.value;
-	
-	BuildGammaTable (sw_gamma.value, sw_contrast.value);
-
-	SCR_InvalidateScreen ();
-	
-	return true;
-}
-#endif	// !GLQUAKE
-
 
 /*
 ===============
@@ -613,80 +525,6 @@ void V_PrepBlend (void)
 	V_DropCShift (&cl.cshifts[CSHIFT_BONUS], 100);
 
 	V_CalcBlend ();
-}
-
-
-/*
-=============
-V_UpdatePalette
-=============
-*/
-void V_UpdatePalette (void)
-{
-	int		i, j;
-	qbool	new;
-	static float	prev_blend[4];
-	float	a, rgb[3];
-	int		c;
-	float	gamma, contrast;
-	static float	old_gamma, old_contrast, old_hwblend;
-	extern float	vid_gamma;
-
-	new = false;
-
-	for (i=0 ; i<4 ; i++) {
-		if (v_blend[i] != prev_blend[i]) {
-			new = true;
-			prev_blend[i] = v_blend[i];
-		}
-	}
-
-	gamma = bound (0.3, gl_gamma.value, 3);
-	if (gamma != old_gamma) {
-		old_gamma = gamma;
-		new = true;
-	}
-
-	contrast = bound (1, gl_contrast.value, 3);
-	if (contrast != old_contrast) {
-		old_contrast = contrast;
-		new = true;
-	}
-
-	if (!new)
-		return;
-
-	a = v_blend[3];
-
-	if (!vid_hwgamma_enabled)
-		a = 0;
-
-	rgb[0] = 255*v_blend[0]*a;
-	rgb[1] = 255*v_blend[1]*a;
-	rgb[2] = 255*v_blend[2]*a;
-
-	a = 1-a;
-
-	if (vid_gamma != 1.0) {
-		contrast = pow (contrast, vid_gamma);
-		gamma = gamma/vid_gamma;
-	}
-
-	for (i=0 ; i<256 ; i++)
-	{
-		for (j=0 ; j<3 ; j++) {
-			// apply blend and contrast
-			c = (i*a + rgb[j]) * contrast;
-			if (c > 255)
-				c = 255;
-			// apply gamma
-			c = 255 * pow((c + 0.5)/255.5, gamma) + 0.5;
-			c = bound (0, c, 255);
-			ramps[j][i] = c << 8;
-		}
-	}
-
-	VID_SetDeviceGammaRamp ((unsigned short *) ramps);
 }
 
 
@@ -1113,33 +951,4 @@ void V_Init (void)
 	Cvar_Register (&v_suitcshift);
 	Cvar_Register (&v_ringcshift);
 	Cvar_Register (&v_pentcshift);
-
-	// gamma and contrast are just shortcuts to sw_ or gl_ equivalents
-	// for compatibility and easier access from the console
-	Cvar_Register (&gammavar);
-	Cvar_Register (&contrast);
-
-#ifdef GLQUAKE
-	Cvar_Register (&gl_gamma);
-	Cvar_Register (&gl_contrast);
-#else
-	// this nastyness is to make "gamma foo" in config.cfg work
-	// FIXME: cvar.c should fire OnChange in Cvar_Register!
-	// things will be a bit different then (?)
-	if (!Cvar_FindVar("sw_gamma")) {
-		Cvar_Register (&sw_gamma);
-		Cvar_SetValue (&sw_gamma, gammavar.value);
-	} else {
-		Cvar_Register (&sw_gamma);
-		Cvar_SetValue (&gammavar, sw_gamma.value);
-	}
-	if (!Cvar_FindVar("sw_contrast")) {
-		Cvar_Register (&sw_contrast);
-		Cvar_SetValue (&sw_contrast, contrast.value);
-	} else {
-		Cvar_Register (&sw_contrast);
-		Cvar_SetValue (&contrast, sw_contrast.value);
-	}
-	BuildGammaTable (sw_gamma.value, sw_contrast.value);
-#endif
 }

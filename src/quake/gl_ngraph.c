@@ -99,23 +99,23 @@ void R_NetGraph (void)
 	
     GL_Bind(netgraphtexture);
 
-	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
 		GL_UNSIGNED_BYTE, ngraph_pixels);
 
-	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glBegin (GL_QUADS);
-	glTexCoord2f (0, 0);
-	glVertex2f (x, y);
-	glTexCoord2f (1, 0);
-	glVertex2f (x+NET_TIMINGS, y);
-	glTexCoord2f (1, 1);
-	glVertex2f (x+NET_TIMINGS, y+NET_GRAPHHEIGHT);
-	glTexCoord2f (0, 1);
-	glVertex2f (x, y+NET_GRAPHHEIGHT);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (0, 0);
+	qglVertex2f (x, y);
+	qglTexCoord2f (1, 0);
+	qglVertex2f (x+NET_TIMINGS, y);
+	qglTexCoord2f (1, 1);
+	qglVertex2f (x+NET_TIMINGS, y+NET_GRAPHHEIGHT);
+	qglTexCoord2f (0, 1);
+	qglVertex2f (x, y+NET_GRAPHHEIGHT);
+	qglEnd ();
 }
 

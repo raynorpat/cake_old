@@ -387,16 +387,16 @@ void R_DrawChar (int x, int y, int num)
 
 	GL_Bind (char_texture->texnum);
 
-	glBegin (GL_QUADS);
-	glTexCoord2f (fcol, frow);
-	glVertex2f (x, y);
-	glTexCoord2f (fcol + 0.0625, frow);
-	glVertex2f (x+8, y);
-	glTexCoord2f (fcol + 0.0625, frow + 0.03125);
-	glVertex2f (x+8, y+8);
-	glTexCoord2f (fcol, frow + 0.03125);
-	glVertex2f (x, y+8);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (fcol, frow);
+	qglVertex2f (x, y);
+	qglTexCoord2f (fcol + 0.0625, frow);
+	qglVertex2f (x+8, y);
+	qglTexCoord2f (fcol + 0.0625, frow + 0.03125);
+	qglVertex2f (x+8, y+8);
+	qglTexCoord2f (fcol, frow + 0.03125);
+	qglVertex2f (x, y+8);
+	qglEnd ();
 }
 
 void R_DrawString (int x, int y, const char *str)
@@ -411,7 +411,7 @@ void R_DrawString (int x, int y, const char *str)
 
 	GL_Bind (char_texture->texnum);
 
-	glBegin (GL_QUADS);
+	qglBegin (GL_QUADS);
 
 	while (*str) // stop rendering when out of characters
 	{
@@ -419,20 +419,20 @@ void R_DrawString (int x, int y, const char *str)
 		{
 			frow = (float) (num >> 4)*0.0625;
 			fcol = (float) (num & 15)*0.0625;
-			glTexCoord2f (fcol, frow);
-			glVertex2f (x, y);
-			glTexCoord2f (fcol + 0.0625, frow);
-			glVertex2f (x+8, y);
-			glTexCoord2f (fcol + 0.0625, frow + 0.03125);
-			glVertex2f (x+8, y+8);
-			glTexCoord2f (fcol, frow + 0.03125);
-			glVertex2f (x, y+8);
+			qglTexCoord2f (fcol, frow);
+			qglVertex2f (x, y);
+			qglTexCoord2f (fcol + 0.0625, frow);
+			qglVertex2f (x+8, y);
+			qglTexCoord2f (fcol + 0.0625, frow + 0.03125);
+			qglVertex2f (x+8, y+8);
+			qglTexCoord2f (fcol, frow + 0.03125);
+			qglVertex2f (x, y+8);
 		}
 
 		x += 8;
 	}
 
-	glEnd ();
+	qglEnd ();
 }
 
 
@@ -446,8 +446,8 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 	y = scr_vrect.y + scr_vrect.height/2 + crossy;
 
 	if (num == 2 || num == 3 || num == 4) {
-		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glColor3ubv ((byte *) &d_8to24table[(byte) color]);
+		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglColor3ubv ((byte *) &d_8to24table[(byte) color]);
 		GL_Bind (crosshairtextures[num - 2]->texnum);
 
 		if (vid.width == 320) {
@@ -457,19 +457,19 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 			ofs1 = 7;
 			ofs2 = 9;
 		}
-		glBegin (GL_QUADS);
-		glTexCoord2f (0, 0);
-		glVertex2f (x - ofs1, y - ofs1);
-		glTexCoord2f (1, 0);
-		glVertex2f (x + ofs2, y - ofs1);
-		glTexCoord2f (1, 1);
-		glVertex2f (x + ofs2, y + ofs2);
-		glTexCoord2f (0, 1);
-		glVertex2f (x - ofs1, y + ofs2);
-		glEnd ();
+		qglBegin (GL_QUADS);
+		qglTexCoord2f (0, 0);
+		qglVertex2f (x - ofs1, y - ofs1);
+		qglTexCoord2f (1, 0);
+		qglVertex2f (x + ofs2, y - ofs1);
+		qglTexCoord2f (1, 1);
+		qglVertex2f (x + ofs2, y + ofs2);
+		qglTexCoord2f (0, 1);
+		qglVertex2f (x - ofs1, y + ofs2);
+		qglEnd ();
 		
-		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glColor3f (1, 1, 1);
+		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		qglColor3f (1, 1, 1);
 	}
 	else {
 		R_DrawChar (x - 4, y - 4, '+');
@@ -487,16 +487,16 @@ void R_DrawPic (int x, int y, mpic_t *pic)
 		Scrap_Upload ();
 
 	GL_Bind (cpic->gltexture->texnum);
-	glBegin (GL_QUADS);
-	glTexCoord2f (cpic->sl, cpic->tl);
-	glVertex2f (x, y);
-	glTexCoord2f (cpic->sh, cpic->tl);
-	glVertex2f (x + pic->width, y);
-	glTexCoord2f (cpic->sh, cpic->th);
-	glVertex2f (x + pic->width, y + pic->height);
-	glTexCoord2f (cpic->sl, cpic->th);
-	glVertex2f (x, y + pic->height);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (cpic->sl, cpic->tl);
+	qglVertex2f (x, y);
+	qglTexCoord2f (cpic->sh, cpic->tl);
+	qglVertex2f (x + pic->width, y);
+	qglTexCoord2f (cpic->sh, cpic->th);
+	qglVertex2f (x + pic->width, y + pic->height);
+	qglTexCoord2f (cpic->sl, cpic->th);
+	qglVertex2f (x, y + pic->height);
+	qglEnd ();
 }
 
 void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
@@ -521,16 +521,16 @@ void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 	newth = newtl + (height*oldglheight)/pic->height;
 	
 	GL_Bind (cpic->gltexture->texnum);
-	glBegin (GL_QUADS);
-	glTexCoord2f (newsl, newtl);
-	glVertex2f (x, y);
-	glTexCoord2f (newsh, newtl);
-	glVertex2f (x + width, y);
-	glTexCoord2f (newsh, newth);
-	glVertex2f (x + width, y + height);
-	glTexCoord2f (newsl, newth);
-	glVertex2f (x, y + height);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (newsl, newtl);
+	qglVertex2f (x, y);
+	qglTexCoord2f (newsh, newtl);
+	qglVertex2f (x + width, y);
+	qglTexCoord2f (newsh, newth);
+	qglVertex2f (x + width, y + height);
+	qglTexCoord2f (newsl, newth);
+	qglVertex2f (x, y + height);
+	qglEnd ();
 }
 
 /*
@@ -570,16 +570,16 @@ void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
 	translate_texture = TexMgr_LoadImage32 ("translate_texture", 64, 64, trans, TEXPREF_ALPHA);
 	GL_Bind (translate_texture->texnum);
 
-	glBegin (GL_QUADS);
-	glTexCoord2f (0, 0);
-	glVertex2f (x, y);
-	glTexCoord2f (1, 0);
-	glVertex2f (x+pic->width, y);
-	glTexCoord2f (1, 1);
-	glVertex2f (x+pic->width, y+pic->height);
-	glTexCoord2f (0, 1);
-	glVertex2f (x, y+pic->height);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (0, 0);
+	qglVertex2f (x, y);
+	qglTexCoord2f (1, 0);
+	qglVertex2f (x+pic->width, y);
+	qglTexCoord2f (1, 1);
+	qglVertex2f (x+pic->width, y+pic->height);
+	qglTexCoord2f (0, 1);
+	qglVertex2f (x, y+pic->height);
+	qglEnd ();
 	*/
 }
 
@@ -594,25 +594,25 @@ void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float a
 	if (scrap_dirty)
 		Scrap_Upload ();
 
-	glDisable(GL_ALPHA_TEST);
-	glEnable (GL_BLEND);
-//	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glCullFace(GL_FRONT);
-	glColor4f (1, 1, 1, alpha);
+	qglDisable(GL_ALPHA_TEST);
+	qglEnable (GL_BLEND);
+//	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglCullFace(GL_FRONT);
+	qglColor4f (1, 1, 1, alpha);
 	GL_Bind (cpic->gltexture->texnum);
-	glBegin (GL_QUADS);
-	glTexCoord2f (cpic->sl, cpic->tl);
-	glVertex2f (x, y);
-	glTexCoord2f (cpic->sh, cpic->tl);
-	glVertex2f (x + width, y);
-	glTexCoord2f (cpic->sh, cpic->th);
-	glVertex2f (x + width, y + height);
-	glTexCoord2f (cpic->sl, cpic->th);
-	glVertex2f (x, y + height);
-	glEnd ();
-	glColor3f (1, 1, 1);
-	glEnable(GL_ALPHA_TEST);
-	glDisable (GL_BLEND);
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (cpic->sl, cpic->tl);
+	qglVertex2f (x, y);
+	qglTexCoord2f (cpic->sh, cpic->tl);
+	qglVertex2f (x + width, y);
+	qglTexCoord2f (cpic->sh, cpic->th);
+	qglVertex2f (x + width, y + height);
+	qglTexCoord2f (cpic->sl, cpic->th);
+	qglVertex2f (x, y + height);
+	qglEnd ();
+	qglColor3f (1, 1, 1);
+	qglEnable(GL_ALPHA_TEST);
+	qglDisable (GL_BLEND);
 }
 
 
@@ -627,16 +627,16 @@ refresh window.
 void R_DrawTile (int x, int y, int w, int h, mpic_t *pic)
 {
 	GL_Bind (((cachepic_t *)pic)->gltexture->texnum);
-	glBegin (GL_QUADS);
-	glTexCoord2f (x/64.0, y/64.0);
-	glVertex2f (x, y);
-	glTexCoord2f ( (x+w)/64.0, y/64.0);
-	glVertex2f (x+w, y);
-	glTexCoord2f ( (x+w)/64.0, (y+h)/64.0);
-	glVertex2f (x+w, y+h);
-	glTexCoord2f ( x/64.0, (y+h)/64.0 );
-	glVertex2f (x, y+h);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (x/64.0, y/64.0);
+	qglVertex2f (x, y);
+	qglTexCoord2f ( (x+w)/64.0, y/64.0);
+	qglVertex2f (x+w, y);
+	qglTexCoord2f ( (x+w)/64.0, (y+h)/64.0);
+	qglVertex2f (x+w, y+h);
+	qglTexCoord2f ( x/64.0, (y+h)/64.0 );
+	qglVertex2f (x, y+h);
+	qglEnd ();
 }
 
 
@@ -651,18 +651,18 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c)
 {
 	byte *pal = (byte *)d_8to24table;
 
-	glDisable (GL_TEXTURE_2D);
-	glColor3f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0);
+	qglDisable (GL_TEXTURE_2D);
+	qglColor3f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0);
 
-	glBegin (GL_QUADS);
-	glVertex2f (x,y);
-	glVertex2f (x+w, y);
-	glVertex2f (x+w, y+h);
-	glVertex2f (x, y+h);
-	glEnd ();
+	qglBegin (GL_QUADS);
+	qglVertex2f (x,y);
+	qglVertex2f (x+w, y);
+	qglVertex2f (x+w, y+h);
+	qglVertex2f (x, y+h);
+	qglEnd ();
 
-	glColor3f (1, 1, 1);
-	glEnable (GL_TEXTURE_2D);
+	qglColor3f (1, 1, 1);
+	qglEnable (GL_TEXTURE_2D);
 }
 //=============================================================================
 
@@ -689,20 +689,20 @@ void R_LoadingScreen (void)
 
 void R_FadeScreen (void)
 {
-	glEnable (GL_BLEND);
-	glDisable (GL_TEXTURE_2D);
-	glColor4f (0, 0, 0, 0.7);
-	glBegin (GL_QUADS);
+	qglEnable (GL_BLEND);
+	qglDisable (GL_TEXTURE_2D);
+	qglColor4f (0, 0, 0, 0.7);
+	qglBegin (GL_QUADS);
 
-	glVertex2f (0,0);
-	glVertex2f (vid.width, 0);
-	glVertex2f (vid.width, vid.height);
-	glVertex2f (0, vid.height);
+	qglVertex2f (0,0);
+	qglVertex2f (vid.width, 0);
+	qglVertex2f (vid.width, vid.height);
+	qglVertex2f (0, vid.height);
 
-	glEnd ();
-	glColor4f (1,1,1,1);
-	glEnable (GL_TEXTURE_2D);
-	glDisable (GL_BLEND);
+	qglEnd ();
+	qglColor4f (1,1,1,1);
+	qglEnable (GL_TEXTURE_2D);
+	qglDisable (GL_BLEND);
 }
 
 //=============================================================================
@@ -716,20 +716,20 @@ Setup as if the screen was 320*200
 */
 void GL_Set2D (void)
 {
-	glViewport (0, 0, vid.realwidth, vid.realheight);
+	qglViewport (0, 0, vid.realwidth, vid.realheight);
 
-	glMatrixMode(GL_PROJECTION);
-    glLoadIdentity ();
-	glOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
+	qglMatrixMode(GL_PROJECTION);
+    qglLoadIdentity ();
+	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 
-	glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity ();
+	qglMatrixMode(GL_MODELVIEW);
+    qglLoadIdentity ();
 
-	glDisable (GL_DEPTH_TEST);
-	glDisable (GL_CULL_FACE);
-	glDisable (GL_BLEND);
-	glEnable (GL_ALPHA_TEST);
-//	glDisable (GL_ALPHA_TEST);
+	qglDisable (GL_DEPTH_TEST);
+	qglDisable (GL_CULL_FACE);
+	qglDisable (GL_BLEND);
+	qglEnable (GL_ALPHA_TEST);
+//	qglDisable (GL_ALPHA_TEST);
 
-	glColor3f (1, 1, 1);
+	qglColor3f (1, 1, 1);
 }
