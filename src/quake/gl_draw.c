@@ -143,7 +143,7 @@ static void Scrap_Upload (void)
 	for (i=0; i<MAX_SCRAPS; i++)
 	{
 		sprintf (name, "scrap%i", i);
-		scrap_textures[i] = TexMgr_LoadImage (NULL, name, BLOCK_WIDTH, BLOCK_HEIGHT, SRC_INDEXED, scrap_texels[i], "", (unsigned)scrap_texels[i], TEXPREF_ALPHA | TEXPREF_OVERWRITE);
+		scrap_textures[i] = TexMgr_LoadImage (NULL, name, BLOCK_WIDTH, BLOCK_HEIGHT, SRC_INDEXED_UPSCALE, scrap_texels[i], "", (unsigned)scrap_texels[i], TEXPREF_OVERWRITE | TEXPREF_UPSCALE);
 	}
 
 	scrap_dirty = false;
@@ -213,7 +213,7 @@ static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
 	pic->pic.height = p->height;
 
 	// load little ones into the scrap
-	if (wad && p->width < 64 && p->height < 64)
+	if (wad && p->width < 64 && p->height < 64 && 0)
 	{
 		int		x, y;
 		int		i, j, k;
@@ -239,13 +239,12 @@ static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
 
 		offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
 
-		pic->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx",
-										  offset, TEXPREF_ALPHA | TEXPREF_PAD);
+		pic->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED_UPSCALE, p->data, "gfx", offset, TEXPREF_UPSCALE);
 
 		pic->sl = 0;
-		pic->sh = (float)p->width/(float)TexMgr_Pad(p->width);
+		pic->sh = 1;
 		pic->tl = 0;
-		pic->th = (float)p->height/(float)TexMgr_Pad(p->height);
+		pic->th = 1;
 	}
 
 	return &pic->pic;
@@ -289,13 +288,13 @@ static void R_LoadCharset (void)
 		dest += 128*8*2;
 	}
 
-	char_texture = TexMgr_LoadImage (NULL, "gfx:conchars", 128, 256, SRC_INDEXED, buf, "gfx", offset, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_CONCHARS);
+	char_texture = TexMgr_LoadImage (NULL, "gfx:conchars", 128, 256, SRC_INDEXED, buf, "gfx", offset, TEXPREF_NEAREST);
 }
 
 static void gl_draw_start(void)
 {
 	int	i;
-	int flags = TEXPREF_NEAREST | TEXPREF_ALPHA | TEXPREF_PERSIST;
+	int flags = TEXPREF_NEAREST | TEXPREF_PERSIST;
 
 	numcachepics = 0;
 
@@ -567,7 +566,7 @@ void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
 		}
 	}
 
-	translate_texture = TexMgr_LoadImage32 ("translate_texture", 64, 64, trans, TEXPREF_ALPHA);
+	translate_texture = TexMgr_LoadImage32 ("translate_texture", 64, 64, trans, TEXPREF_NONE);
 	GL_Bind (translate_texture->texnum);
 
 	qglBegin (GL_QUADS);
