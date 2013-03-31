@@ -555,6 +555,7 @@ void VID_Restart_f(void)
 		if (!VID_Mode(current_vid_fullscreen, current_vid_width, current_vid_height))
 			Sys_Error("Unable to restore to last working video mode\n");
 	}
+	Cache_Flush ();
 	VID_OpenSystems();
 
 	GL_Init ();
