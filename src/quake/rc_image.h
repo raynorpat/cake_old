@@ -20,10 +20,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _RC_IMAGE_H_
 #define _RC_IMAGE_H_
 
-void LoadTGA (char *filename, byte **out, int *width, int *height);
-void LoadPCX (char *filename, byte **pic, int *width, int *height);
+byte *Image_LoadImage (char *name, int *width, int *height);
+
+byte *Image_LoadTGA (FILE *fin, int *width, int *height);
+byte *Image_LoadPCX (FILE *f, int *width, int *height);
+
 void WritePCX (byte *data, int width, int height, int rowbytes, byte *palette,	// [in]
 				   byte **pcxdata, int *pcxsize);								// [out]
+
+void HQ2x_Render(unsigned long int *output, const byte *input, int width, int height);
+void HQ2x_Init(void);
 
 #endif /* _RC_IMAGE_H_ */
 

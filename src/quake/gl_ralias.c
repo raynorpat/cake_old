@@ -64,7 +64,6 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 	trivertx_t	*verts;
 	int		*order;
 	int		count;
-	float	hscale, vscale;
 
 	if (currententity->renderfx & RF_TRANSLUCENT)
 	{
@@ -75,9 +74,6 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		l_v[3] = 1.0;
 
 	lastposenum = posenum;
-
-	hscale = (float)paliashdr->skinwidth/(float)TexMgr_Pad(paliashdr->skinwidth);
-	vscale = (float)paliashdr->skinheight/(float)TexMgr_Pad(paliashdr->skinheight);
 
 	verts = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
 	verts += posenum * paliashdr->poseverts;
@@ -97,12 +93,14 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		do
 		{
 			// texture coordinates come from the draw list
-			if (qglMultiTexCoord2f) {
-				qglMultiTexCoord2f (GL_TEXTURE0_ARB, hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
-				qglMultiTexCoord2f (GL_TEXTURE1_ARB, hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
+			if (qglMultiTexCoord2f)
+			{
+				qglMultiTexCoord2f (GL_TEXTURE0_ARB, ((float *) order)[0], ((float *) order)[1]);
+				qglMultiTexCoord2f (GL_TEXTURE1_ARB, ((float *) order)[0], ((float *) order)[1]);
 			}
-			else {
-				qglTexCoord2f (hscale * ((float *) order)[0], vscale * ((float *) order)[1]);
+			else
+			{
+				qglTexCoord2f (((float *) order)[0], ((float *) order)[1]);
 			}
 
 			order += 2;
@@ -394,9 +392,8 @@ void R_DrawAliasModel (entity_t *ent)
 
 	// hack the depth range to prevent view model from poking into walls
 	if (ent->renderfx & RF_WEAPONMODEL)
-		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
-
-
+		qglDepthRange (0, 0.3*(gldepthmax));
+	
 	if (fb_texture) {
 		GL_SelectTexture (GL_TEXTURE0_ARB);
 		GL_Bind (texture->texnum);
@@ -418,7 +415,7 @@ void R_DrawAliasModel (entity_t *ent)
 	}
 
 	if (ent->renderfx & RF_WEAPONMODEL)
-		qglDepthRange (gldepthmin, gldepthmax);	// restore normal depth range
+		qglDepthRange (0, gldepthmax);	// restore normal depth range
 
 	qglPopMatrix ();
 

@@ -218,7 +218,7 @@ void GL_BuildSkySurfacePolys (msurface_t *fa)
 
 
 // speed up sin calculations - Ed
-float	turbsin[] =
+float turbsin[] =
 {
 	#include "gl_warp_sin.h"
 };
@@ -383,7 +383,7 @@ void R_InitSky (texture_t *mt)
 	}
 
 	sprintf(texturename, "%s:%s_back", loadmodel->name, mt->name);
-	solidskytexture = TexMgr_LoadImage (loadmodel, texturename, 128, 128, SRC_INDEXED, back_data, "", (unsigned)back_data, 0);
+	solidskytexture = TexMgr_LoadImage (loadmodel, texturename, 128, 128, SRC_INDEXED, back_data, "", (unsigned)back_data, TEXPREF_MIPMAP);
 
 	// extract front layer and upload
 	for (i=0 ; i<128 ; i++)
@@ -397,7 +397,7 @@ void R_InitSky (texture_t *mt)
 	}
 
 	sprintf(texturename, "%s:%s_front", loadmodel->name, mt->name);
-	alphaskytexture = TexMgr_LoadImage (loadmodel, texturename, 128, 128, SRC_INDEXED, front_data, "", (unsigned)front_data, TEXPREF_ALPHA);
+	alphaskytexture = TexMgr_LoadImage (loadmodel, texturename, 128, 128, SRC_INDEXED, front_data, "", (unsigned)front_data, TEXPREF_MIPMAP);
 }
 
 
@@ -441,7 +441,7 @@ void R_SetSky (char *name)
 	for (i=0 ; i<6 ; i++)
 	{
 		Q_snprintfz (pathname, sizeof(pathname), "env/%s%s.tga", name, suf[i]);
-		LoadTGA (pathname, &pic, &width, &height);
+		pic = Image_LoadImage (pathname, &width, &height);
 		if (!pic)
 		{
 			Com_Printf ("Couldn't load %s\n", pathname);
@@ -451,14 +451,14 @@ void R_SetSky (char *name)
 		if (width > 512 || height > 512)	// just a sanity check
 		{
 			Com_Printf ("Bad image dimensions in %s\n", pathname);
-			Q_free (pic);	// Q_malloc'ed by LoadTGA
+			Q_free (pic);
 			r_skyboxloaded = false;
 			return;
 		}
 
 		skyboxtextures[i] = TexMgr_LoadImage (NULL, pathname, width, height, SRC_RGBA, pic, pathname, 0, 0);
 
-		Q_free (pic);	// Q_malloc'ed by LoadTGA
+		Q_free (pic);
 	}
 
 	r_skyboxloaded = true;

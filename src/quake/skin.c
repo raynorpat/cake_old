@@ -136,19 +136,19 @@ byte *Skin_Cache (skin_t *skin)
 // load the pic from disk
 //
 	Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
-	LoadPCX (name, &pic, &width, &height);
+	pic = Image_LoadImage (name, &width, &height);
 	if (!pic || width > 320 || height > 200)
 	{
 		if (pic)
-			Q_free (pic);	// Q_malloc'ed by LoadPCX
+			Q_free (pic);
 		Com_Printf ("Couldn't load skin %s\n", name);
 
 		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
-		LoadPCX (name, &pic, &width, &height);
+		pic = Image_LoadImage (name, &width, &height);
 		if (!pic || width > 320 || height > 200)
 		{
 			if (pic)
-				Q_free (pic);	// Q_malloc'ed by LoadPCX
+				Q_free (pic);
 			skin->failedload = true;
 			return NULL;
 		}
@@ -162,7 +162,7 @@ byte *Skin_Cache (skin_t *skin)
 	for (y=0 ; y<height ; y++, pix += 320)
 		memcpy (pix, pic + y*width, width);
 
-	Q_free (pic);	// Q_malloc'ed by LoadPCX
+	Q_free (pic);
 
 	skin->failedload = false;
 

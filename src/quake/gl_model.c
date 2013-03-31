@@ -454,7 +454,11 @@ void Mod_LoadTextures (lump_t *l)
 			if (Mod_CheckFullbrights ((byte *)(tx+1), pixels))
 			{
 				sprintf (texturename, "%s:%s_glow", loadmodel->name, tx->name);
-				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_ALPHA);
+				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
+			}
+			else
+			{
+				tx->fb_texture = NULL;
 			}
 		}
 	}
@@ -1519,13 +1523,13 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 			pheader->gl_texture[i][0] =
 			pheader->gl_texture[i][1] =
 			pheader->gl_texture[i][2] =
-			pheader->gl_texture[i][3] =	TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_PAD);
+			pheader->gl_texture[i][3] =	TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 
 			if (Mod_CheckFullbrights((byte *)(pskintype + 1),	pheader->skinwidth*pheader->skinheight))
 				pheader->fb_texture[i][0] = pheader->fb_texture[i][1] =
 				pheader->fb_texture[i][2] = pheader->fb_texture[i][3] =
 					TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight,
-						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA);
+						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 			else
 				pheader->fb_texture[i][0] = pheader->fb_texture[i][1] =
 				pheader->fb_texture[i][2] = pheader->fb_texture[i][3] = NULL;
@@ -1546,11 +1550,11 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 					Q_snprintfz (name, sizeof(name), "%s_%i_%i", loadmodel->name, i, j);
 					offset = (unsigned)(pskintype) - (unsigned)mod_base;
 					pheader->gl_texture[i][j&3] = 
-						TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,	SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_PAD);
+						TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,	SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_MIPMAP);
 
 					if (Mod_CheckFullbrights((byte *)(pskintype),	pheader->skinwidth*pheader->skinheight))
 						pheader->fb_texture[i][j&3] =
-							TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA);
+							TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_MIPMAP);
 					else
 						pheader->fb_texture[i][j&3] = NULL;
 
@@ -1799,7 +1803,7 @@ void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
 
 	sprintf (name, "%s_%i", loadmodel->name, framenum);
 	offset = (unsigned)(pinframe+1) - (unsigned)mod_base;
-	pspriteframe->gl_texture = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA);
+	pspriteframe->gl_texture = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1), loadmodel->name, offset, TEXPREF_NONE);
 
 	return (void *)((byte *)pinframe + sizeof (dspriteframe_t) + size);
 }

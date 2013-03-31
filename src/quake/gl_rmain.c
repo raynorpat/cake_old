@@ -619,8 +619,6 @@ GL_Init
 */
 void GL_Init (void)
 {
-	VID_CheckExtensions();
-
 	qglClearColor (1,0,0,0);
 	qglCullFace(GL_FRONT);
 	qglEnable(GL_TEXTURE_2D);
@@ -665,11 +663,11 @@ void R_Clear (void)
 		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	else
 		qglClear (GL_DEPTH_BUFFER_BIT);
-	gldepthmin = 0;
+
 	gldepthmax = 1;
 	qglDepthFunc (GL_LEQUAL);
 
-	qglDepthRange (gldepthmin, gldepthmax);
+	qglDepthRange (0, gldepthmax);
 }
 
 /*

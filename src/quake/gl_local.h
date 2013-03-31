@@ -105,6 +105,50 @@ extern int gl_support_clamptoedge;
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
 
+#ifndef GL_VERSION_1_2
+#define GL_UNSIGNED_BYTE_3_3_2            0x8032
+#define GL_UNSIGNED_SHORT_4_4_4_4         0x8033
+#define GL_UNSIGNED_SHORT_5_5_5_1         0x8034
+#define GL_UNSIGNED_INT_8_8_8_8           0x8035
+#define GL_UNSIGNED_INT_10_10_10_2        0x8036
+#define GL_TEXTURE_BINDING_3D             0x806A
+#define GL_PACK_SKIP_IMAGES               0x806B
+#define GL_PACK_IMAGE_HEIGHT              0x806C
+#define GL_UNPACK_SKIP_IMAGES             0x806D
+#define GL_UNPACK_IMAGE_HEIGHT            0x806E
+#define GL_TEXTURE_3D                     0x806F
+#define GL_PROXY_TEXTURE_3D               0x8070
+#define GL_TEXTURE_DEPTH                  0x8071
+#define GL_TEXTURE_WRAP_R                 0x8072
+#define GL_MAX_3D_TEXTURE_SIZE            0x8073
+#define GL_UNSIGNED_BYTE_2_3_3_REV        0x8362
+#define GL_UNSIGNED_SHORT_5_6_5           0x8363
+#define GL_UNSIGNED_SHORT_5_6_5_REV       0x8364
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV     0x8365
+#define GL_UNSIGNED_SHORT_1_5_5_5_REV     0x8366
+#define GL_UNSIGNED_INT_8_8_8_8_REV       0x8367
+#define GL_UNSIGNED_INT_2_10_10_10_REV    0x8368
+#define GL_BGR                            0x80E0
+#define GL_BGRA                           0x80E1
+#define GL_MAX_ELEMENTS_VERTICES          0x80E8
+#define GL_MAX_ELEMENTS_INDICES           0x80E9
+#define GL_CLAMP_TO_EDGE                  0x812F
+#define GL_TEXTURE_MIN_LOD                0x813A
+#define GL_TEXTURE_MAX_LOD                0x813B
+#define GL_TEXTURE_BASE_LEVEL             0x813C
+#define GL_TEXTURE_MAX_LEVEL              0x813D
+#define GL_SMOOTH_POINT_SIZE_RANGE        0x0B12
+#define GL_SMOOTH_POINT_SIZE_GRANULARITY  0x0B13
+#define GL_SMOOTH_LINE_WIDTH_RANGE        0x0B22
+#define GL_SMOOTH_LINE_WIDTH_GRANULARITY  0x0B23
+#define GL_ALIASED_LINE_WIDTH_RANGE       0x846E
+#define GL_RESCALE_NORMAL                 0x803A
+#define GL_LIGHT_MODEL_COLOR_CONTROL      0x81F8
+#define GL_SINGLE_COLOR                   0x81F9
+#define GL_SEPARATE_SPECULAR_COLOR        0x81FA
+#define GL_ALIASED_POINT_SIZE_RANGE       0x846D
+#endif
+
 extern void (GLAPIENTRY *qglScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
 
 extern void (GLAPIENTRY *qglClearColor)(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
@@ -184,7 +228,7 @@ extern void (GLAPIENTRY *qglClearStencil)(GLint s);
 
 extern void (GLAPIENTRY *qglTexEnvf)(GLenum target, GLenum pname, GLfloat param);
 extern void (GLAPIENTRY *qglTexEnvi)(GLenum target, GLenum pname, GLint param);
-//extern void (GLAPIENTRY *qglTexParameterf)(GLenum target, GLenum pname, GLfloat param);
+extern void (GLAPIENTRY *qglTexParameterf)(GLenum target, GLenum pname, GLfloat param);
 //extern void (GLAPIENTRY *qglTexParameterfv)(GLenum target, GLenum pname, GLfloat *params);
 extern void (GLAPIENTRY *qglTexParameteri)(GLenum target, GLenum pname, GLint param);
 
@@ -223,7 +267,7 @@ extern BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
 
 //====================================================
 
-extern	float	gldepthmin, gldepthmax;
+extern	float	gldepthmax;
 
 #define ALIAS_BASE_SIZE_RATIO	(1.0 / 11.0) // normalizing factor so player model works out to about 1 pixel per triangle
 #define	MAX_LBM_HEIGHT			480
@@ -294,13 +338,6 @@ extern	int		lightmode;		// set to gl_lightmode on mapchange
 
 extern	cvar_t	gl_playermip;
 
-extern	const char *gl_vendor;
-extern	const char *gl_renderer;
-extern	const char *gl_version;
-extern	const char *gl_extensions;
-
-extern	int		gl_hardware_maxsize;
-
 void R_TranslatePlayerSkin (int playernum);
 
 void GL_Bind (int texnum);
@@ -313,16 +350,14 @@ void GL_SelectTexture (GLenum target);
 #define TEXPREF_MIPMAP			0x0001	// generate mipmaps
 #define TEXPREF_LINEAR			0x0002	// force linear
 #define TEXPREF_NEAREST			0x0004	// force nearest
-#define TEXPREF_ALPHA			0x0008	// allow alpha
-#define TEXPREF_PAD				0x0010	// pad instead of resample
-#define TEXPREF_PERSIST			0x0020	// never free
-#define TEXPREF_OVERWRITE		0x0040	// overwrite existing same-name texture
-#define TEXPREF_NOPICMIP		0x0080	// always load full-sized
-#define TEXPREF_FULLBRIGHT		0x0100	// use fullbright mask palette
-#define TEXPREF_CONCHARS		0x0200	// use conchars palette
+#define TEXPREF_UPSCALE			0x0008	// use hq2x upscale
+#define TEXPREF_PERSIST			0x0010	// never free
+#define TEXPREF_OVERWRITE		0x0020	// overwrite existing same-name texture
+#define TEXPREF_NOPICMIP		0x0040	// always load full-sized
 
-enum srcformat {SRC_INDEXED, SRC_LIGHTMAP, SRC_RGBA};
+enum srcformat {SRC_INDEXED, SRC_INDEXED_UPSCALE, SRC_LIGHTMAP, SRC_RGBA};
 
+#define MAX_TEXTURE_SIZE		2048
 #define	MAX_GLTEXTURES			1024
 
 typedef struct gltexture_s
@@ -337,6 +372,7 @@ typedef struct gltexture_s
 	unsigned int		width; // size of image as it exists in opengl
 	unsigned int		height; // size of image as it exists in opengl
 	unsigned int		flags;
+	int					baselevel;
 	char				source_file[MAX_OSPATH]; // filepath to data source, or "" if source is in memory
 	unsigned int		source_offset; // byte offset into file, or memory address
 	enum srcformat		source_format; // format of pixel data (indexed, lightmap, or rgba)
@@ -360,9 +396,6 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 							   byte *data, char *source_file, unsigned source_offset, unsigned flags);
 void TexMgr_ReloadImage (gltexture_t *glt);
 void TexMgr_ReloadImages (void);
-
-int TexMgr_Pad(int x);
-int TexMgr_SafeTextureSize (int s);
 
 //
 // gl_warp.c

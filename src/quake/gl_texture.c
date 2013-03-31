@@ -20,12 +20,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_texture.c - GL texture management
 
 #include "gl_local.h"
+#include "rc_image.h"
 #include "crc.h"
 #include "version.h"
 
 cvar_t	gl_picmip = {"gl_picmip", "0"};
 
-int		gl_hardware_maxsize;
+#define MAX_STACK_PIXELS (256 * 256)
 
 gltexture_t	*active_gltextures, *free_gltextures;
 int		numgltextures;
@@ -89,7 +90,7 @@ glmode_t modes[] = {
 	{GL_LINEAR,  GL_LINEAR_MIPMAP_LINEAR,	"GL_LINEAR_MIPMAP_LINEAR"},
 };
 #define NUM_GLMODES 6
-int gl_texturemode = 5; // bilinear
+int gl_texturemode = 2;
 
 /*
 ===============
@@ -98,28 +99,45 @@ TexMgr_SetFilterModes
 */
 static void TexMgr_SetFilterModes (gltexture_t *glt)
 {
-	GL_Bind (glt->texnum);
-
-	if (glt->flags & TEXPREF_NEAREST)
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	}
-	else if (glt->flags & TEXPREF_LINEAR)
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	}
-	else if (glt->flags & TEXPREF_MIPMAP)
+	if (glt->flags & TEXPREF_MIPMAP)
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
 	}
 	else
 	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
+		if (glt->flags & TEXPREF_UPSCALE)
+		{
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
+		else if (glt->flags & TEXPREF_NEAREST)
+		{
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		}
+		else if (glt->flags & TEXPREF_LINEAR)
+		{
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		}
+		else
+		{
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
+		}
 	}
+
+	if (glt->flags & TEXPREF_MIPMAP)
+	{
+        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    }
+	else
+	{
+        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
 }
 
 /*
@@ -169,7 +187,10 @@ void TexMgr_TextureMode_f (void)
 
 stuff:
 		for (glt=active_gltextures; glt; glt=glt->next)
+		{
+			GL_Bind(glt->texnum);
 			TexMgr_SetFilterModes (glt);
+		}
 
 		break;
 	default:
@@ -327,6 +348,7 @@ void TexMgr_FreeTexturesForOwner (model_t *owner)
 	}
 }
 
+
 /*
 ================================================================================
 
@@ -335,249 +357,100 @@ void TexMgr_FreeTexturesForOwner (model_t *owner)
 ================================================================================
 */
 
-/*
-================
-TexMgr_Pad
-
-return smallest power of two greater than or equal to x (but always at least 2)
-================
-*/
-int TexMgr_Pad(int x)
+static inline unsigned npot32(unsigned k)
 {
-	int i;
-	for (i = 2; i < x; i<<=1);
-	return i;
-}
+    if (k == 0)
+        return 1;
 
-/*
-===============
-WrapCoords 
+    k--;
+    k = k | (k >> 1);
+    k = k | (k >> 2);
+    k = k | (k >> 4);
+    k = k | (k >> 8);
+    k = k | (k >> 16);
 
-wrap lookup coords for AlphaEdgeFix
-TODO: speed this up
-===============
-*/
-static int WrapCoords(int x, int y, int width, int height)
-{
-	if (x < 0)
-		x += width;
-	else if (x > width-1)
-		x -= width;
-
-	if (y < 0)
-		y += height;
-	else if (y > height-1)
-		y -= height;
-
-	return y * width + x;
-}
-
-/*
-===============
-TexMgr_SafeTextureSize 
-
-return a size with hardware and user prefs in mind
-===============
-*/
-int TexMgr_SafeTextureSize (int s)
-{
-	s = TexMgr_Pad(s);
-	s >>= (int)gl_picmip.value;
-	if ((int)gl_hardware_maxsize > 0)
-		s = min((int)gl_hardware_maxsize, s);
-	return s;
+    return k + 1;
 }
 
 /*
 ================
-TexMgr_MipMap
+mipMap
 
 Operates in place, quartering the size of the texture
 ================
 */
-void TexMgr_MipMap (byte *in, int width, int height)
+static void mipMap(byte *out, byte *in, int width, int height)
 {
-	int		i, j;
-	byte	*out;
+    int     i, j;
 
-	width <<=2;
-	height >>= 1;
-	out = in;
-
-	for (i=0 ; i<height ; i++, in+=width)
+    width <<= 2;
+    height >>= 1;
+    for (i = 0; i < height; i++, in += width)
 	{
-		for (j=0 ; j<width ; j+=8, out+=4, in+=8)
+        for (j = 0; j < width; j += 8, out += 4, in += 8)
 		{
-			out[0] = (in[0] + in[4] + in[width+0] + in[width+4])>>2;
-			out[1] = (in[1] + in[5] + in[width+1] + in[width+5])>>2;
-			out[2] = (in[2] + in[6] + in[width+2] + in[width+6])>>2;
-			out[3] = (in[3] + in[7] + in[width+3] + in[width+7])>>2;
-		}
-	}
+            out[0] = (in[0] + in[4] + in[width + 0] + in[width + 4]) >> 2;
+            out[1] = (in[1] + in[5] + in[width + 1] + in[width + 5]) >> 2;
+            out[2] = (in[2] + in[6] + in[width + 2] + in[width + 6]) >> 2;
+            out[3] = (in[3] + in[7] + in[width + 3] + in[width + 7]) >> 2;
+        }
+    }
 }
+
 
 /*
 ================
-TexMgr_ResampleTexture 
-
-bilinear resample
+resampleTexture 
 ================
 */
-unsigned *TexMgr_ResampleTexture (unsigned *in, int inwidth, int inheight, qbool alpha)
+static void resampleTexture (const byte *in, int inwidth, int inheight, byte *out, int outwidth, int outheight)
 {
-	byte *nwpx, *nepx, *swpx, *sepx, *dest;
-	unsigned xfrac, yfrac, x, y, modx, mody, imodx, imody, injump, outjump;
-	unsigned *out;
-	int i, j, outwidth, outheight;
+	int i, j;
+    const byte  *inrow1, *inrow2;
+    unsigned    frac, fracstep;
+    unsigned    p1[MAX_TEXTURE_SIZE], p2[MAX_TEXTURE_SIZE];
+    const byte  *pix1, *pix2, *pix3, *pix4;
+    float       heightScale;
 
-	if (inwidth == TexMgr_Pad(inwidth) && inheight == TexMgr_Pad(inheight))
-		return in;
+    if (outwidth > MAX_TEXTURE_SIZE)
+        Sys_Error("resampleTexture: outwidth > %d", MAX_TEXTURE_SIZE);
 
-	outwidth = TexMgr_Pad(inwidth);
-	outheight = TexMgr_Pad(inheight);
-	out = Hunk_Alloc(outwidth*outheight*4);
+    fracstep = inwidth * 0x10000 / outwidth;
 
-	xfrac = (inwidth << 8) / outwidth;
-	yfrac = (inheight << 8) / outheight;
-	y = outjump = 0;
-
-	for (i=0; i<outheight; i++)
+    frac = fracstep >> 2;
+    for (i = 0; i < outwidth; i++)
 	{
-		mody = y & 0xFF;
-		imody = 256 - mody;
-		injump = (y>>8) * inwidth;
-		x = 0;
+        p1[i] = 4 * (frac >> 16);
+        frac += fracstep;
+    }
+    frac = 3 * (fracstep >> 2);
+    for (i = 0; i < outwidth; i++)
+	{
+        p2[i] = 4 * (frac >> 16);
+        frac += fracstep;
+    }
 
-		for (j=0; j<outwidth; j++)
+    heightScale = (float)inheight / outheight;
+    inwidth <<= 2;
+    for (i = 0; i < outheight; i++)
+	{
+        inrow1 = in + inwidth * (int)((i + 0.25f) * heightScale);
+        inrow2 = in + inwidth * (int)((i + 0.75f) * heightScale);
+        for (j = 0; j < outwidth; j++)
 		{
-			modx = x & 0xFF;
-			imodx = 256 - modx;
-
-			nwpx = (byte *)(in + (x>>8) + injump);
-			nepx = nwpx + 4; 
-			swpx = nwpx + inwidth*4;
-			sepx = swpx + 4;
-
-			dest = (byte *)(out + outjump + j);
-
-			dest[0] = (nwpx[0]*imodx*imody + nepx[0]*modx*imody + swpx[0]*imodx*mody + sepx[0]*modx*mody)>>16;
-			dest[1] = (nwpx[1]*imodx*imody + nepx[1]*modx*imody + swpx[1]*imodx*mody + sepx[1]*modx*mody)>>16;
-			dest[2] = (nwpx[2]*imodx*imody + nepx[2]*modx*imody + swpx[2]*imodx*mody + sepx[2]*modx*mody)>>16;
-			if (alpha)
-				dest[3] = (nwpx[3]*imodx*imody + nepx[3]*modx*imody + swpx[3]*imodx*mody + sepx[3]*modx*mody)>>16;
-			else
-				dest[3] = 255;
-			
-			x += xfrac;
-		}
-		outjump += outwidth;
-		y += yfrac;
-	}
-
-	return out;
+            pix1 = inrow1 + p1[j];
+            pix2 = inrow1 + p2[j];
+            pix3 = inrow2 + p1[j];
+            pix4 = inrow2 + p2[j];
+            out[0] = (pix1[0] + pix2[0] + pix3[0] + pix4[0]) >> 2;
+            out[1] = (pix1[1] + pix2[1] + pix3[1] + pix4[1]) >> 2;
+            out[2] = (pix1[2] + pix2[2] + pix3[2] + pix4[2]) >> 2;
+            out[3] = (pix1[3] + pix2[3] + pix3[3] + pix4[3]) >> 2;
+            out += 4;
+        }
+    }
 }
 
-/*
-================
-TexMgr_8to32
-================
-*/
-unsigned *TexMgr_8to32 (byte *in, int pixels)
-{
-	int i;
-	unsigned *out;
-
-	out = Hunk_Alloc(pixels*4);
-
-	if (pixels & 3)
-	{
-		for (i=0 ; i<pixels ; i++)
-			out[i] = d_8to24table[in[i]];
-	}
-	else
-	{
-		for (i=0 ; i<pixels ; i+=4)
-		{
-			out[i] = d_8to24table[in[i]];
-			out[i+1] = d_8to24table[in[i+1]];
-			out[i+2] = d_8to24table[in[i+2]];
-			out[i+3] = d_8to24table[in[i+3]];
-		}
-	}
-
-	return out;
-}
-
-/*
-================
-TexMgr_PadImage
-
-return image padded up to power-of-two dimentions
-================
-*/
-byte *TexMgr_PadImage(byte *in, int width, int height)
-{
-	int i,j,w,h;
-	byte *out;
-
-	if (width == TexMgr_Pad(width) && height == TexMgr_Pad(height))
-		return in;
-
-	w = TexMgr_Pad(width);
-	h = TexMgr_Pad(height);
-	out = Hunk_Alloc(w*h);
-
-	for (i = 0; i < h; i++) // each row
-	{
-		for (j = 0; j < w; j++) // each pixel in that row
-		{
-			if (i < height && j < width)
-				out[i*w+j] = in[i*width+j];
-			else
-				out[i*w+j] = 255;
-		}
-	}
-
-	return out;
-}
-
-/*
-===============
-TexMgr_AlphaEdgeFix
-
-eliminate pink edges on sprites
-operates in place on 32bit data
-===============
-*/
-void TexMgr_AlphaEdgeFix(byte *data, int width, int height)
-{
-	int i,j,k,ii,jj,p,c,n,b;
-
-	for (i=0; i<height; i++) // for each row
-	{
-		for (j=0; j<width; j++) // for each pixel
-		{
-			p = (i*width+j)<<2; // current pixel position in data
-			if (data[p+3] == 0) // if pixel is transparent
-			{
-				for (k=0; k<3; k++) // for each color byte
-				{
-					n = 9; // number of non-transparent neighbors (include self)
-					c = 0; // running total
-					for (ii=-1; ii<2; ii++) // for each row of neighbors
-					{
-						for (jj=-1; jj<2; jj++) // for each pixel in this row of neighbors
-						{
-							b = WrapCoords(j+jj,i+ii,width,height) * 4;
-							data[b+3] ? c += data[b+k] : n-- ;
-						}
-					}
-					data[p+k] = n ? (byte)(c/n) : 0; // average of all non-transparent neighbors
-				}
-			}
-		}
-	}
-}
 
 /*
 ================
@@ -586,46 +459,87 @@ TexMgr_LoadImage32
 handles 32bit source data
 ================
 */
-void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
+void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
 {
-	// resample up
-	data = TexMgr_ResampleTexture (data, glt->width, glt->height, (glt->flags & TEXPREF_ALPHA));
-	glt->width = TexMgr_Pad(glt->width);
-	glt->height = TexMgr_Pad(glt->height);
+	byte        *scaled;
+    int         scaled_width, scaled_height, maxsize;
+    qbool		power_of_two;
 
-	// mipmap down
-	while (glt->width > TexMgr_SafeTextureSize (glt->width) || glt->height > TexMgr_SafeTextureSize (glt->height))
+	// find the next-highest power of two
+    scaled_width = npot32(glt->width);
+    scaled_height = npot32(glt->height);
+
+    // save the flag indicating if costly resampling can be avoided
+    power_of_two = (scaled_width == glt->width && scaled_height == glt->height);
+
+	maxsize = MAX_TEXTURE_SIZE; // HACK!
+    if ((glt->flags & TEXPREF_MIPMAP) && !(glt->flags & TEXPREF_NOPICMIP))
 	{
-		TexMgr_MipMap ((byte *)data, glt->width, glt->height);
-		glt->width >>= 1;
-		glt->height >>= 1;
+        // let people sample down the textures for speed
+        scaled_width >>= (int)gl_picmip.value;
+        scaled_height >>= (int)gl_picmip.value;
+    }
+
+    // don't ever bother with > 256 textures
+    while (scaled_width > maxsize || scaled_height > maxsize)
+	{
+        scaled_width >>= 1;
+        scaled_height >>= 1;
+    }
+
+    if (scaled_width < 1)
+        scaled_width = 1;
+    if (scaled_height < 1)
+        scaled_height = 1;
+
+	if (scaled_width == glt->width && scaled_height == glt->height)
+	{
+        // optimized case, do nothing
+        scaled = data;
 	}
+	else if (power_of_two)
+	{
+        // optimized case, use faster mipmap operation
+        scaled = data;
+        while (glt->width > scaled_width || glt->height > scaled_height)
+		{
+            mipMap (scaled, scaled, glt->width, glt->height);
+            glt->width >>= 1;
+            glt->height >>= 1;
+        }
+	}
+	else
+	{
+        scaled = malloc (scaled_width * scaled_height * 4);
+        resampleTexture (data, glt->width, glt->height, scaled, scaled_width, scaled_height);
+    }
 
 	// upload
 	GL_Bind (glt->texnum);
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexImage2D (GL_TEXTURE_2D, glt->baselevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
 	{
-		int	miplevel, mipwidth, mipheight;
+		int miplevel = 0;
 
-		mipwidth = glt->width;
-		mipheight = glt->height;
-
-		for (miplevel=1; mipwidth > 1 || mipheight > 1; miplevel++)
+		while (scaled_width > 1 || scaled_height > 1)
 		{
-			TexMgr_MipMap ((byte *)data, mipwidth, mipheight);
+			mipMap (scaled, scaled, scaled_width, scaled_height);
 
-			mipwidth = max (mipwidth>>1, 1);
-			mipheight = max (mipheight>>1, 1);
+			scaled_width = max (scaled_width >> 1, 1);
+			scaled_height = max (scaled_height >> 1, 1);
 
-			qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			miplevel++;
+			qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
 		}
 	}
-	
-	// set filter modes
+
+	// set filter
 	TexMgr_SetFilterModes (glt);
+	
+	if (scaled != data)
+        free (scaled);
 }
 
 /*
@@ -637,7 +551,9 @@ handles 8bit source data, then passes it to LoadImage32
 */
 void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 {
-	int i;
+	byte    stackbuf[MAX_STACK_PIXELS * 4];
+    byte    *buffer, *dest;
+    int     i, s, p;
 
 	// HACK HACK HACK -- taken from tomazquake
 	if (strstr(glt->name, "shot1sid") && glt->width==32 && glt->height==32 && CRC_Block(data, 1024) == 65393)
@@ -648,33 +564,78 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 		memcpy (data, data + 32*31, 32);
 	}
 
-	// detect false alpha cases
-	if (glt->flags & TEXPREF_ALPHA && !(glt->flags & TEXPREF_CONCHARS))
-	{
-		for (i = 0; i < glt->width * glt->height; i++)
-			if (data[i] == 255)
-				break;
-		if (i == glt->width*glt->height)
-			glt->flags -= TEXPREF_ALPHA;
-	}
+    s = glt->width * glt->height;
+    if (s > MAX_STACK_PIXELS)
+        buffer = malloc(s * 4);
+    else
+        buffer = stackbuf;
 
-	// pad it
-	if (glt->flags & TEXPREF_PAD)
+    dest = buffer;
+    for (i = 0; i < s; i++)
 	{
-		data = TexMgr_PadImage (data, glt->width, glt->height);
-		glt->width = TexMgr_Pad(glt->width);
-		glt->height = TexMgr_Pad(glt->height);
-	}
-		
-	// convert to 32bit
- 	data = (byte *)TexMgr_8to32(data, glt->width * glt->height);
+        p = data[i];
+        *(unsigned long int *)dest = d_8to24table[p];
 
-	// fix edges
-	if (glt->flags & TEXPREF_ALPHA)
-		TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
+        if (p == 255)
+		{
+            // transparent, so scan around for another color
+            // to avoid alpha fringes
+            // FIXME: do a full flood fill so mips work...
+            if (i > glt->width && data[i - glt->width] != 255)
+                p = data[i - glt->width];
+            else if (i < s - glt->width && data[i + glt->width] != 255)
+                p = data[i + glt->width];
+            else if (i > 0 && data[i - 1] != 255)
+                p = data[i - 1];
+            else if (i < s - 1 && data[i + 1] != 255)
+                p = data[i + 1];
+            else
+                p = 0;
+
+            // copy rgb components
+            dest[0] = ((byte *)&d_8to24table[p])[0];
+            dest[1] = ((byte *)&d_8to24table[p])[1];
+            dest[2] = ((byte *)&d_8to24table[p])[2];
+        }
+
+        dest += 4;
+    }
 
 	// upload it
-	TexMgr_LoadImage32 (glt, (unsigned *)data);
+	TexMgr_LoadImage32 (glt, buffer);
+
+	if (s > MAX_STACK_PIXELS)
+        free(buffer);
+}
+
+/*
+================
+TexMgr_LoadUpscaledImage8 
+
+handles 8bit source data, then passes it to LoadImage32
+================
+*/
+void TexMgr_LoadUpscaledImage8 (gltexture_t *glt, byte *data)
+{
+	byte *buffer;
+
+	buffer = malloc(glt->width * glt->height * 16);
+
+	// send it through hq2x
+	HQ2x_Render((unsigned long int *)buffer, data, glt->width, glt->height);
+
+	// upload scaled image
+	glt->width *= 2;
+	glt->height *= 2;
+	TexMgr_LoadImage32 (glt, buffer);
+    free(buffer);
+
+	// upload original as mipmap level 1
+	glt->baselevel = 1;
+	glt->width /= 2;
+	glt->height /= 2;
+	TexMgr_LoadImage8(glt, data);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1);
 }
 
 
@@ -720,6 +681,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	glt->width = width;
 	glt->height = height;
 	glt->flags = flags;
+	glt->baselevel = 0;
 	strncpy (glt->source_file, source_file, sizeof(glt->source_file));
 	glt->source_offset = source_offset;
 	glt->source_format = format;
@@ -727,7 +689,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	glt->source_height = height;
 	glt->source_crc = crc;
 
-	//upload it
+	// upload it
 	mark = Hunk_LowMark();
 
 	switch (glt->source_format)
@@ -735,8 +697,11 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 		case SRC_INDEXED:
 			TexMgr_LoadImage8 (glt, data);
 			break;
+		case SRC_INDEXED_UPSCALE:
+			TexMgr_LoadUpscaledImage8 (glt, data);
+			break;
 		case SRC_RGBA:
-			TexMgr_LoadImage32 (glt, (unsigned *)data);
+			TexMgr_LoadImage32 (glt, data);
 			break;
 	}
 
@@ -763,8 +728,8 @@ void TexMgr_ReloadImage (gltexture_t *glt)
 
 	if (glt->source_file[0] && glt->source_offset)
 		data = FS_LoadHunkFile (glt->source_file) + glt->source_offset; // lump inside file
-//	else if (glt->source_file[0] && !glt->source_offset)
-//		data = Image_LoadImage (glt->source_file, &glt->source_width, &glt->source_height); // simple file
+	else if (glt->source_file[0] && !glt->source_offset)
+		data = Image_LoadImage (glt->source_file, &glt->source_width, &glt->source_height); // simple file
 	else if (!glt->source_file[0] && glt->source_offset)
 		data = (byte *) glt->source_offset; // image in memory
 
@@ -781,8 +746,11 @@ void TexMgr_ReloadImage (gltexture_t *glt)
 		case SRC_INDEXED:
 			TexMgr_LoadImage8 (glt, data);
 			break;
+		case SRC_INDEXED_UPSCALE:
+			TexMgr_LoadUpscaledImage8 (glt, data);
+			break;
 		case SRC_RGBA:
-			TexMgr_LoadImage32 (glt, (unsigned *)data);
+			TexMgr_LoadImage32 (glt, data);
 			break;
 	}
 
@@ -800,7 +768,7 @@ void TexMgr_ReloadImages (void)
 {
 	gltexture_t *glt;
 
-	for (glt=active_gltextures; glt; glt=glt->next)
+	for (glt = active_gltextures; glt; glt = glt->next)
 	{
 		qglGenTextures (1, (GLuint *) &glt->texnum);
 		TexMgr_ReloadImage (glt);
@@ -872,21 +840,18 @@ static void TexMgr_InitParticleTexture (void)
 		}
 	}
 
-	particletexture = TexMgr_LoadImage (NULL, "particle", 2, 2, SRC_RGBA, data, "", (unsigned)data, TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_NEAREST);
+	particletexture = TexMgr_LoadImage (NULL, "particle", 2, 2, SRC_RGBA, data, "", (unsigned)data, TEXPREF_PERSIST | TEXPREF_NEAREST);
 }
 
 static void r_textures_start(void)
 {
 	static byte notexture_data[16] = {159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255}; // black and pink checker
 
-	// poll max size from hardware
-	qglGetIntegerv (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
-
 	// load palette
 	TexMgr_LoadPalette ();
 
 	// load notexture image
-	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST);
+	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_PERSIST | TEXPREF_NEAREST);
 
 	// generate particle images
 	TexMgr_InitParticleTexture ();
@@ -940,6 +905,8 @@ void TexMgr_Init (void)
 
 	Cmd_AddCommand ("gl_texturemode", &TexMgr_TextureMode_f);
 	Cmd_AddCommand ("imagelist", &TexMgr_Imagelist_f);
+
+	HQ2x_Init();
 
 	// init texture list
 	free_gltextures = (gltexture_t *) Hunk_AllocName (MAX_GLTEXTURES * sizeof(gltexture_t), "gltextures");
