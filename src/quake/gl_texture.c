@@ -712,71 +712,6 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 
 
 /*
-================
-TexMgr_ReloadImage
-
-reloads a texture
-================
-*/
-void TexMgr_ReloadImage (gltexture_t *glt)
-{
-	byte	*data = NULL;
-	int		mark;
-
-	// get source data
-	mark = Hunk_LowMark ();
-
-	if (glt->source_file[0] && glt->source_offset)
-		data = FS_LoadHunkFile (glt->source_file) + glt->source_offset; // lump inside file
-	else if (glt->source_file[0] && !glt->source_offset)
-		data = Image_LoadImage (glt->source_file, &glt->source_width, &glt->source_height); // simple file
-	else if (!glt->source_file[0] && glt->source_offset)
-		data = (byte *) glt->source_offset; // image in memory
-
-	if (!data)
-	{
-		Com_Printf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
-		Hunk_FreeToLowMark(mark);
-		return;
-	}
-
-	// upload it
-	switch (glt->source_format)
-	{
-		case SRC_INDEXED:
-			TexMgr_LoadImage8 (glt, data);
-			break;
-		case SRC_INDEXED_UPSCALE:
-			TexMgr_LoadUpscaledImage8 (glt, data);
-			break;
-		case SRC_RGBA:
-			TexMgr_LoadImage32 (glt, data);
-			break;
-	}
-
-	Hunk_FreeToLowMark(mark);
-}
-
-/*
-================
-TexMgr_ReloadImages
-
-reloads all texture images. called only by vid_restart
-================
-*/
-void TexMgr_ReloadImages (void)
-{
-	gltexture_t *glt;
-
-	for (glt = active_gltextures; glt; glt = glt->next)
-	{
-		qglGenTextures (1, (GLuint *) &glt->texnum);
-		TexMgr_ReloadImage (glt);
-	}
-}
-
-
-/*
 ================================================================================
 
 INIT/SHUTDOWN
@@ -886,7 +821,7 @@ TexMgr_Flush
 */
 void TexMgr_Flush (void)
 {
-	TexMgr_FreeTextures (0, TEXPREF_PERSIST); //deletes all textures where TEXPREF_PERSIST is unset
+	TexMgr_FreeTextures (0, TEXPREF_PERSIST); // deletes all textures where TEXPREF_PERSIST is unset
 	TexMgr_LoadPalette ();
 }
 

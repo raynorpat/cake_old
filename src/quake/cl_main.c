@@ -326,8 +326,6 @@ void CL_ClearState (void)
 
 	S_StopAllSounds (true);
 
-	Com_DPrintf ("Clearing memory\n");
-
 	if (!com_serveractive)
 		Host_ClearMemory ();
 

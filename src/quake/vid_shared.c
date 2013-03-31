@@ -366,6 +366,8 @@ static dllfunction_t compiledvertexarrayfuncs[] =
 
 void VID_CheckExtensions(void)
 {
+	// reset all the gl extension variables here
+	// this should match the declarations
 	gl_textureunits = 1;
 	gl_supportslockarrays = false;
 	gl_support_clamptoedge = false;
@@ -540,6 +542,8 @@ static void VID_CloseSystems(void)
 
 void VID_Restart_f(void)
 {
+	Cmd_ExecuteString("disconnect");
+
 	Com_Printf("VID_Restart: changing from %s %dx%d, to %s %dx%d.\n",
 		current_vid_fullscreen ? "fullscreen" : "window", current_vid_width, current_vid_height, 
 		vid_fullscreen.value ? "fullscreen" : "window", vid_width.value, vid_height.value);
@@ -553,7 +557,6 @@ void VID_Restart_f(void)
 	}
 	VID_OpenSystems();
 
-	TexMgr_ReloadImages ();
 	GL_Init ();
 }
 

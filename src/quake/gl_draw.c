@@ -294,7 +294,6 @@ static void R_LoadCharset (void)
 static void gl_draw_start(void)
 {
 	int	i;
-	int flags = TEXPREF_NEAREST | TEXPREF_PERSIST;
 
 	numcachepics = 0;
 
@@ -306,8 +305,9 @@ static void gl_draw_start(void)
 
 	// load the crosshair pics
 	for (i=0 ; i<3 ; i++)
-		crosshairtextures[i] = TexMgr_LoadImage (NULL, va("pic:crosshair_%d", i), 8, 8, SRC_INDEXED, crosshairdata[i], "", (unsigned)crosshairdata[i], flags);
+		crosshairtextures[i] = TexMgr_LoadImage (NULL, va("pic:crosshair_%d", i), 8, 8, SRC_INDEXED, crosshairdata[i], "", (unsigned)crosshairdata[i], TEXPREF_NEAREST | TEXPREF_PERSIST);
 
+	// load wad file
 	W_LoadWadFile ("gfx.wad");
 
 	// load the charset by hand
@@ -344,11 +344,18 @@ void R_Draw_Init (void)
 
 void R_FlushPics (void)
 {
+	int i;
+
 	if (!draw_chars)
 		return;		// not initialized yet (FIXME?)
 
 	gl_draw_shutdown();
 
+	// load the crosshair pics
+	for (i=0 ; i<3 ; i++)
+		crosshairtextures[i] = TexMgr_LoadImage (NULL, va("pic:crosshair_%d", i), 8, 8, SRC_INDEXED, crosshairdata[i], "", (unsigned)crosshairdata[i], TEXPREF_NEAREST | TEXPREF_PERSIST);
+
+	// load wad file
 	W_LoadWadFile ("gfx.wad");
 
 	// load the charset by hand

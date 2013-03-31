@@ -375,10 +375,13 @@ void R_SetFrustum (void)
 
 	// rotate VPN right by FOV_X/2 degrees
 	RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-r_refdef2.fov_x / 2 ) );
+
 	// rotate VPN left by FOV_X/2 degrees
 	RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-r_refdef2.fov_x / 2 );
+
 	// rotate VPN up by FOV_X/2 degrees
 	RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-r_refdef2.fov_y / 2 );
+
 	// rotate VPN down by FOV_X/2 degrees
 	RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - r_refdef2.fov_y / 2 ) );
 
@@ -410,12 +413,12 @@ void R_SetupFrame (void)
 
 	r_framecount++;
 
-// build the transformation matrix for the given view angles
+	// build the transformation matrix for the given view angles
 	VectorCopy (r_refdef2.vieworg, r_origin);
 
 	AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
 
-// current viewleaf
+	// current viewleaf
 	r_oldviewleaf = r_viewleaf;
 	r_oldviewleaf2 = r_viewleaf2;
 
@@ -449,7 +452,6 @@ void R_SetupFrame (void)
 
 	c_brush_polys = 0;
 	c_alias_polys = 0;
-
 }
 
 

@@ -535,6 +535,7 @@ void R_BlendLightmaps (void)
 		p = lightmap_polys[i];
 		if (!p)
 			continue;
+		GL_SelectTexture(1);
 		GL_Bind(lightmap_textures[i]);
 		if (lightmap_modified[i])
 			R_UploadLightMap (i);
@@ -580,7 +581,7 @@ void R_RenderBrushPoly (msurface_t *fa)
 		}
 		return;
 	}
-		
+	
 	t = R_TextureAnimation (fa->texinfo->texture);
 	GL_Bind (t->gl_texture->texnum);
 
@@ -791,7 +792,7 @@ void R_DrawBrushModel (entity_t *e)
 
 	R_BlendLightmaps ();
 
-	R_RenderFullbrights ();
+//	R_RenderFullbrights ();
 
 	qglPopMatrix ();
 }
@@ -877,7 +878,8 @@ void R_RecursiveWorldNode (mnode_t *node, int clipflags)
 				if ((surf->flags & SURF_PLANEBACK) != sidebit)
 					continue;		// wrong side
 
-				if (surf->flags & SURF_DRAWSKY) {
+				if (surf->flags & SURF_DRAWSKY)
+				{
 					surf->texturechain = skychain;
 					skychain = surf;
 					continue;
@@ -1078,14 +1080,12 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	float		s, t;
 	glpoly_t	*poly;
 
-// reconstruct the polygon
+	// reconstruct the polygon
 	pedges = currentmodel->edges;
 	lnumverts = fa->numedges;
 	vertpage = 0;
 
-	//
 	// draw texture
-	//
 	poly = Hunk_Alloc (sizeof(glpoly_t) + (lnumverts-4) * VERTEXSIZE*sizeof(float));
 	poly->next = fa->polys;
 	fa->polys = poly;
@@ -1115,20 +1115,18 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		poly->verts[i][3] = s;
 		poly->verts[i][4] = t;
 
-		//
 		// lightmap texture coordinates
-		//
 		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
 		s -= fa->texturemins[0];
 		s += fa->light_s*16;
 		s += 8;
-		s /= BLOCK_WIDTH*16; //fa->texinfo->texture->width;
+		s /= BLOCK_WIDTH*16;
 
 		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 		t -= fa->texturemins[1];
 		t += fa->light_t*16;
 		t += 8;
-		t /= BLOCK_HEIGHT*16; //fa->texinfo->texture->height;
+		t /= BLOCK_HEIGHT*16;
 
 		poly->verts[i][5] = s;
 		poly->verts[i][6] = t;
@@ -1208,9 +1206,8 @@ void GL_BuildLightmaps (void)
 	}
 
  	GL_SelectTexture(GL_TEXTURE1_ARB);
-	//
+
 	// upload all lightmaps that were filled
-	//
 	for (i=0 ; i<MAX_LIGHTMAPS ; i++)
 	{
 		if (!allocated[i][0])
@@ -1225,5 +1222,6 @@ void GL_BuildLightmaps (void)
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH, BLOCK_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
 	}
+
  	GL_SelectTexture(GL_TEXTURE0_ARB);
 }

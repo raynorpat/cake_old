@@ -150,6 +150,8 @@ Can only be called when changing levels!
 */
 void Host_ClearMemory ()
 {
+	Com_DPrintf ("Clearing memory\n");
+
 	// FIXME, move to CL_ClearState
 	if (!dedicated)
 		D_FlushCaches ();

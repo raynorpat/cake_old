@@ -279,7 +279,7 @@ texture_t *R_TextureAnimation (texture_t *base);
 
 extern model_t		*r_worldmodel;
 extern entity_t		r_worldentity;
-extern qbool		r_cache_thrash;		// compatability
+extern qbool		r_cache_thrash;		// set if thrashing the surface cache
 extern vec3_t		modelorg, r_entorigin;
 extern entity_t		*currententity;
 extern int			r_visframecount;
@@ -394,8 +394,6 @@ void TexMgr_FreeTexturesForOwner (model_t *owner);
 
 gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height, enum srcformat format,
 							   byte *data, char *source_file, unsigned source_offset, unsigned flags);
-void TexMgr_ReloadImage (gltexture_t *glt);
-void TexMgr_ReloadImages (void);
 
 //
 // gl_warp.c

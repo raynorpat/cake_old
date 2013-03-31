@@ -201,7 +201,8 @@ static void sbar_start (void)
 {
 	int		i;
 
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < 10; i++)
+	{
 		sb_nums[0][i] = R_CacheWadPic (va("num_%i",i));
 		sb_nums[1][i] = R_CacheWadPic (va("anum_%i",i));
 	}
@@ -228,7 +229,8 @@ static void sbar_start (void)
 	sb_weapons[1][5] = R_CacheWadPic ("inv2_srlaunch");
 	sb_weapons[1][6] = R_CacheWadPic ("inv2_lightng");
 	
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < 5; i++)
+	{
 		sb_weapons[2+i][0] = R_CacheWadPic (va("inva%i_shotgun",i+1));
 		sb_weapons[2+i][1] = R_CacheWadPic (va("inva%i_sshotgun",i+1));
 		sb_weapons[2+i][2] = R_CacheWadPic (va("inva%i_nailgun",i+1));
@@ -311,7 +313,6 @@ void Sbar_Init (void)
 
 	R_RegisterModule("sbar", sbar_start, sbar_shutdown, sbar_newmap);
 }
-
 
 //=============================================================================
 
