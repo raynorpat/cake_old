@@ -40,23 +40,11 @@ void R_FlushArraysMtex ( int tex1, int tex2 );
 
 void R_ClearArrays (void);
 
-extern inline void R_PushElem ( unsigned int elem )
-{
-	if( numIndexes >= MAX_ARRAY_INDEXES || r_blocked ) {
-		r_blocked = true;
-		return;
-	}
-
-	indexesArray[numIndexes] = numVerts + elem;
-
-	numIndexes++;
-}
-
-extern inline void R_PushElems ( unsigned int *elems, int numIndexes )
+extern inline void R_PushElems ( unsigned int *elems, int numindexes )
 {
 	int i;
 
-	for ( i = 0; i < numIndexes; i++ ) {
+	for ( i = 0; i < numindexes; i++ ) {
 		if( numIndexes >= MAX_ARRAY_INDEXES || r_blocked ) {
 			r_blocked = true;
 			return;
@@ -69,11 +57,6 @@ extern inline void R_PushElems ( unsigned int *elems, int numIndexes )
 
 extern inline void R_PushVertex ( float *vertex )
 {
-	if( numVerts >= MAX_ARRAY_VERTS || r_blocked ) {
-		r_blocked = true;
-		return;
-	}
-
 	currentVertex[0] = vertex[0];
 	currentVertex[1] = vertex[1];
 	currentVertex[2] = vertex[2];
@@ -85,11 +68,6 @@ extern inline void R_PushVertex ( float *vertex )
 
 extern inline void R_PushNormal ( float *normal )
 {
-	if( numVerts >= MAX_ARRAY_VERTS || r_blocked ) {
-		r_blocked = true;
-		return;
-	}
-
 	currentNormal[0] = normal[0];
 	currentNormal[1] = normal[1];
 	currentNormal[2] = normal[2];
@@ -98,11 +76,6 @@ extern inline void R_PushNormal ( float *normal )
 
 extern inline void R_PushCoord ( float *tc )
 {
-	if( numVerts >= MAX_ARRAY_VERTS || r_blocked ) {
-		r_blocked = true;
-		return;
-	}
-
 	currentCoords[0] = tc[0];
 	currentCoords[1] = tc[1];
 	currentCoords += 2;
@@ -112,11 +85,6 @@ extern inline void R_PushCoord ( float *tc )
 
 extern inline void R_PushLightmapCoord ( float *tc )
 {
-	if( numVerts >= MAX_ARRAY_VERTS || r_blocked ) {
-		r_blocked = true;
-		return;
-	}
-
 	currentLightmapCoords[0] = tc[0];
 	currentLightmapCoords[1] = tc[1];
 	currentLightmapCoords += 2;
@@ -124,11 +92,6 @@ extern inline void R_PushLightmapCoord ( float *tc )
 
 inline void R_PushColor ( float *color )
 {
-	if( numVerts >= MAX_ARRAY_VERTS || r_blocked ) {
-		r_blocked = true;
-		return;
-	}
-
 	currentColor[0] = color[0];
 	currentColor[1] = color[1];
 	currentColor[2] = color[2];

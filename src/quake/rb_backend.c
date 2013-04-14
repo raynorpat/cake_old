@@ -297,14 +297,12 @@ void R_FlushArraysMtex ( int tex1, int tex2 )
 }
 
 /*
-** R_DrawTriangleOutlines
+================
+R_DrawTriangleOutlines
+================
 */
-void R_DrawTriangleOutlines (void)
+void R_DrawTriangleOutlines ( void )
 {
-	if ( !developer.value ) {
-		return;
-	}
-
 	qglDisable( GL_TEXTURE_2D );
 	qglDisable( GL_DEPTH_TEST );
 	qglColor4f( 1, 1, 1, 1 );
@@ -317,4 +315,12 @@ void R_DrawTriangleOutlines (void)
 	qglEnable( GL_DEPTH_TEST );
 	qglEnable( GL_TEXTURE_2D );
 	qglEnable( GL_BLEND );
+}
+
+void R_RenderFinish ( void )
+{
+	// TODO: triangle outlines, normals...
+
+	R_UnlockArrays ();
+	R_ClearArrays ();
 }
