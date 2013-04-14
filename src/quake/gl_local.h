@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"		// FIXME
 #include "gl_model.h"
+#include "rb_backend.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -184,10 +185,10 @@ extern void (GLAPIENTRY *qglColorMask)(GLboolean red, GLboolean green, GLboolean
 extern void (GLAPIENTRY *qglDrawRangeElements)(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices);
 extern void (GLAPIENTRY *qglDrawElements)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 extern void (GLAPIENTRY *qglVertexPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
-//extern void (GLAPIENTRY *qglNormalPointer)(GLenum type, GLsizei stride, const GLvoid *ptr);
+extern void (GLAPIENTRY *qglNormalPointer)(GLenum type, GLsizei stride, const GLvoid *ptr);
 extern void (GLAPIENTRY *qglColorPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
 extern void (GLAPIENTRY *qglTexCoordPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
-//extern void (GLAPIENTRY *qglArrayElement)(GLint i);
+extern void (GLAPIENTRY *qglArrayElement)(GLint i);
 
 extern void (GLAPIENTRY *qglColor3ubv)(const GLubyte* v);
 extern void (GLAPIENTRY *qglColor3f)(GLfloat red, GLfloat green, GLfloat blue);
@@ -340,8 +341,9 @@ extern	cvar_t	gl_playermip;
 
 void R_TranslatePlayerSkin (int playernum);
 
-void GL_Bind (int texnum);
-void GL_SelectTexture (GLenum target);
+void GL_MBind ( GLenum target, int texnum );
+void GL_Bind ( int texnum );
+void GL_SelectTexture ( GLenum target );
 
 //
 // gl_texture.c

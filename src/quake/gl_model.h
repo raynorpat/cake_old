@@ -47,6 +47,10 @@ BRUSH MODELS
 typedef struct
 {
 	vec3_t		position;
+	vec3_t		normal;
+	vec2_t		tex_st;
+	vec2_t		lm_st;
+	vec4_t		color;
 } mvertex_t;
 
 typedef struct texture_s

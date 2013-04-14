@@ -39,27 +39,18 @@ unsigned	d_8to24table[256];
 
 int	currenttexture = -1;
 
-void GL_Bind (int texnum)
-{
-	if (currenttexture == texnum)
-		return;
-
-	currenttexture = texnum;
-	qglBindTexture (GL_TEXTURE_2D, texnum);
-}
-
-void GL_SelectTexture (GLenum target)
+void GL_SelectTexture ( GLenum target )
 {
 	static GLenum currenttarget;
 	static int ct0, ct1;
 
-	if (target == currenttarget)
+	if ( target == currenttarget )
 		return;
 
 	if(qglActiveTexture)
 		qglActiveTexture (target);
 
-	if (target == GL_TEXTURE0_ARB)
+	if ( target == GL_TEXTURE0_ARB )
 	{
 		ct1 = currenttexture;
 		currenttexture = ct0;
@@ -71,6 +62,21 @@ void GL_SelectTexture (GLenum target)
 	}
 
 	currenttarget = target;
+}
+
+void GL_Bind ( int texnum )
+{
+	if ( currenttexture == texnum )
+		return;
+
+	currenttexture = texnum;
+	qglBindTexture (GL_TEXTURE_2D, texnum);
+}
+
+void GL_MBind( GLenum target, int texnum )
+{
+	GL_SelectTexture( target );
+	GL_Bind( texnum );
 }
 
 //====================================================================

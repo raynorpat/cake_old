@@ -26,9 +26,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	ROLL	2		// fall over
 
 typedef float vec_t;
+typedef vec_t vec2_t[2];
 typedef vec_t vec3_t[3];
 typedef vec_t vec4_t[4];
 typedef vec_t vec5_t[5];
+
+typedef byte byte_vec4_t[4];
 
 typedef	int	fixed4_t;
 typedef	int	fixed8_t;
