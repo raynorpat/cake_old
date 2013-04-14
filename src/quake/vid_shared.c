@@ -559,8 +559,6 @@ void VID_Restart_f(void)
 	}
 	Cache_Flush ();
 	VID_OpenSystems();
-
-	GL_Init ();
 }
 
 // this is only called once by Host_StartVideo

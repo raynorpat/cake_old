@@ -11,9 +11,9 @@ vec2_t	inLightmapCoordsData[MAX_ARRAY_TEX_COORDS];
 vec4_t	inColorsData[MAX_ARRAY_COLORS];
 int		numVerts, numIndexes, numCoords, numColors;
 
-static	vec2_t	coordsArray[MAX_ARRAY_TEX_COORDS];
-static	vec2_t	coordsArrayMtex[MAX_ARRAY_TEX_COORDS];
-static	byte_vec4_t	colorArray[MAX_ARRAY_COLORS];
+vec2_t	coordsArray[MAX_ARRAY_TEX_COORDS];
+vec2_t	coordsArrayMtex[MAX_ARRAY_TEX_COORDS];
+byte_vec4_t	colorArray[MAX_ARRAY_COLORS];
 static	qbool	r_arrays_locked;
 
 qbool r_blocked;
@@ -30,7 +30,7 @@ unsigned int	r_numflushes;
 
 unsigned int quad_elems[6] = { 0, 1, 2, 0, 2, 3 };
 
-void RB_InitBackend (void)
+static void rb_backend_start(void)
 {
 	numVerts = 0;
 	numIndexes = 0;
@@ -54,15 +54,37 @@ void RB_InitBackend (void)
 	memset (indexesArray, 0, MAX_ARRAY_INDEXES * sizeof(int));
 	memset (colorArray, 0, MAX_ARRAY_COLORS * sizeof(byte_vec4_t));
 
-	GL_SelectTexture ( GL_TEXTURE1_ARB );
-	qglTexCoordPointer( 2, GL_FLOAT, 0, coordsArrayMtex );
+	// do specific renderpath init here
+	switch (vid.renderpath)
+	{
+		case RENDERPATH_GL11:
+		case RENDERPATH_GLES:
+		case RENDERPATH_GL30:
+			RB_GL_Init ();
+			break;
+		case RENDERPATH_D3D11:
+			Sys_Error("TODO: D3D11");
+			break;
+		default:
+			Sys_Error("bad renderpath");
+			break;
+	}
 
-	GL_SelectTexture ( GL_TEXTURE0_ARB );
-	qglVertexPointer( 3, GL_FLOAT, 16, vertexArray );	// padded for SIMD
-	qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, colorArray );
-	qglTexCoordPointer( 2, GL_FLOAT, 0, coordsArray );
+	Com_Printf("Renderer backend started.\n");
+}
 
-	qglEnableClientState( GL_VERTEX_ARRAY );
+static void rb_backend_shutdown(void)
+{
+	Com_Printf("Renderer backend shutting down\n");
+}
+
+static void rb_backend_newmap(void)
+{
+}
+
+void RB_InitBackend(void)
+{
+	R_RegisterModule("RB_Backend", rb_backend_start, rb_backend_shutdown, rb_backend_newmap);
 }
 
 void RB_StartFrame (void)
@@ -76,8 +98,9 @@ void RB_EndFrame (void)
 {
 	if (r_speeds.value)
 	{
-		Com_Printf( "%4i wpoly %4i verts %4i tris %4i flushes\n",
+		Com_Printf( "%4i wpoly %4i epoly %4i verts %4i tris %4i flushes\n",
 			c_brush_polys, 
+			c_alias_polys,
 			r_numverts,
 			r_numtris,
 			r_numflushes ); 

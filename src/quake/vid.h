@@ -99,9 +99,7 @@ int		GL_CheckExtension(const char *name, const dllfunction_t *funcs, char *disab
 
 void	VID_Shared_Init(void);
 
-void	GL_Init (void);
-
-void VID_CheckExtensions(void);
+void	VID_CheckExtensions(void);
 
 void	VID_Init (void);
 int		VID_Mode(int fullscreen, int width, int height);

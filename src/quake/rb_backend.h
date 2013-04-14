@@ -156,3 +156,12 @@ extern inline void R_PushVertexes ( mvertex_t *verts, int numverts )
 }
 
 qbool R_MeshWillNotFit ( int numvertexes, int numindexes );
+
+//
+// rb_backend_ogl.c
+//
+void RB_GL_Init (void);
+
+//
+// rb_backend_d3d.c
+//
