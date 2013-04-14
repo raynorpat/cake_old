@@ -21,6 +21,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _VID_H_
 #define _VID_H_
 
+typedef enum renderpath_e
+{
+	RENDERPATH_GL11,
+	RENDERPATH_GLES,
+	RENDERPATH_GL30,
+	RENDERPATH_D3D11,
+} renderpath_t;
+
 #define VID_CBITS	6
 #define VID_GRADES	(1 << VID_CBITS)
 
@@ -40,6 +48,8 @@ typedef struct
 
 	int				width;
 	int				height;
+
+	renderpath_t	renderpath;
 
 	// these are set with VID_GetWindowSize and can change from frame to frame
 	int				realx;
@@ -82,10 +92,10 @@ extern char gl_driver[256];
 // GLX_SGI_video_sync and WGL_EXT_swap_control
 extern int gl_videosyncavailable;
 
-int GL_OpenLibrary(const char *name);
-void GL_CloseLibrary(void);
-void *GL_GetProcAddress(const char *name);
-int GL_CheckExtension(const char *name, const dllfunction_t *funcs, char *disableparm, int silent);
+int		GL_OpenLibrary(const char *name);
+void	GL_CloseLibrary(void);
+void	*GL_GetProcAddress(const char *name);
+int		GL_CheckExtension(const char *name, const dllfunction_t *funcs, char *disableparm, int silent);
 
 void	VID_Shared_Init(void);
 
@@ -102,24 +112,24 @@ void	VID_Shutdown (void);
 
 // sets hardware gamma correction, returns false if the device does not
 // support gamma control
-int VID_SetGamma (unsigned short *ramps);
+int		VID_SetGamma (unsigned short *ramps);
 // gets hardware gamma correction, returns false if the device does not
 // support gamma control
-int VID_GetGamma (unsigned short *ramps);
+int		VID_GetGamma (unsigned short *ramps);
 
-void VID_UpdateGamma(qbool force);
-void VID_RestoreSystemGamma(void);
+void	VID_UpdateGamma(qbool force);
+void	VID_RestoreSystemGamma(void);
 
 void	VID_Finish (void);
 // Called at end of each frame
 
-void VID_GetWindowSize (int *x, int *y, int *width, int *height);
+void	VID_GetWindowSize (int *x, int *y, int *width, int *height);
 
-void VID_SetCaption (char *text);
+void	VID_SetCaption (char *text);
 
-void VID_Restart_f(void);
+void	VID_Restart_f(void);
 
-void VID_Start (void);
+void	VID_Start (void);
 
 #endif /* _VID_H_ */
 

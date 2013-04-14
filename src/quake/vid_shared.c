@@ -118,10 +118,10 @@ void (GLAPIENTRY *qglColorMask)(GLboolean red, GLboolean green, GLboolean blue, 
 void (GLAPIENTRY *qglDrawRangeElements)(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices);
 void (GLAPIENTRY *qglDrawElements)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 void (GLAPIENTRY *qglVertexPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
-//void (GLAPIENTRY *qglNormalPointer)(GLenum type, GLsizei stride, const GLvoid *ptr);
+void (GLAPIENTRY *qglNormalPointer)(GLenum type, GLsizei stride, const GLvoid *ptr);
 void (GLAPIENTRY *qglColorPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
 void (GLAPIENTRY *qglTexCoordPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
-//void (GLAPIENTRY *qglArrayElement)(GLint i);
+void (GLAPIENTRY *qglArrayElement)(GLint i);
 
 void (GLAPIENTRY *qglColor3ubv)(const GLubyte* v);
 void (GLAPIENTRY *qglColor3f)(GLfloat red, GLfloat green, GLfloat blue);
@@ -286,10 +286,10 @@ static dllfunction_t opengl110funcs[] =
 	{"glDrawElements", (void **) &qglDrawElements},
 	{"glColorMask", (void **) &qglColorMask},
 	{"glVertexPointer", (void **) &qglVertexPointer},
-//	{"glNormalPointer", (void **) &qglNormalPointer},
+	{"glNormalPointer", (void **) &qglNormalPointer},
 	{"glColorPointer", (void **) &qglColorPointer},
 	{"glTexCoordPointer", (void **) &qglTexCoordPointer},
-//	{"glArrayElement", (void **) &qglArrayElement},
+	{"glArrayElement", (void **) &qglArrayElement},
 	{"glColor3ubv", (void **) &qglColor3ubv},
 	{"glColor3f", (void **) &qglColor3f},
 	{"glColor4ubv", (void **) &qglColor4ubv},
@@ -366,6 +366,8 @@ static dllfunction_t compiledvertexarrayfuncs[] =
 
 void VID_CheckExtensions(void)
 {
+	vid.renderpath = RENDERPATH_GL11;
+
 	// reset all the gl extension variables here
 	// this should match the declarations
 	gl_textureunits = 1;
