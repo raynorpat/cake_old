@@ -93,7 +93,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		do
 		{
 			// texture coordinates come from the draw list
-			if (qglMultiTexCoord2f)
+			if (mtex)
 			{
 				qglMultiTexCoord2f (GL_TEXTURE0_ARB, ((float *) order)[0], ((float *) order)[1]);
 				qglMultiTexCoord2f (GL_TEXTURE1_ARB, ((float *) order)[0], ((float *) order)[1]);

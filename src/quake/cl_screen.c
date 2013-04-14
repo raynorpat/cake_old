@@ -19,12 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // screen.c -- master for refresh, status bar, console, chat, notify, etc
 
-#ifdef GLQUAKE
 #include "gl_local.h"
-#else
-#include "quakedef.h"
-#include "r_local.h"
-#endif
 #include "keys.h"
 #include "rc_image.h"
 #include "menu.h"
@@ -105,9 +100,7 @@ cvar_t		scr_clock_y = {"cl_clock_y","-1"};
 cvar_t		show_speed = {"show_speed","0"};
 cvar_t		show_fps = {"show_fps", "0"};
 
-#ifdef GLQUAKE
 cvar_t		gl_triplebuffer = {"gl_triplebuffer", "1", CVAR_ARCHIVE};
-#endif
 
 qbool		scr_initialized;		// ready to draw
 
@@ -411,9 +404,7 @@ void SCR_Init (void)
 	Cvar_Register (&show_speed);
 	Cvar_Register (&show_fps);
 
-#ifdef GLQUAKE
 	Cvar_Register (&gl_triplebuffer);
-#endif
 
 //
 // register our commands
@@ -701,18 +692,10 @@ void SCR_SetUpToDrawConsole (void)
 {
 	if (clearconsole++ < vid.numpages)
 	{
-#ifndef GLQUAKE
-		scr_copytop = 1;
-		R_DrawTile (0, (int)scr_con_current, vid.width, vid.height - (int)scr_con_current, scr_backtile);
-#endif
 		Sbar_Changed ();
 	}
 	else if (clearnotify++ < vid.numpages)
 	{
-#ifndef GLQUAKE
-		scr_copytop = 1;
-		R_DrawTile (0, 0, vid.width, con_notifylines, scr_backtile);
-#endif
 	}
 	else
 		con_notifylines = 0;

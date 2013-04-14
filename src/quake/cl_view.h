@@ -21,9 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CL_VIEW_H_
 #define _CL_VIEW_H_
 
-#ifdef GLQUAKE
 extern float v_blend[4];
-#endif
 
 void V_ClearScene (void);
 void V_AddEntity (entity_t *ent);

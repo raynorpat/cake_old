@@ -290,8 +290,6 @@ WAD3 Texture Loading
 =============================================================================
 */
 
-#ifdef GLQUAKE
-
 #define TEXWAD_MAXIMAGES 16384
 
 typedef struct {
@@ -447,5 +445,3 @@ byte *WAD3_LoadTexture (miptex_t *mt)
 	}
 	return NULL;
 }
-
-#endif

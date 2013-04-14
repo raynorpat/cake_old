@@ -1009,14 +1009,6 @@ void Sbar_Draw (void)
 	else
 		sbar_xofs = 0;
 
-#ifndef GLQUAKE
-// clear the background if necessary
-	if (headsup) {
-		int height = sb_drawinventory ? (24 + 16 + 8) : 24;
-		SCR_TileClear (vid.height - height, height);
-	}
-#endif
-
 // inventory
 	if (sb_drawinventory)
 	{
@@ -1050,25 +1042,6 @@ void Sbar_Draw (void)
 		Sbar_DeathmatchOverlay (0);
 	else if (sb_showteamscores)
 		Sbar_TeamOverlay (0);
-
-	/*
-#ifdef GLQUAKE
-	if (sb_showscores || sb_showteamscores ||
-		cl.stats[STAT_HEALTH] <= 0)
-		sb_updates = 0;
-
-	// clear unused areas in GL
-	if (vid.width > 320 && !headsup) {
-		// left
-		if (scr_centerSbar.value)
-			R_DrawTile (0, vid.height - sb_lines, sbar_xofs, sb_lines, scr_backtile);
-		// right
-		R_DrawTile (320 + sbar_xofs, vid.height - sb_lines, vid.width - (320 + sbar_xofs), sb_lines, scr_backtile);
-	}
-	if (!inventory_area_drawn && (sb_lines > SBAR_HEIGHT))
-		R_DrawTile (sbar_xofs, vid.height - sb_lines, 320, sb_lines - SBAR_HEIGHT, scr_backtile);
-#endif
-	*/
 
 	if (sb_drawmain && cl.gametype == GAME_DEATHMATCH && !scr_centerSbar.value)
 		Sbar_MiniDeathmatchOverlay ();

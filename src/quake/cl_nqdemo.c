@@ -574,10 +574,9 @@ static void NQD_ParseUpdate (int bits)
 		}
 		else
 			forcelink = true;	// hack to make null model players work
-#ifdef GLQUAKE
+
 		if (num > 0 && num <= nq_maxclients)
 			R_TranslatePlayerSkin (num - 1);
-#endif
 	}
 	
 	if (bits & NQ_U_FRAME)
@@ -597,12 +596,10 @@ static void NQD_ParseUpdate (int bits)
 	else
 		state->skinnum = ent->baseline.skinnum;
 
-#ifdef GLQUAKE
 	if ((num > 0 && num <= nq_maxclients) && (ent->prevframe != cl_oldentframecount
 		|| state->skinnum != ent->previous.skinnum)) {
 		R_TranslatePlayerSkin (num - 1);
 	}
-#endif
 
 	if (bits & NQ_U_EFFECTS)
 		state->effects = MSG_ReadByte();

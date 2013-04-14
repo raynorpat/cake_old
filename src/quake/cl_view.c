@@ -19,12 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // cl_view.c -- player eye positioning
 
-#ifdef GLQUAKE
 #include "gl_local.h"
-#else
-#include "quakedef.h"
-#include "r_local.h"
-#endif
 
 /*
 
@@ -285,9 +280,7 @@ cshift_t    cshift_slime = { {0, 25, 5}, 150};
 cshift_t    cshift_lava = { {255, 80, 0}, 150};
 cshift_t    cshift_bonus = { {215, 186, 60}, 50};
 
-#ifdef	GLQUAKE
 float		v_blend[4];		// rgba 0.0 - 1.0
-#endif
 
 /*
 ===============
@@ -632,9 +625,6 @@ void V_AddViewWeapon (float bob)
 
 	if (!cl_drawgun.value || (cl_drawgun.value == 2 && scr_fov.value > 90)
 		|| view_message.flags & (PF_GIB|PF_DEAD)
-#ifndef GLQUAKE
-		|| (cl.stats[STAT_ITEMS] & IT_INVISIBILITY)
-#endif
 		|| !Cam_DrawViewModel())
 		return;
 
@@ -647,12 +637,10 @@ void V_AddViewWeapon (float bob)
 	ent.colormap = vid.colormap;
 	ent.renderfx = RF_WEAPONMODEL;
 
-#ifdef GLQUAKE
 	if (cl.stats[STAT_ITEMS] & IT_INVISIBILITY) {
 		ent.renderfx |= RF_TRANSLUCENT;
 		ent.alpha = 0.5;
 	}
-#endif
 
 	ent.angles[YAW] = r_refdef2.viewangles[YAW];
 	ent.angles[PITCH] = -r_refdef2.viewangles[PITCH];

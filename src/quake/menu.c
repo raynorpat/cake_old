@@ -19,11 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 // FIXME
-#ifdef GLQUAKE
 #include "gl_local.h"
-#else
-#include "quakedef.h"
-#endif
 
 #include "winquake.h"
 #include "input.h"
@@ -96,14 +92,9 @@ int		m_topmenu;			// set if a submenu was entered via a
 //=============================================================================
 /* Support Routines */
 
-#ifdef GLQUAKE
 cvar_t	scr_scaleMenu = {"scr_scaleMenu","1"};
 int		menuwidth = 320;
 int		menuheight = 240;
-#else
-#define menuwidth vid.width
-#define menuheight vid.height
-#endif
 
 cvar_t	scr_centerMenu = {"scr_centerMenu","1"};
 int		m_yofs = 0;
@@ -2628,9 +2619,7 @@ void M_Setup_Key (int k)
 void M_Init (void)
 {
 	Cvar_Register (&scr_centerMenu);
-#ifdef GLQUAKE
 	Cvar_Register (&scr_scaleMenu);
-#endif
 
 	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);
 
@@ -2664,7 +2653,6 @@ void M_Draw (void)
 	if (scr_con_current != vid.height)
 		R_FadeScreen ();
 
-#ifdef GLQUAKE
 	if (scr_scaleMenu.value) {
 		menuwidth = 320;
 		menuheight = min (vid.height, 240);
@@ -2675,7 +2663,6 @@ void M_Draw (void)
 		menuwidth = vid.width;
 		menuheight = vid.height;
 	}
-#endif
 
 	if (scr_centerMenu.value)
 		m_yofs = (menuheight - 200) / 2;
@@ -2745,13 +2732,11 @@ void M_Draw (void)
 		M_Demos_Draw ();
 	}
 
-#ifdef GLQUAKE
 	if (scr_scaleMenu.value) {
 		qglMatrixMode (GL_PROJECTION);
 		qglLoadIdentity ();
 		qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 	}
-#endif
 
 	if (m_entersound)
 	{
