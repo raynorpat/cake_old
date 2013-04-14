@@ -6,16 +6,9 @@ project.name = "Quake"
 
 -- Project Settings
 
-	project.bindir = "bin"
+	project.bindir = "../"
 
 	dopackage("quake")
 	if (options["with-qcc"]) then
 		dopackage("qcc")
-	end
-
--- A little extra cleanup
-
-	function doclean(cmd, arg)
-		docommand(cmd, arg)
-		os.rmdir("bin")
 	end
