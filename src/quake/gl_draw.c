@@ -650,7 +650,7 @@ void R_DrawTile (int x, int y, int w, int h, mpic_t *pic)
 =============
 R_DrawFilledRect
 
-Fills a box of pixels with a single color
+Fills a box of pixels with a single indexed color
 =============
 */
 void R_DrawFilledRect (int x, int y, int w, int h, int c)
@@ -695,18 +695,34 @@ void R_LoadingScreen (void)
 
 void R_FadeScreen (void)
 {
+	float	v[3];
+
 	qglEnable (GL_BLEND);
 	qglDisable (GL_TEXTURE_2D);
-	qglColor4f (0, 0, 0, 0.7);
-	qglBegin (GL_QUADS);
+	
+	R_PushElems ( quad_elems, 6 );
 
-	qglVertex2f (0,0);
-	qglVertex2f (vid.width, 0);
-	qglVertex2f (vid.width, vid.height);
-	qglVertex2f (0, vid.height);
+	qglColor4f ( 0, 0, 0, 0.8 );
 
-	qglEnd ();
+	VectorSet (v, 0, 0, 0);
+	R_PushVertex (v);
+
+	VectorSet (v, vid.width, 0, 0);
+	R_PushVertex (v);
+
+	VectorSet (v, vid.width, vid.height, 0);
+	R_PushVertex (v);
+
+	VectorSet (v, 0, vid.height, 0);
+	R_PushVertex (v);
+
+	R_LockArrays ();
+	R_FlushArrays ();
+	R_UnlockArrays ();
+	R_ClearArrays ();
+	
 	qglColor4f (1,1,1,1);
+
 	qglEnable (GL_TEXTURE_2D);
 	qglDisable (GL_BLEND);
 }
