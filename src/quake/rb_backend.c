@@ -120,6 +120,22 @@ void RB_Finish(void)
 }
 
 
+void RB_Set2DProjections( void )
+{
+	switch(vid.renderpath)
+	{
+	case RENDERPATH_GL11:
+	case RENDERPATH_GLES:
+	case RENDERPATH_GL30:
+		RB_GL11_Set2DProjections();
+		break;
+	case RENDERPATH_D3D11:
+		Sys_Error( "TODO: D3D11" );
+		break;
+	}
+}
+
+
 void R_LockArrays (void)
 {
 	if ( r_arrays_locked )

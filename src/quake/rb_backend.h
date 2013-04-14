@@ -32,6 +32,8 @@ void RB_EndFrame (void);
 
 void RB_Finish (void);
 
+void RB_Set2DProjections (void);
+
 void R_LockArrays (void);
 void R_UnlockArrays (void);
 
@@ -123,9 +125,11 @@ extern inline void R_PushVertexes ( mvertex_t *verts, int numverts )
 qbool R_MeshWillNotFit ( int numvertexes, int numindexes );
 
 //
-// rb_backend_ogl.c
+// rb_backend_gl11.c
 //
 void RB_GL11_Init (void);
+
+void RB_GL11_Set2DProjections (void);
 
 //
 // rb_backend_d3d.c

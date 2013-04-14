@@ -410,11 +410,6 @@ void R_InitSky (texture_t *mt);	// classic Quake sky
 extern qbool	r_skyboxloaded;
 
 //
-// gl_draw.c
-//
-void GL_Set2D (void);
-
-//
 // gl_rmain.c
 //
 qbool R_CullBox (vec3_t mins, vec3_t maxs);

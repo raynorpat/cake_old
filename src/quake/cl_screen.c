@@ -821,19 +821,18 @@ void SCR_UpdateScreen (void)
 	SCR_CalcRefdef ();
 
 	//
-	// do 3D refresh drawing, and then update the screen
+	// Do 3D drawing first, followed by 2D, and then finally a finish command
 	//
+
 	SCR_SetUpToDrawConsole ();
 	
 	V_RenderView ();
 
-	GL_Set2D ();
+	RB_Set2DProjections ();
 
 	R_PolyBlend ();
 
-	//
 	// draw any areas not covered by the refresh
-	//
 	if (cls.state != ca_active && cl.intermission)
 		R_DrawTile (0, 0, vid.width, vid.height, scr_backtile);
 	else
