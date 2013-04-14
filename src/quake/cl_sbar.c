@@ -22,9 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "cl_sbar.h"
 
-
-extern mpic_t *scr_backtile;
-
 int			sb_updates;			// if >= vid.numpages, no update needed
 int			sb_lines;			// scan lines to draw
 qbool		sb_drawinventory;
@@ -335,7 +332,6 @@ Sbar_DrawSubPic
 Draws a portion of the picture in the status bar.
 =============
 */
-
 static void Sbar_DrawSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height) 
 {
 	R_DrawSubPic (x, y+(vid.height-SBAR_HEIGHT), pic, srcx, srcy, width, height);

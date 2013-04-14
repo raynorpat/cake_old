@@ -104,7 +104,6 @@ cvar_t		gl_triplebuffer = {"gl_triplebuffer", "1", CVAR_ARCHIVE};
 
 qbool		scr_initialized;		// ready to draw
 
-mpic_t		*scr_backtile;
 mpic_t		*scr_ram;
 mpic_t		*scr_net;
 mpic_t		*scr_turtle;
@@ -364,9 +363,6 @@ void SCR_SizeDown_f (void)
 
 static void scr_start (void)
 {
-	scr_backtile = R_CacheWadPic ("backtile");
-	if (!scr_backtile)
-		Sys_Error ("Couldn't load backtile pic");
 	scr_ram = R_CacheWadPic ("ram");
 	scr_net = R_CacheWadPic ("net");
 	scr_turtle = R_CacheWadPic ("turtle");
@@ -495,7 +491,6 @@ void SCR_DrawFPS (void)
 
 	sprintf(st, "%3d FPS", lastfps);
 	x = vid.width - strlen(st) * 8 - 8;
-//	R_DrawTile (x, 0, strlen(st) * 8, 8);
 	R_DrawString(x, 0, st);
 }
 
@@ -760,39 +755,6 @@ void SCR_InvalidateScreen (void)
 
 
 /*
-=================
-SCR_TileClear
-
-Fill background areas with the tile texture,
-=================
-*/
-void SCR_TileClear (int	y, int height)
-{
-	if (height <= 0)
-		return;
-
-	if (scr_vrect.x > 0) {
-		// left
-		R_DrawTile (0, y, scr_vrect.x, height, scr_backtile);
-		// right
-		R_DrawTile (scr_vrect.x + scr_vrect.width, y, 
-			vid.width - (scr_vrect.x + scr_vrect.width), 
-			height, scr_backtile);
-	}
-	if (y < scr_vrect.y) {
-		// top
-		R_DrawTile (scr_vrect.x, y, scr_vrect.width, 
-			min(scr_vrect.y, y + height) - y, scr_backtile);
-	}
-	if (y + height > scr_vrect.y + scr_vrect.height) {
-		// bottom
-		int top = max(scr_vrect.y + scr_vrect.height, y);
-		R_DrawTile (scr_vrect.x, top,
-			scr_vrect.width, y + height - top, scr_backtile);
-	}
-}
-
-/*
 ==================
 SCR_UpdateScreen
 
@@ -831,12 +793,6 @@ void SCR_UpdateScreen (void)
 	RB_Set2DProjections ();
 
 	R_PolyBlend ();
-
-	// draw any areas not covered by the refresh
-	if (cls.state != ca_active && cl.intermission)
-		R_DrawTile (0, 0, vid.width, vid.height, scr_backtile);
-	else
-		SCR_TileClear (0, vid.height - sb_lines);
 
 	if (scr_fullupdate++ < vid.numpages || scr_drawall.value)
 		Sbar_Changed ();

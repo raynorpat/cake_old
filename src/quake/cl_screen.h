@@ -27,7 +27,6 @@ void SCR_InvalidateScreen (void);	// force full redraw
 void SCR_BeginLoadingPlaque (void);
 void SCR_EndLoadingPlaque (void);
 void SCR_CenterPrint (char *str);
-void SCR_TileClear (int	y, int height);
 void SCR_RunConsole (void);
 
 extern	float	scr_con_current;

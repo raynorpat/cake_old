@@ -169,12 +169,10 @@ void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 // 2D drawing functions
 void R_DrawChar (int x, int y, int num);
 void R_DrawString (int x, int y, const char *str);
-void R_DrawPixel (int x, int y, byte color);
 void R_DrawPic (int x, int y, mpic_t *pic);
 void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation);
 void R_DrawFilledRect (int x, int y, int w, int h, int c);
-void R_DrawTile (int x, int y, int w, int h, mpic_t *pic);
 void R_LoadingScreen (void);
 void R_FadeScreen (void);
 mpic_t *R_CachePic (char *path);

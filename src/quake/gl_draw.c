@@ -363,6 +363,7 @@ void R_FlushPics (void)
 }
 
 
+
 /*
 ================
 R_DrawChar
@@ -624,30 +625,6 @@ void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float a
 
 /*
 =============
-R_DrawTile
-
-This repeats a 64*64 tile graphic to fill the screen around a sized down
-refresh window.
-=============
-*/
-void R_DrawTile (int x, int y, int w, int h, mpic_t *pic)
-{
-	GL_Bind (((cachepic_t *)pic)->gltexture->texnum);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (x/64.0, y/64.0);
-	qglVertex2f (x, y);
-	qglTexCoord2f ( (x+w)/64.0, y/64.0);
-	qglVertex2f (x+w, y);
-	qglTexCoord2f ( (x+w)/64.0, (y+h)/64.0);
-	qglVertex2f (x+w, y+h);
-	qglTexCoord2f ( x/64.0, (y+h)/64.0 );
-	qglVertex2f (x, y+h);
-	qglEnd ();
-}
-
-
-/*
-=============
 R_DrawFilledRect
 
 Fills a box of pixels with a single indexed color
@@ -670,6 +647,7 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c)
 	qglColor3f (1, 1, 1);
 	qglEnable (GL_TEXTURE_2D);
 }
+
 //=============================================================================
 
 void R_LoadingScreen (void)
@@ -685,8 +663,8 @@ void R_LoadingScreen (void)
 
 	// draw the loading plaque
 	pic = R_CachePic("gfx/loading.lmp");
-	x = (vid.width - pic->width)/2;
-	y = (vid.height - pic->height)/2;
+	x = (vid.width - pic->width) / 2;
+	y = (vid.height - pic->height) / 2;
 	R_DrawPic (x, y, pic );
 
 	// refresh
