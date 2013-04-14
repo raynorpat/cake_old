@@ -1,2 +1,10 @@
 *.sdf
 *.opensdf
+*.obj
+*.plg
+*.pch
+*.pdb
+*.ncb
+*.opt
+*.idb
+*.res
