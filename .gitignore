@@ -8,3 +8,5 @@
 *.opt
 *.idb
 *.res
+*.sbr
+*.bsc
