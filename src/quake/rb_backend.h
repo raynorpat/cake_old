@@ -30,6 +30,8 @@ void RB_InitBackend (void);
 void RB_StartFrame (void);
 void RB_EndFrame (void);
 
+void RB_Finish (void);
+
 void R_LockArrays (void);
 void R_UnlockArrays (void);
 
@@ -160,7 +162,7 @@ qbool R_MeshWillNotFit ( int numvertexes, int numindexes );
 //
 // rb_backend_ogl.c
 //
-void RB_GL_Init (void);
+void RB_GL11_Init (void);
 
 //
 // rb_backend_d3d.c

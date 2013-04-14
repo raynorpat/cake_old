@@ -1,4 +1,4 @@
-// rb_backend_ogl.c: function calls to OpenGL
+// rb_backend_gl11.c: OpenGL 1.1 backend
 
 #include "gl_local.h"
 
@@ -8,10 +8,10 @@ extern byte_vec4_t	colorArray[MAX_ARRAY_COLORS];
 
 /*
 ===============
-RB_GL_Init
+RB_GL11_Init
 ===============
 */
-void RB_GL_Init (void)
+void RB_GL11_Init (void)
 {
 	qglClearColor (1,0,0,0);
 	qglCullFace(GL_FRONT);

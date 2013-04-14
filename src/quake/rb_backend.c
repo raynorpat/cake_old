@@ -60,13 +60,10 @@ static void rb_backend_start(void)
 		case RENDERPATH_GL11:
 		case RENDERPATH_GLES:
 		case RENDERPATH_GL30:
-			RB_GL_Init ();
+			RB_GL11_Init ();
 			break;
 		case RENDERPATH_D3D11:
 			Sys_Error("TODO: D3D11");
-			break;
-		default:
-			Sys_Error("bad renderpath");
 			break;
 	}
 
@@ -106,6 +103,22 @@ void RB_EndFrame (void)
 			r_numflushes ); 
 	}
 }
+
+void RB_Finish(void)
+{
+	switch(vid.renderpath)
+	{
+	case RENDERPATH_GL11:
+	case RENDERPATH_GLES:
+	case RENDERPATH_GL30:
+		qglFinish();
+		break;
+	case RENDERPATH_D3D11:
+		// no finish/flush in d3d11?
+		break;
+	}
+}
+
 
 void R_LockArrays (void)
 {

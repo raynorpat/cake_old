@@ -314,7 +314,7 @@ void VID_Finish (void)
 	if (!vid_hidden)
 	{
 		if (gl_finish.value)
-			qglFinish();
+			RB_Finish();
 		SwapBuffers(baseDC);
 	}
 }
