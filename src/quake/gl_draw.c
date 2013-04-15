@@ -63,94 +63,7 @@ static byte crosshairdata[3][64] = {
 
 static void	R_LoadCharset (void);
 
-/*
-=============================================================================
-
-  scrap allocation
-
-  Allocate all the little status bar objects into a single texture
-  to crutch up stupid hardware / drivers
-
-=============================================================================
-*/
-
-// some cards have low quality of alpha pics, so load the pics
-// without transparent pixels into a different scrap block.
-// scrap 0 is solid pics, 1 is transparent
-#define	MAX_SCRAPS		2
-#define	BLOCK_WIDTH		256
-#define	BLOCK_HEIGHT	256
-
-static int	scrap_allocated[MAX_SCRAPS][BLOCK_WIDTH];
-/* static */ byte	scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT];
-static qbool scrap_dirty = false;
-static gltexture_t *scrap_textures[MAX_SCRAPS];
-
-/*
-================
-Scrap_AllocBlock
-
-returns an index into scrap_texnums[] and the position inside it
-================
-*/ 
-static int Scrap_AllocBlock (int w, int h, int *x, int *y)
-{
-	int		i, j;
-	int		best, best2;
-	int		texnum;
-
-	for (texnum=0 ; texnum<MAX_SCRAPS ; texnum++)
-	{
-		best = BLOCK_HEIGHT;
-
-		for (i=0 ; i<BLOCK_WIDTH-w ; i++)
-		{
-			best2 = 0;
-
-			for (j=0 ; j<w ; j++)
-			{
-				if (scrap_allocated[texnum][i+j] >= best)
-					break;
-				if (scrap_allocated[texnum][i+j] > best2)
-					best2 = scrap_allocated[texnum][i+j];
-			}
-			if (j == w)
-			{
-				// this is a valid spot
-				*x = i;
-				*y = best = best2;
-			}
-		}
-
-		if (best + h > BLOCK_HEIGHT)
-			continue;
-
-		for (i=0 ; i<w ; i++)
-			scrap_allocated[texnum][*x + i] = best + h;
-
-		return texnum;
-	}
-
-	Sys_Error ("Scrap_AllocBlock: full");
-	return 0;
-}
-
-static void Scrap_Upload (void)
-{
-	char name[8];
-	int	i;
-
-	for (i=0; i<MAX_SCRAPS; i++)
-	{
-		sprintf (name, "scrap%i", i);
-		scrap_textures[i] = TexMgr_LoadImage (NULL, name, BLOCK_WIDTH, BLOCK_HEIGHT, SRC_INDEXED_UPSCALE, scrap_texels[i], "", (unsigned)scrap_texels[i], TEXPREF_OVERWRITE | TEXPREF_UPSCALE);
-	}
-
-	scrap_dirty = false;
-}
-
 //=============================================================================
-/* Support Routines */
 
 typedef struct cachepic_s
 {
@@ -172,6 +85,8 @@ static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
 	cachepic_t	*pic;
 	int		i;
 	unsigned offset;
+	extern byte	*wad_base;
+	char texturename[64];
 
 	for (pic = cachepics, i = 0; i < numcachepics; pic++, i++)
 		if (!strcmp (path, pic->name))
@@ -212,40 +127,15 @@ static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
 	pic->pic.width = p->width;
 	pic->pic.height = p->height;
 
-	// load little ones into the scrap
-	if (wad && p->width < 64 && p->height < 64 && 0)
-	{
-		int		x, y;
-		int		i, j, k;
-		int		texnum;
+	sprintf (texturename, "pic:%s", path);
+	offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
 
-		texnum = Scrap_AllocBlock (p->width, p->height, &x, &y);
-		scrap_dirty = true;
-		k = 0;
-		for (i=0 ; i<p->height ; i++)
-			for (j=0 ; j<p->width ; j++, k++)
-				scrap_texels[texnum][(y+i)*BLOCK_WIDTH + x + j] = p->data[k];
-		pic->gltexture = scrap_textures[texnum];
-		pic->sl = x/(float)BLOCK_WIDTH;
-		pic->sh = (x+p->width)/(float)BLOCK_WIDTH;
-		pic->tl = y/(float)BLOCK_WIDTH;
-		pic->th = (y+p->height)/(float)BLOCK_WIDTH;
-	}
-	else
-	{
-		extern byte	*wad_base;
-		char texturename[64];
-		sprintf (texturename, "gfx:%s", path);
+	pic->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED_UPSCALE, p->data, "", offset, TEXPREF_UPSCALE);
 
-		offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
-
-		pic->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED_UPSCALE, p->data, "gfx", offset, TEXPREF_UPSCALE);
-
-		pic->sl = 0;
-		pic->sh = 1;
-		pic->tl = 0;
-		pic->th = 1;
-	}
+	pic->sl = 0;
+	pic->sh = 1;
+	pic->tl = 0;
+	pic->th = 1;
 
 	return &pic->pic;
 }
@@ -288,7 +178,7 @@ static void R_LoadCharset (void)
 		dest += 128*8*2;
 	}
 
-	char_texture = TexMgr_LoadImage (NULL, "gfx:conchars", 128, 256, SRC_INDEXED, buf, "gfx", offset, TEXPREF_NEAREST);
+	char_texture = TexMgr_LoadImage (NULL, "pic:conchars", 128, 256, SRC_INDEXED, buf, "", offset, TEXPREF_NEAREST);
 }
 
 static void gl_draw_start(void)
@@ -296,11 +186,6 @@ static void gl_draw_start(void)
 	int	i;
 
 	numcachepics = 0;
-
-	memset (scrap_allocated, 0, sizeof(scrap_allocated));
-	memset (scrap_texels, 0, sizeof(scrap_texels));
-	Scrap_Upload (); //creates 2 empty gltextures
-
 	draw_chars = NULL;
 
 	// load the crosshair pics
@@ -317,11 +202,6 @@ static void gl_draw_start(void)
 static void gl_draw_shutdown(void)
 {
 	numcachepics = 0;
-
-	memset (scrap_allocated, 0, sizeof(scrap_allocated));
-	memset (scrap_texels, 0, sizeof(scrap_texels));
-	Scrap_Upload (); //creates 2 empty gltextures
-
 	draw_chars = NULL;
 }
 
@@ -337,8 +217,6 @@ R_Draw_Init
 */
 void R_Draw_Init (void)
 {
-	numcachepics = 0;
-
 	R_RegisterModule("GL_Draw", gl_draw_start, gl_draw_shutdown, gl_draw_newmap);
 }
 
@@ -349,7 +227,8 @@ void R_FlushPics (void)
 	if (!draw_chars)
 		return;		// not initialized yet (FIXME?)
 
-	gl_draw_shutdown();
+	numcachepics = 0;
+	draw_chars = NULL;
 
 	// load the crosshair pics
 	for (i=0 ; i<3 ; i++)
@@ -362,6 +241,38 @@ void R_FlushPics (void)
 	R_LoadCharset ();
 }
 
+static void Draw_StretchPic ( int x, int y, int w, int h, float s1, float t1, float s2, float t2 )
+{
+	float v[3], tc[2];
+
+	R_PushElems ( quad_elems, 6 );
+
+	VectorSet (v, x, y, 0);
+	tc[0] = s1; tc[1] = t1;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	VectorSet (v, x+w, y, 0);
+	tc[0] = s2; tc[1] = t1;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	VectorSet (v, x+w, y+h, 0);
+	tc[0] = s2; tc[1] = t2;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	VectorSet (v, x, y+h, 0);
+	tc[0] = s1; tc[1] = t2;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	R_VertexTCBase ( 0, false );
+	R_LockArrays ();
+	R_FlushArrays ();
+	R_UnlockArrays ();
+	R_ClearArrays ();
+}
 
 
 /*
@@ -375,8 +286,7 @@ smoothly scrolled off.
 */
 void R_DrawChar (int x, int y, int num)
 {
-	int				row, col;
-	float			frow, fcol;
+	float frow, fcol;
 
 	if (y <= -8)
 		return;			// totally off screen
@@ -386,29 +296,17 @@ void R_DrawChar (int x, int y, int num)
 
 	num &= 255;
 
-	row = num>>4;
-	col = num&15;
-
-	frow = row*0.0625;
-	fcol = col*0.0625;
+	frow = (num>>4)*0.0625;
+	fcol = (num&15)*0.0625;
 
 	GL_Bind (char_texture->texnum);
 
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (fcol, frow);
-	qglVertex2f (x, y);
-	qglTexCoord2f (fcol + 0.0625, frow);
-	qglVertex2f (x+8, y);
-	qglTexCoord2f (fcol + 0.0625, frow + 0.03125);
-	qglVertex2f (x+8, y+8);
-	qglTexCoord2f (fcol, frow + 0.03125);
-	qglVertex2f (x, y+8);
-	qglEnd ();
+	Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.03125 );
 }
 
 void R_DrawString (int x, int y, const char *str)
 {
-	float			frow, fcol;
+	float frow, fcol;
 	int num;
 
 	if (y <= -8)
@@ -417,36 +315,25 @@ void R_DrawString (int x, int y, const char *str)
 		return;
 
 	GL_Bind (char_texture->texnum);
-
-	qglBegin (GL_QUADS);
-
+	
 	while (*str) // stop rendering when out of characters
 	{
 		if ((num = *str++) != 32) // skip spaces
 		{
 			frow = (float) (num >> 4)*0.0625;
 			fcol = (float) (num & 15)*0.0625;
-			qglTexCoord2f (fcol, frow);
-			qglVertex2f (x, y);
-			qglTexCoord2f (fcol + 0.0625, frow);
-			qglVertex2f (x+8, y);
-			qglTexCoord2f (fcol + 0.0625, frow + 0.03125);
-			qglVertex2f (x+8, y+8);
-			qglTexCoord2f (fcol, frow + 0.03125);
-			qglVertex2f (x, y+8);
+
+			Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.03125 );
 		}
 
 		x += 8;
 	}
-
-	qglEnd ();
 }
 
 
 void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 {
 	int		x, y;
-	int		ofs1, ofs2;
 	extern vrect_t scr_vrect;
 
 	x = scr_vrect.x + scr_vrect.width/2 + crossx; 
@@ -455,28 +342,13 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 	if (num == 2 || num == 3 || num == 4) {
 		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		qglColor3ubv ((byte *) &d_8to24table[(byte) color]);
+
 		GL_Bind (crosshairtextures[num - 2]->texnum);
 
-		if (vid.width == 320) {
-			ofs1 = 3;//3.5;
-			ofs2 = 5;//4.5;
-		} else {
-			ofs1 = 7;
-			ofs2 = 9;
-		}
-		qglBegin (GL_QUADS);
-		qglTexCoord2f (0, 0);
-		qglVertex2f (x - ofs1, y - ofs1);
-		qglTexCoord2f (1, 0);
-		qglVertex2f (x + ofs2, y - ofs1);
-		qglTexCoord2f (1, 1);
-		qglVertex2f (x + ofs2, y + ofs2);
-		qglTexCoord2f (0, 1);
-		qglVertex2f (x - ofs1, y + ofs2);
-		qglEnd ();
-		
+		Draw_StretchPic( x, y, 16, 16, 0, 0, 1, 1 );
+
 		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		qglColor3f (1, 1, 1);
+		qglColor4f (1, 1, 1, 1);
 	}
 	else {
 		R_DrawChar (x - 4, y - 4, '+');
@@ -490,20 +362,9 @@ void R_DrawPic (int x, int y, mpic_t *pic)
 	if (!pic)
 		return;
 
-	if (scrap_dirty)
-		Scrap_Upload ();
-
 	GL_Bind (cpic->gltexture->texnum);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (cpic->sl, cpic->tl);
-	qglVertex2f (x, y);
-	qglTexCoord2f (cpic->sh, cpic->tl);
-	qglVertex2f (x + pic->width, y);
-	qglTexCoord2f (cpic->sh, cpic->th);
-	qglVertex2f (x + pic->width, y + pic->height);
-	qglTexCoord2f (cpic->sl, cpic->th);
-	qglVertex2f (x, y + pic->height);
-	qglEnd ();
+
+	Draw_StretchPic( x, y, pic->width, pic->height, 0, 0, 1, 1 );
 }
 
 void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
@@ -514,9 +375,6 @@ void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 
 	if (!pic)
 		return;
-
-	if (scrap_dirty)
-		Scrap_Upload ();
 	
 	oldglwidth = cpic->sh - cpic->sl;
 	oldglheight = cpic->th - cpic->tl;
@@ -528,6 +386,7 @@ void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 	newth = newtl + (height*oldglheight)/pic->height;
 	
 	GL_Bind (cpic->gltexture->texnum);
+
 	qglBegin (GL_QUADS);
 	qglTexCoord2f (newsl, newtl);
 	qglVertex2f (x, y);
@@ -598,26 +457,19 @@ void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float a
 	if (!pic || !alpha)
 		return;
 
-	if (scrap_dirty)
-		Scrap_Upload ();
-
 	qglDisable(GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
 //	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	qglCullFace(GL_FRONT);
+
 	qglColor4f (1, 1, 1, alpha);
+
 	GL_Bind (cpic->gltexture->texnum);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (cpic->sl, cpic->tl);
-	qglVertex2f (x, y);
-	qglTexCoord2f (cpic->sh, cpic->tl);
-	qglVertex2f (x + width, y);
-	qglTexCoord2f (cpic->sh, cpic->th);
-	qglVertex2f (x + width, y + height);
-	qglTexCoord2f (cpic->sl, cpic->th);
-	qglVertex2f (x, y + height);
-	qglEnd ();
-	qglColor3f (1, 1, 1);
+
+	Draw_StretchPic ( x, y, width, height, 0, 0, 1, 1 );
+
+	qglColor4f (1, 1, 1, 1);
+
 	qglEnable(GL_ALPHA_TEST);
 	qglDisable (GL_BLEND);
 }
@@ -632,19 +484,31 @@ Fills a box of pixels with a single indexed color
 */
 void R_DrawFilledRect (int x, int y, int w, int h, int c)
 {
+	float v[3];
 	byte *pal = (byte *)d_8to24table;
 
 	qglDisable (GL_TEXTURE_2D);
-	qglColor3f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0);
+	qglColor4f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0, 1.0);
 
-	qglBegin (GL_QUADS);
-	qglVertex2f (x,y);
-	qglVertex2f (x+w, y);
-	qglVertex2f (x+w, y+h);
-	qglVertex2f (x, y+h);
-	qglEnd ();
+	VectorSet (v, x, y, 0);
+	R_PushVertex (v);
 
-	qglColor3f (1, 1, 1);
+	VectorSet (v, x+w, y, 0);
+	R_PushVertex (v);
+
+	VectorSet (v, x+w, y+h, 0);
+	R_PushVertex (v);
+
+	VectorSet (v, x, y+h, 0);
+	R_PushVertex (v);
+
+	R_VertexTCBase ( 0, false );
+	R_LockArrays ();
+	R_FlushArrays ();
+	R_UnlockArrays ();
+	R_ClearArrays ();
+
+	qglColor4f (1, 1, 1, 1);
 	qglEnable (GL_TEXTURE_2D);
 }
 
@@ -665,7 +529,7 @@ void R_LoadingScreen (void)
 	pic = R_CachePic("gfx/loading.lmp");
 	x = (vid.width - pic->width) / 2;
 	y = (vid.height - pic->height) / 2;
-	R_DrawPic (x, y, pic );
+	R_DrawPic ( x, y, pic );
 
 	// refresh
 	VID_Finish();
@@ -673,7 +537,7 @@ void R_LoadingScreen (void)
 
 void R_FadeScreen (void)
 {
-	float	v[3];
+	float v[3];
 
 	qglEnable (GL_BLEND);
 	qglDisable (GL_TEXTURE_2D);
@@ -694,6 +558,7 @@ void R_FadeScreen (void)
 	VectorSet (v, 0, vid.height, 0);
 	R_PushVertex (v);
 
+	R_VertexTCBase ( 0, false );
 	R_LockArrays ();
 	R_FlushArrays ();
 	R_UnlockArrays ();
@@ -703,4 +568,99 @@ void R_FadeScreen (void)
 
 	qglEnable (GL_TEXTURE_2D);
 	qglDisable (GL_BLEND);
+}
+
+//=============================================================================
+
+/*
+=============
+Draw_StretchRaw
+
+Used for cinematics
+=============
+*/
+void Draw_StretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data)
+{
+#if 0
+	extern unsigned	r_rawpalette[256];
+	unsigned	image32[256*256];
+	unsigned	*dest = image32;
+	int			i, j, trows;
+	byte		*source;
+	int			frac, fracstep;
+	float		hscale;
+	int			row;
+	float		t, tc[2], v[3];
+
+	GL_Bind (0);
+
+	if (rows <= 256)
+	{
+		hscale = 1;
+		trows = rows;
+	}
+	else
+	{
+		hscale = rows/256.0;
+		trows = 256;
+	}
+
+	t = rows*hscale / 256;
+	fracstep = cols*0x10000/256;
+
+	memset ( image32, 0, sizeof(unsigned)*256*256 );
+	
+	for (i=0 ; i<trows ; i++, dest+=256)
+	{
+		row = (int)(i*hscale);
+		if (row > rows)
+			break;
+		source = data + cols*row;
+		frac = fracstep >> 1;
+		for (j=0 ; j<256 ; j+=4)
+		{
+			dest[j] = r_rawpalette[source[frac>>16]];
+			frac += fracstep;
+			dest[j+1] = r_rawpalette[source[frac>>16]];
+			frac += fracstep;
+			dest[j+2] = r_rawpalette[source[frac>>16]];
+			frac += fracstep;
+			dest[j+3] = r_rawpalette[source[frac>>16]];
+			frac += fracstep;
+		}
+	}
+	
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, image32);
+
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	R_PushElems ( quad_elems, 6 );
+
+	VectorSet (v, x, y, 0);
+	tc[0] = 1.0/512.0; tc[1] = 1.0/512.0;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	VectorSet (v, x+w, y, 0);
+	tc[0] = 511.0/512.0; tc[1] = 1.0/512.0;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	VectorSet (v, x+w, y+h, 0);
+	tc[0] = 511.0/512.0; tc[1] = t;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	VectorSet (v, x, y+h, 0);
+	tc[0] = 1.0/512.0; tc[1] = t;
+	R_PushCoord (tc);
+	R_PushVertex (v);
+
+	R_VertexTCBase ( 0, false );
+	R_LockArrays ();
+	R_FlushArrays ();
+	R_UnlockArrays ();
+	R_ClearArrays ();
+#endif
 }

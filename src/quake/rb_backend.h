@@ -42,6 +42,8 @@ void R_FlushArraysMtex ( int tex1, int tex2 );
 
 void R_ClearArrays (void);
 
+void R_VertexTCBase ( int tc_gen, qbool mtex );
+
 extern inline void R_PushElems ( unsigned int *elems, int numindexes )
 {
 	int i;

@@ -32,6 +32,8 @@ unsigned int quad_elems[6] = { 0, 1, 2, 0, 2, 3 };
 
 static void rb_backend_start(void)
 {
+	Com_Printf("Renderer backend started.\n");
+
 	numVerts = 0;
 	numIndexes = 0;
 	numCoords = 0;
@@ -60,19 +62,19 @@ static void rb_backend_start(void)
 		case RENDERPATH_GL11:
 		case RENDERPATH_GLES:
 		case RENDERPATH_GL30:
+			Com_Printf("Backend: OpenGL\n");
 			RB_GL11_Init ();
 			break;
 		case RENDERPATH_D3D11:
+			Com_Printf("Backend: Direct3D 11\n");
 			Sys_Error("TODO: D3D11");
 			break;
 	}
-
-	Com_Printf("Renderer backend started.\n");
 }
 
 static void rb_backend_shutdown(void)
 {
-	Com_Printf("Renderer backend shutting down\n");
+	Com_Printf("Renderer backend shutting down.\n");
 }
 
 static void rb_backend_newmap(void)
@@ -93,6 +95,9 @@ void RB_StartFrame (void)
 
 void RB_EndFrame (void)
 {
+	// unlock arrays if any
+	R_UnlockArrays ();
+
 	if (r_speeds.value)
 	{
 		Com_Printf( "%4i wpoly %4i epoly %4i verts %4i tris %4i flushes\n",
@@ -161,60 +166,7 @@ void R_UnlockArrays (void)
 	}
 }
 
-qbool R_MeshWillNotFit ( int numvertexes, int numindexes )
-{
-	return ( numVerts + numvertexes > MAX_ARRAY_VERTS ||
-		numIndexes + numindexes > MAX_ARRAY_INDEXES );
-}
-
-/*
-==============
-R_DrawTriangleStrips
-
-This function looks for and sends tristrips.
-Original Code by Stephen C. Taylor (Aftershock 3D rendering engine)
-==============
-*/
-static void R_DrawTriangleStrips ( void )
-{
-    int toggle;
-    unsigned int a, b, c, *index;
-
-	c = 0;
-    index = indexesArray;
-    while ( c < numIndexes ) {
-		toggle = 1;
-
-		qglBegin( GL_TRIANGLE_STRIP );
-		
-		qglArrayElement( index[0] );
-		qglArrayElement( b = index[1] );
-		qglArrayElement( a = index[2] );
-
-		c += 3;
-		index += 3;
-
-		while ( c < numIndexes ) {
-			if ( a != index[0] || b != index[1] ) {
-				break;
-			}
-
-			if ( toggle ) {
-				qglArrayElement( b = index[2] );
-			} else {
-				qglArrayElement( a = index[2] );
-			}
-
-			c += 3;
-			index += 3;
-			toggle = !toggle;
-		}
-
-		qglEnd();
-    }
-}
-
-void R_ClearArrays (void)
+void R_ClearArrays ( void )
 {
 	numVerts = 0;
 	numIndexes = 0;
@@ -229,7 +181,7 @@ void R_ClearArrays (void)
 	r_blocked = false;
 }
 
-void R_FlushArrays (void)
+void R_FlushArrays ( void )
 {
 	if ( !numVerts || !numIndexes ) {
 		return;
@@ -243,14 +195,7 @@ void R_FlushArrays (void)
 
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 
-	if ( !r_arrays_locked ) {
-		R_DrawTriangleStrips ();
-	}
-	else {
-		qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_INT,
-			indexesArray );
-	}
-	r_numtris += numIndexes / 3;
+	qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_INT,	indexesArray );
 
 	if ( numColors > 1 ) {
 		qglDisableClientState( GL_COLOR_ARRAY );
@@ -263,6 +208,7 @@ void R_FlushArrays (void)
 	currentCoords = inCoordsData[0];
 	currentLightmapCoords = inLightmapCoordsData[0];
 
+	r_numtris += numIndexes / 3;
 	r_numflushes++;
 }
 
@@ -286,13 +232,7 @@ void R_FlushArraysMtex ( int tex1, int tex2 )
 
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 
-	if ( !r_arrays_locked ) {
-		R_DrawTriangleStrips ();
-	} else {
-		qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_INT,
-			indexesArray );
-	}
-	r_numtris += numIndexes / 3;
+	qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_INT, indexesArray );
 
 	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
 
@@ -309,7 +249,39 @@ void R_FlushArraysMtex ( int tex1, int tex2 )
 	currentCoords = inCoordsData[0];
 	currentLightmapCoords = inLightmapCoordsData[0];
 
+	r_numtris += numIndexes / 3;
 	r_numflushes++;
+}
+
+void R_VertexTCBase ( int tc_gen, qbool mtex )
+{
+	int i;
+
+	for ( i = 0; i < numVerts; i++  ) {
+		if ( tc_gen == 1 ) {
+			if ( mtex ) {
+				coordsArrayMtex[i][0] = inLightmapCoordsData[i][0];
+				coordsArrayMtex[i][1] = inLightmapCoordsData[i][1];
+			} else {
+				coordsArray[i][0] = inLightmapCoordsData[i][0];
+				coordsArray[i][1] = inLightmapCoordsData[i][1];
+			}
+		} else if ( tc_gen == 0 ) {
+			if ( mtex ) {
+				coordsArrayMtex[i][0] = inCoordsData[i][0];
+				coordsArrayMtex[i][1] = inCoordsData[i][1];
+			} else {
+				coordsArray[i][0] = inCoordsData[i][0];
+				coordsArray[i][1] = inCoordsData[i][1];
+			}
+		}
+	}
+}
+
+qbool R_MeshWillNotFit ( int numvertexes, int numindexes )
+{
+	return ( numVerts + numvertexes > MAX_ARRAY_VERTS ||
+		numIndexes + numindexes > MAX_ARRAY_INDEXES );
 }
 
 /*
@@ -331,12 +303,4 @@ void R_DrawTriangleOutlines ( void )
 	qglEnable( GL_DEPTH_TEST );
 	qglEnable( GL_TEXTURE_2D );
 	qglEnable( GL_BLEND );
-}
-
-void R_RenderFinish ( void )
-{
-	// TODO: triangle outlines, normals...
-
-	R_UnlockArrays ();
-	R_ClearArrays ();
 }
