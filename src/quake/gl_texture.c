@@ -662,6 +662,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	// cache check
 	switch (format)
 	{
+		case SRC_INDEXED_UPSCALE:
 		case SRC_INDEXED:
 			crc = CRC_Block(data, width * height);
 			break;
