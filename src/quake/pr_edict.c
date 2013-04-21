@@ -1023,31 +1023,7 @@ void PR_LoadProgs (void)
 	static int lumpsize[6] = { sizeof(dstatement_t), sizeof(ddef_t),
 		sizeof(ddef_t), sizeof(dfunction_t), 4, 4 };
 
-	progs = NULL;
-	if (!deathmatch.value)
-	{
-		int hunk_mark = Hunk_LowMark ();
-
-		progs = (dprograms_t *) FS_LoadHunkFile ("progs.dat");
-
-		if (!file_from_gamedir) {
-			// progs.dat is not from gamedir, this is possibly not what we wanted
-			// look for qwprogs.dat in gamedir
-			FILE *f;
-			FS_FOpenFile ("qwprogs.dat", &f);
-			if (f) {
-				fclose (f);
-				// it exists, but where's it from?
-				if (file_from_gamedir) {
-					// throw away progs and load qwprogs instead
-					Hunk_FreeToLowMark (hunk_mark);
-					progs = NULL;
-				}
-			}
-		}
-	}
-	if (!progs)
-		progs = (dprograms_t *)FS_LoadHunkFile ("qwprogs.dat");
+	progs = (dprograms_t *)FS_LoadHunkFile ("progs.dat");
 	if (!progs)
 		Host_Error ("PR_LoadProgs: couldn't load progs.dat");
 
@@ -1067,7 +1043,7 @@ void PR_LoadProgs (void)
 	if (progs->version != PROG_VERSION)
 		Host_Error ("progs.dat has wrong version number (%i should be %i)", progs->version, PROG_VERSION);
 	if (progs->crc != PROGHEADER_CRC)
-		Host_Error ("You must have the qwprogs.dat from QuakeWorld installed");
+		Host_Error ("progs.dat has wrong crc (%i should be %i)", progs->crc, PROGHEADER_CRC);
 
 // check lump offsets and sizes
 	for (i = 0; i < 6; i ++) {
