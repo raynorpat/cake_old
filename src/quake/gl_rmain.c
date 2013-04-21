@@ -86,10 +86,36 @@ cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fb_bmodels = {"gl_fb_bmodels","1"};
 cvar_t	gl_fb_models = {"gl_fb_models","1"};
-cvar_t	gl_lightmode = {"gl_lightmode","2"};
+cvar_t	gl_overbright = {"gl_overbright","1"};
+void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel);
+cvar_t	gl_lightmode = {"gl_lightmode","1", 0, OnChange_lightmode_var};
 cvar_t	gl_solidparticles = {"gl_solidparticles", "0"};
 
-int		lightmode = 2;
+float	lightmode = 2.0f;
+void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel)
+{
+	float num = Q_atof(string);
+	num = bound(0, num, 4);
+
+	// set lightmode to gl_lightmode
+	if(num == 1.0f)
+	{
+		Cvar_SetValue (&gl_overbright, 1);
+		lightmode = 2.0f;
+	}
+	else if(num == 2.0f)
+	{
+		Cvar_SetValue (&gl_overbright, 1);
+		lightmode = 4.0f;
+	}
+	else
+	{
+		// disable overbrights
+		Cvar_SetValue (&gl_overbright, 0);
+	}
+
+	Cvar_SetValue (var, num);
+}
 
 /*
 =================
@@ -548,6 +574,7 @@ void GL_Main_Init(void)
 	Cvar_Register (&gl_finish);
 	Cvar_Register (&gl_fb_bmodels);
 	Cvar_Register (&gl_fb_models);
+	Cvar_Register (&gl_overbright);
 	Cvar_Register (&gl_lightmode);
 	Cvar_Register (&gl_solidparticles);
 

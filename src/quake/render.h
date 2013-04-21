@@ -160,9 +160,7 @@ void R_RSShot (byte **pcxdata, int *pcxsize);
 //
 extern qbool	r_cache_thrash;	// set if thrashing the surface cache
 
-int	D_SurfaceCacheForRes (int width, int height);
-void D_FlushCaches (void);
-void D_InitCaches (void *buffer, int size);
+void R_FlushCaches (void);
 
 void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 

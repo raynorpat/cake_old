@@ -237,18 +237,9 @@ void R_NewMap (struct model_s *worldmodel)
 }
 
 
-void D_FlushCaches (void)
+void R_FlushCaches (void)
 {
-	// maybe it's not the right place for this code, but it serves
-	// its purpose - set lightmode to gl_lightmode before loading
-	// any models for a new map
-	lightmode = gl_lightmode.value;
-	if (lightmode < 0 || lightmode > 2)
-		lightmode = 2;
 
-	// FIXME - remove this when gl_lightmode 1 is implemented!
-	if (lightmode == 1)
-		lightmode = 2;
 }
 
 

@@ -358,10 +358,11 @@ extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
 extern	cvar_t	gl_fb_bmodels;
 extern	cvar_t	gl_fb_models;
+extern	cvar_t	gl_overbright;
 extern	cvar_t	gl_lightmode;
 extern	cvar_t	gl_solidparticles;
 
-extern	int		lightmode;		// set to gl_lightmode on mapchange
+extern	float	lightmode;		// set to gl_lightmode on mapchange
 
 extern	cvar_t	gl_playermip;
 

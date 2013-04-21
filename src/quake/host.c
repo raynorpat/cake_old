@@ -137,7 +137,7 @@ void Host_InitLocal (void)
 	Cvar_Register (&host_mapname);
 }
 
-extern void D_FlushCaches (void);
+extern void R_FlushCaches (void);
 extern void Mod_ClearAll (void);
 
 /*
@@ -154,7 +154,7 @@ void Host_ClearMemory ()
 
 	// FIXME, move to CL_ClearState
 	if (!dedicated)
-		D_FlushCaches ();
+		R_FlushCaches ();
 
 	// FIXME, move to CL_ClearState
 #ifndef SERVERONLY

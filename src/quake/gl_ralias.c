@@ -244,12 +244,12 @@ void R_DrawAliasModel (entity_t *ent)
 	float		add;
 	aliashdr_t	*paliashdr;
 	int			anim, skinnum;
-	qbool		full_light;
+	qbool		full_light, overbright;
 	model_t		*clmodel = ent->model;
 	gltexture_t	*texture, *fb_texture;
 	vec3_t		lightcolor;
 	float		shadelight, ambientlight;
-	float	original_light;
+	float		original_light;
 
 	// cull it
 	if (R_CullModelForEntity(ent))
@@ -363,6 +363,8 @@ void R_DrawAliasModel (entity_t *ent)
 
 	GL_DisableMultitexture();
 
+	overbright = gl_overbright.value;
+
 	texture = paliashdr->gl_texture[skinnum][anim];
 	fb_texture = paliashdr->fb_texture[skinnum][anim];
 
@@ -396,7 +398,9 @@ void R_DrawAliasModel (entity_t *ent)
 		GL_Bind (texture->texnum);
 		shading = false;
 		qglColor4f(1,1,1,1);
+
 		R_SetupAliasFrame (ent->frame, paliashdr);
+
 		if (fb_texture)
 		{
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -414,11 +418,107 @@ void R_DrawAliasModel (entity_t *ent)
 			qglDisable(GL_BLEND);
 		}
 	}
+	else if (overbright)
+	{
+		if  (gl_support_texture_combine && gl_support_texture_add && fb_texture) // case 1: everything in one pass
+		{
+			GL_Bind (texture->texnum);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PRIMARY_COLOR_ARB);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+
+			GL_EnableMultitexture(); // selects TEXTURE1
+			GL_Bind (fb_texture->texnum);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
+			qglEnable(GL_BLEND);
+			
+			R_SetupAliasFrame (ent->frame, paliashdr);
+			
+			qglDisable(GL_BLEND);
+			
+			GL_DisableMultitexture();
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		else if (gl_support_texture_combine) // case 2: overbright in one pass, then fullbright pass
+		{
+			// first pass
+			GL_Bind(texture->texnum);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PRIMARY_COLOR_ARB);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+
+			R_SetupAliasFrame (ent->frame, paliashdr);
+
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1.0f);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+			// second pass
+			if (fb_texture)
+			{
+				qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_Bind(fb_texture->texnum);
+				qglEnable(GL_BLEND);
+				qglBlendFunc (GL_ONE, GL_ONE);
+				qglDepthMask(GL_FALSE);
+				shading = false;
+				qglColor4f(1,1,1,1);
+
+				R_SetupAliasFrame (ent->frame, paliashdr);
+
+				qglDepthMask(GL_TRUE);
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				qglDisable(GL_BLEND);
+				qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			}
+		}
+		else // case 3: overbright in two passes, then fullbright pass
+		{
+			// first pass
+			GL_Bind(texture->texnum);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			
+			R_SetupAliasFrame (ent->frame, paliashdr);
+
+			// second pass -- additive to double the object colors
+			qglEnable(GL_BLEND);
+			qglBlendFunc (GL_ONE, GL_ONE);
+			qglDepthMask(GL_FALSE);
+
+			R_SetupAliasFrame (ent->frame, paliashdr);
+
+			qglDepthMask(GL_TRUE);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			qglDisable(GL_BLEND);
+
+			// third pass
+			if (fb_texture)
+			{
+				qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_Bind(fb_texture->texnum);
+				qglEnable(GL_BLEND);
+				qglBlendFunc (GL_ONE, GL_ONE);
+				qglDepthMask(GL_FALSE);
+				shading = false;
+				qglColor4f(1,1,1,1);
+
+				R_SetupAliasFrame (ent->frame, paliashdr);
+
+				qglDepthMask(GL_TRUE);
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				qglDisable(GL_BLEND);
+				qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			}
+		}
+	}
 	else
 	{
-		if (fb_texture && gl_support_texture_add)
+		if (fb_texture && gl_support_texture_add) // case 4: fullbright mask using multitexture
 		{
-			// fullbright mask using multitexture
 			GL_DisableMultitexture(); // selects TEXTURE0
 			GL_Bind (texture->texnum);
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -434,12 +534,14 @@ void R_DrawAliasModel (entity_t *ent)
 			GL_DisableMultitexture();
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		}
-		else
+		else // case 5: fullbright mask without multitexture
 		{
-			// fullbright mask without multitexture
+			// first pass
 			GL_Bind (texture->texnum);
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			R_SetupAliasFrame (ent->frame, paliashdr);
+
+			// second pass
 			if (fb_texture)
 			{
 				GL_Bind(fb_texture->texnum);

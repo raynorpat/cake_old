@@ -338,7 +338,6 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 	{
 		for (j=0 ; j<smax ; j++, dest += 4)
 		{
-/*
 			if (gl_overbright.value)
 			{
 				t = *bl++ >> 8;if (t > 255) t = 255;dest[2] = t;
@@ -346,7 +345,6 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				t = *bl++ >> 8;if (t > 255) t = 255;dest[0] = t;
 			}
 			else
-*/
 			{
 				t = *bl++ >> 7;if (t > 255) t = 255;dest[2] = t;
 				t = *bl++ >> 7;if (t > 255) t = 255;dest[1] = t;
@@ -660,6 +658,92 @@ static void R_DrawTextureChains_Multitexture (void)
 }
 
 /*
+================
+R_BuildLightmapChains
+================
+*/
+void R_BuildLightmapChains (void)
+{
+	msurface_t *s;
+	int i;
+
+	// clear lightmap chains
+	memset (lightmap_polys, 0, sizeof(lightmap_polys));
+
+	// now rebuild them
+	s = &r_worldmodel->surfaces[r_worldmodel->firstmodelsurface];
+	for (i=0 ; i<r_worldmodel->nummodelsurfaces ; i++, s++)
+		if (s->visframe == r_visframecount && !R_CullBox(s->mins, s->maxs) && !R_BackFaceCull (s))
+			R_RenderDynamicLightmaps (s);
+}
+
+/*
+================
+R_DrawLightmapChains
+================
+*/
+void R_DrawLightmapChains (void)
+{
+	int			i, j;
+	glpoly_t	*p;
+	float		*v;
+
+	for (i=0 ; i<MAX_LIGHTMAPS ; i++)
+	{
+		if (!lightmap_polys[i])
+			continue;
+
+		GL_Bind (lightmap_textures[i]);
+		for (p = lightmap_polys[i]; p; p=p->chain)
+		{
+			qglBegin (GL_POLYGON);
+			v = p->verts[0];
+			for (j=0 ; j<p->numverts ; j++, v+= VERTEXSIZE)
+			{
+				qglTexCoord2f (v[5], v[6]);
+				qglVertex3fv (v);
+			}
+			qglEnd ();
+
+			c_brush_passes++;
+		}
+	}
+}
+
+/*
+================
+R_DrawTextureChains_White
+
+draw sky and water as white polys when r_lightmap is 1
+================
+*/
+void R_DrawTextureChains_White (void)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+
+	qglDisable (GL_TEXTURE_2D);
+	for (i=0 ; i<r_worldmodel->numtextures ; i++)
+	{
+		t = r_worldmodel->textures[i];
+
+		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_UNLIT))
+			continue;
+
+		for (s = t->texturechain; s; s = s->texturechain)
+		{
+			if (!s->culled)
+			{
+				DrawGLPoly (s->polys);
+				c_brush_passes++;
+			}
+		}
+	}
+	qglEnable (GL_TEXTURE_2D);
+}
+
+/*
 =============
 R_DrawWorld
 =============
@@ -686,13 +770,75 @@ void R_DrawWorld (void)
 		goto fullbrights;
 	}
 
-	GL_EnableMultitexture ();
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	GL_DisableMultitexture ();
+	if (r_lightmap.value)
+	{
+		R_BuildLightmapChains ();
 
-	R_DrawTextureChains_Multitexture ();
+		if (!gl_overbright.value)
+		{
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			qglColor4f(0.5, 0.5, 0.5, 1);
+		}
 
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		R_DrawLightmapChains ();
+
+		if (!gl_overbright.value)
+		{
+			qglColor4f(1,1,1,1);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+
+		R_DrawTextureChains_White ();
+		return;
+	}
+
+	if (gl_overbright.value)
+	{
+		if (gl_support_texture_combine) // case 1: texture and lightmap in one pass, overbright using texture combiners
+		{
+			GL_EnableMultitexture ();
+			qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_TEXTURE);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+
+			GL_DisableMultitexture ();
+
+			R_DrawTextureChains_Multitexture ();
+
+			GL_EnableMultitexture ();
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1.0f);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			
+			GL_DisableMultitexture ();
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		else // case 2: texture in one pass, lightmap in second pass using 2x modulation blend func
+		{
+			R_DrawTextureChains_TextureOnly ();
+
+			qglDepthMask (GL_FALSE);
+			qglEnable (GL_BLEND);
+			qglBlendFunc (GL_DST_COLOR, GL_SRC_COLOR); // 2x modulate
+
+			R_DrawLightmapChains ();
+
+			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			qglDisable (GL_BLEND);
+			qglDepthMask (GL_TRUE);
+		}
+	}
+	else // case 3: texture and lightmap in one pass, regular modulation
+	{
+		GL_EnableMultitexture ();
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_DisableMultitexture ();
+
+		R_DrawTextureChains_Multitexture ();
+
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	}
 
 fullbrights:
 	if (gl_fb_bmodels.value)
@@ -740,7 +886,43 @@ void R_DrawSequentialPoly (msurface_t *s)
 		goto fullbrights;
 	}
 
-// sky poly - skip it, already handled in gl_sky.c
+// r_lightmap
+	if (r_lightmap.value)
+	{
+		if (s->flags & SURF_UNLIT)
+		{
+			qglDisable (GL_TEXTURE_2D);
+			DrawGLPoly (s->polys);
+			qglEnable (GL_TEXTURE_2D);
+			c_brush_passes++;
+			return;
+		}
+
+		R_RenderDynamicLightmaps (s);
+		GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+		if (!gl_overbright.value)
+		{
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			qglColor4f(0.5, 0.5, 0.5, 1);
+		}
+		qglBegin (GL_POLYGON);
+		v = s->polys->verts[0];
+		for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
+		{
+			qglTexCoord2f (v[5], v[6]);
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+		if (!gl_overbright.value)
+		{
+			qglColor4f(1,1,1,1);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		c_brush_passes++;
+		return;
+	}
+
+// sky poly - skip it, already handled in gl_warp.c
 	if (s->flags & SURF_DRAWSKY)
 		return;
 
@@ -770,29 +952,95 @@ void R_DrawSequentialPoly (msurface_t *s)
 	}
 
 // lightmapped poly
-	qglColor3f(1, 1, 1);
-
-	GL_DisableMultitexture(); // selects TEXTURE0
-	GL_Bind (t->gl_texture->texnum);
-	
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	GL_EnableMultitexture(); // selects TEXTURE1
-	GL_Bind (lightmap_textures[s->lightmaptexturenum]);
-	R_RenderDynamicLightmaps (s);
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	
-	qglBegin(GL_POLYGON);
-	v = s->polys->verts[0];
-	for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
+	qglColor4f(1, 1, 1, 1);
+	if (gl_overbright.value)
 	{
-		qglMultiTexCoord2f (GL_TEXTURE0_ARB, v[3], v[4]);
-		qglMultiTexCoord2f (GL_TEXTURE1_ARB, v[5], v[6]);
-		qglVertex3fv (v);
+		if (gl_support_texture_combine) // case 1: texture and lightmap in one pass, overbright using texture combiners
+		{
+			GL_DisableMultitexture(); // selects TEXTURE0
+			GL_Bind (t->gl_texture->texnum);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+			GL_EnableMultitexture(); // selects TEXTURE1
+			GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+			R_RenderDynamicLightmaps (s);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_TEXTURE);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+
+			qglBegin(GL_POLYGON);
+			v = s->polys->verts[0];
+			for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
+			{
+				qglMultiTexCoord2f (GL_TEXTURE0_ARB, v[3], v[4]);
+				qglMultiTexCoord2f (GL_TEXTURE1_ARB, v[5], v[6]);
+				qglVertex3fv (v);
+			}
+			qglEnd ();
+
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1.0f);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_DisableMultitexture ();
+
+			c_brush_passes++;
+		}
+		else // case 2: texture in one pass, lightmap in second pass using 2x modulation blend func
+		{
+			// first pass -- texture
+			GL_Bind (t->gl_texture->texnum);
+			DrawGLPoly (s->polys);
+			
+			c_brush_passes++;
+
+			// second pass -- lightmap modulate blended
+			R_RenderDynamicLightmaps (s);
+			GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+			qglDepthMask (GL_FALSE);
+			qglEnable (GL_BLEND);
+			qglBlendFunc(GL_DST_COLOR, GL_SRC_COLOR); // 2x modulate
+
+			qglBegin (GL_POLYGON);
+			v = s->polys->verts[0];
+			for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
+			{
+				qglTexCoord2f (v[5], v[6]);
+				qglVertex3fv (v);
+			}
+			qglEnd ();
+
+			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			qglDisable (GL_BLEND);
+			qglDepthMask (GL_TRUE);
+
+			c_brush_passes++;
+		}
 	}
-	qglEnd ();
+	else // case 3: texture and lightmap in one pass, regular modulation
+	{
+		GL_DisableMultitexture(); // selects TEXTURE0
+		GL_Bind (t->gl_texture->texnum);
 	
-	GL_DisableMultitexture ();
-	c_brush_passes++;
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		GL_EnableMultitexture(); // selects TEXTURE1
+		GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+		R_RenderDynamicLightmaps (s);
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	
+		qglBegin(GL_POLYGON);
+		v = s->polys->verts[0];
+		for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
+		{
+			qglMultiTexCoord2f (GL_TEXTURE0_ARB, v[3], v[4]);
+			qglMultiTexCoord2f (GL_TEXTURE1_ARB, v[5], v[6]);
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+	
+		GL_DisableMultitexture ();
+		c_brush_passes++;
+	}
 
 // fullbrights
 fullbrights:
