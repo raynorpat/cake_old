@@ -123,7 +123,12 @@ void R_DrawSpriteModel (entity_t *e)
 		VectorCopy (vright, right);
 	}
 
+	qglColor4f (1,1,1,1);
+	GL_DisableMultitexture();
+
     GL_Bind(frame->gl_texture->texnum);
+
+	qglEnable (GL_ALPHA_TEST);
 
 	qglBegin (GL_QUADS);
 
@@ -148,5 +153,7 @@ void R_DrawSpriteModel (entity_t *e)
 	qglVertex3fv (point);
 	
 	qglEnd ();
+
+	qglDisable (GL_ALPHA_TEST);
 }
 

@@ -106,6 +106,36 @@ extern int gl_support_clamptoedge;
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
 
+// GL_ARB_texture_env_combine
+extern int gl_support_texture_combine;
+#ifndef GL_ARB_texture_env_combine
+#define GL_COMBINE_ARB                    0x8570
+#define GL_COMBINE_RGB_ARB                0x8571
+#define GL_COMBINE_ALPHA_ARB              0x8572
+#define GL_SOURCE0_RGB_ARB                0x8580
+#define GL_SOURCE1_RGB_ARB                0x8581
+#define GL_SOURCE2_RGB_ARB                0x8582
+#define GL_SOURCE0_ALPHA_ARB              0x8588
+#define GL_SOURCE1_ALPHA_ARB              0x8589
+#define GL_SOURCE2_ALPHA_ARB              0x858A
+#define GL_OPERAND0_RGB_ARB               0x8590
+#define GL_OPERAND1_RGB_ARB               0x8591
+#define GL_OPERAND2_RGB_ARB               0x8592
+#define GL_OPERAND0_ALPHA_ARB             0x8598
+#define GL_OPERAND1_ALPHA_ARB             0x8599
+#define GL_OPERAND2_ALPHA_ARB             0x859A
+#define GL_RGB_SCALE_ARB                  0x8573
+#define GL_ADD_SIGNED_ARB                 0x8574
+#define GL_INTERPOLATE_ARB                0x8575
+#define GL_SUBTRACT_ARB                   0x84E7
+#define GL_CONSTANT_ARB                   0x8576
+#define GL_PRIMARY_COLOR_ARB              0x8577
+#define GL_PREVIOUS_ARB                   0x8578
+#endif
+
+// GL_ARB_texture_env_add
+extern int gl_support_texture_add;
+
 #ifndef GL_VERSION_1_2
 #define GL_UNSIGNED_BYTE_3_3_2            0x8032
 #define GL_UNSIGNED_SHORT_4_4_4_4         0x8033
@@ -268,8 +298,6 @@ extern BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
 
 //====================================================
 
-extern	float	gldepthmax;
-
 #define ALIAS_BASE_SIZE_RATIO	(1.0 / 11.0) // normalizing factor so player model works out to about 1 pixel per triangle
 #define	MAX_LBM_HEIGHT			480
 
@@ -286,7 +314,6 @@ extern entity_t		*currententity;
 extern int			r_visframecount;
 extern int			r_framecount;
 extern mplane_t		frustum[4];
-extern int			c_brush_polys, c_alias_polys;
 
 
 //
@@ -324,7 +351,6 @@ extern	cvar_t	r_fastsky;
 extern	cvar_t	r_skycolor;
 
 extern	cvar_t	gl_subdivide_size;
-extern	cvar_t	gl_clear;
 extern	cvar_t	gl_cull;
 extern	cvar_t	gl_smoothmodels;
 extern	cvar_t	gl_polyblend;
@@ -344,6 +370,8 @@ void R_TranslatePlayerSkin (int playernum);
 void GL_MBind ( GLenum target, int texnum );
 void GL_Bind ( int texnum );
 void GL_SelectTexture ( GLenum target );
+void GL_EnableMultitexture(void);
+void GL_DisableMultitexture(void);
 
 //
 // gl_texture.c
@@ -402,9 +430,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 //
 void GL_SubdivideSurface (msurface_t *fa);
 void GL_BuildSkySurfacePolys (msurface_t *fa);
-void EmitBothSkyLayers (msurface_t *fa);
 void EmitWaterPolys (msurface_t *fa);
-void R_ClearSky (void);
 void R_DrawSky (void);			// skybox or classic sky
 void R_InitSky (texture_t *mt);	// classic Quake sky
 extern qbool	r_skyboxloaded;
@@ -414,6 +440,7 @@ extern qbool	r_skyboxloaded;
 //
 qbool R_CullBox (vec3_t mins, vec3_t maxs);
 qbool R_CullSphere (vec3_t centre, float radius);
+qbool R_CullModelForEntity (entity_t *e);
 void R_RotateForEntity (entity_t *e);
 void R_PolyBlend (void);
 
@@ -444,7 +471,7 @@ void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr);
 //
 void R_DrawBrushModel (entity_t *e);
 void R_DrawWorld (void);
-void R_DrawWaterSurfaces (void);
+void R_DrawTextureChains_Water (void);
 void GL_BuildLightmaps (void);
 
 //

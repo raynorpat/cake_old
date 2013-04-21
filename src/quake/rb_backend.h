@@ -21,6 +21,8 @@ extern float	*currentColor;
 extern unsigned int	r_numverts;
 extern unsigned int	r_numtris;
 
+extern int			c_brush_polys, c_brush_passes, c_alias_polys;
+
 extern qbool r_blocked;
 
 extern unsigned int quad_elems[6];
@@ -123,8 +125,6 @@ extern inline void R_PushVertexes ( mvertex_t *verts, int numverts )
 		R_PushColor ( vert->color );
 	}
 }
-
-qbool R_MeshWillNotFit ( int numvertexes, int numindexes );
 
 //
 // rb_backend_gl11.c

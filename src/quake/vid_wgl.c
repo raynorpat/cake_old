@@ -89,8 +89,6 @@ static HGLRC	baseRC;
 
 static int vid_isfullscreen;
 
-float		gldepthmax;
-
 //====================================
 
 int window_x, window_y, window_width, window_height;

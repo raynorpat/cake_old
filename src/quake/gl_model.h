@@ -100,6 +100,9 @@ typedef struct glpoly_s
 typedef struct msurface_s
 {
 	int			visframe;		// should be drawn when node is crossed
+	qbool		culled;			// for frustum culling
+	float		mins[3];		// for frustum culling
+	float		maxs[3];		// for frustum culling
 
 	mplane_t	*plane;
 	int			flags;
@@ -313,7 +316,8 @@ typedef struct model_s
 // volume occupied by the model graphics
 //
 	vec3_t		mins, maxs;
-	float		radius;
+	vec3_t		ymins, ymaxs; // bounds for entities with nonzero yaw
+	vec3_t		rmins, rmaxs; // bounds for entities with nonzero pitch or roll
 
 //
 // brush model

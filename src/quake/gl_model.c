@@ -860,6 +860,46 @@ void CalcSurfaceExtents (msurface_t *s)
 
 /*
 =================
+Mod_CalcSurfaceBounds
+
+calculate bounding box for per-surface frustum culling
+=================
+*/
+void Mod_CalcSurfaceBounds (msurface_t *s)
+{
+	int			i, e;
+	mvertex_t	*v;
+
+	s->mins[0] = s->mins[1] = s->mins[2] = 9999;
+	s->maxs[0] = s->maxs[1] = s->maxs[2] = -9999;
+
+	for (i=0 ; i<s->numedges ; i++)
+	{
+		e = loadmodel->surfedges[s->firstedge+i];
+		if (e >= 0)
+			v = &loadmodel->vertexes[loadmodel->edges[e].v[0]];
+		else
+			v = &loadmodel->vertexes[loadmodel->edges[-e].v[1]];
+
+		if (s->mins[0] > v->position[0])
+			s->mins[0] = v->position[0];
+		if (s->mins[1] > v->position[1])
+			s->mins[1] = v->position[1];
+		if (s->mins[2] > v->position[2])
+			s->mins[2] = v->position[2];
+
+		if (s->maxs[0] < v->position[0])
+			s->maxs[0] = v->position[0];
+		if (s->maxs[1] < v->position[1])
+			s->maxs[1] = v->position[1];
+		if (s->maxs[2] < v->position[2])
+			s->maxs[2] = v->position[2];
+	}
+}
+
+
+/*
+=================
 Mod_LoadFaces
 =================
 */
@@ -896,6 +936,8 @@ void Mod_LoadFaces (lump_t *l)
 		out->texinfo = loadmodel->texinfo + LittleShort (in->texinfo);
 
 		CalcSurfaceExtents (out);
+
+		Mod_CalcSurfaceBounds (out); // for per-surface frustum culling
 				
 	// lighting info
 
@@ -922,7 +964,6 @@ void Mod_LoadFaces (lump_t *l)
 			GL_SubdivideSurface (out);	// cut up polygon for warps
 			continue;
 		}
-
 	}
 }
 
@@ -1218,6 +1259,7 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 	int			i;
 	dheader_t	*header;
 	dmodel_t 	*bm;
+	float		radius;
 	
 	loadmodel->type = mod_brush;
 	
@@ -1278,8 +1320,10 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 		VectorCopy (bm->maxs, mod->maxs);
 		VectorCopy (bm->mins, mod->mins);
 
-		mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
-
+		radius = RadiusFromBounds (mod->mins, mod->maxs);
+		mod->rmaxs[0] = mod->rmaxs[1] = mod->rmaxs[2] = mod->ymaxs[0] = mod->ymaxs[1] = mod->ymaxs[2] = radius;
+		mod->rmins[0] = mod->rmins[1] = mod->rmins[2] = mod->ymins[0] = mod->ymins[1] = mod->ymins[2] = -radius;
+		
 		mod->numleafs = bm->visleafs;
 
 		if (i < mod->numsubmodels-1)
@@ -1316,8 +1360,6 @@ int			posenum;
 
 byte		player_8bit_texels[320*200];
 
-byte		aliasbboxmins[3], aliasbboxmaxs[3];
-
 /*
 =================
 Mod_LoadAliasFrame
@@ -1341,9 +1383,6 @@ void *Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
 	// endianness
 		frame->bboxmin.v[i] = pdaliasframe->bboxmin.v[i];
 		frame->bboxmax.v[i] = pdaliasframe->bboxmax.v[i];
-
-		aliasbboxmins[i] = min (aliasbboxmins[i], frame->bboxmin.v[i]);
-		aliasbboxmaxs[i] = max (aliasbboxmaxs[i], frame->bboxmax.v[i]);
 	}
 
 	pinframe = (trivertx_t *)(pdaliasframe + 1);
@@ -1381,9 +1420,6 @@ void *Mod_LoadAliasGroup (void * pin,  maliasframedesc_t *frame)
 	// these are byte values, so we don't have to worry about endianness
 		frame->bboxmin.v[i] = pingroup->bboxmin.v[i];
 		frame->bboxmax.v[i] = pingroup->bboxmax.v[i];
-
-		aliasbboxmins[i] = min (aliasbboxmins[i], frame->bboxmin.v[i]);
-		aliasbboxmaxs[i] = max (aliasbboxmaxs[i], frame->bboxmax.v[i]);
 	}
 
 	pin_intervals = (daliasinterval_t *)(pingroup + 1);
@@ -1569,8 +1605,61 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 	return (void *)pskintype;
 }
 
-
 //=========================================================================
+
+/*
+=================
+Mod_CalcAliasBounds
+
+calculate bounds of alias model for nonrotated, yawrotated, and fullrotated cases
+=================
+*/
+void Mod_CalcAliasBounds (aliashdr_t *a)
+{
+	int			i,j,k;
+	float		dist, yawradius, radius;
+	vec3_t		v;
+
+	// clear out all data
+	for (i=0; i<3;i++)
+	{
+		loadmodel->mins[i] = loadmodel->ymins[i] = loadmodel->rmins[i] = 999999;
+		loadmodel->maxs[i] = loadmodel->ymaxs[i] = loadmodel->rmaxs[i] = -999999;
+		radius = yawradius = 0;
+	}
+
+	// process verts
+	for (i=0 ; i<a->numposes; i++)
+		for (j=0; j<a->numverts; j++)
+		{
+			for (k=0; k<3;k++)
+				v[k] = poseverts[i][j].v[k] * pheader->scale[k] + pheader->scale_origin[k];
+
+			for (k=0; k<3;k++)
+			{
+				loadmodel->mins[k] = min (loadmodel->mins[k], v[k]);
+				loadmodel->maxs[k] = max (loadmodel->maxs[k], v[k]);
+			}
+			dist = v[0] * v[0] + v[1] * v[1];
+			if (yawradius < dist)
+				yawradius = dist;
+			dist += v[2] * v[2];
+			if (radius < dist)
+				radius = dist;
+		}
+
+	// rbounds will be used when entity has nonzero pitch or roll
+	radius = sqrt(radius);
+	loadmodel->rmins[0] = loadmodel->rmins[1] = loadmodel->rmins[2] = -radius;
+	loadmodel->rmaxs[0] = loadmodel->rmaxs[1] = loadmodel->rmaxs[2] = radius;
+
+	// ybounds will be used when entity has nonzero yaw
+	yawradius = sqrt(yawradius);
+	loadmodel->ymins[0] = loadmodel->ymins[1] = -yawradius;
+	loadmodel->ymaxs[0] = loadmodel->ymaxs[1] = yawradius;
+	loadmodel->ymins[2] = loadmodel->mins[2];
+	loadmodel->ymaxs[2] = loadmodel->maxs[2];
+}
 
 /*
 =================
@@ -1712,9 +1801,6 @@ void Mod_LoadAliasModel (model_t *mod, void *buffer)
 	posenum = 0;
 	pframetype = (daliasframetype_t *)&pintriangles[pheader->numtris];
 
-	aliasbboxmins[0] = aliasbboxmins[1] = aliasbboxmins[2] = 255;
-	aliasbboxmaxs[0] = aliasbboxmaxs[1] = aliasbboxmaxs[2] = 0;
-
 	for (i = 0; i < numframes; i++)
 	{
 		aliasframetype_t	frametype;
@@ -1737,13 +1823,7 @@ void Mod_LoadAliasModel (model_t *mod, void *buffer)
 
 	mod->type = mod_alias;
 
-	for (i = 0; i < 3; i++)
-	{
-		mod->mins[i] = aliasbboxmins[i] * pheader->scale[i] + pheader->scale_origin[i];
-		mod->maxs[i] = aliasbboxmaxs[i] * pheader->scale[i] + pheader->scale_origin[i];
-	}
-
-	mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
+	Mod_CalcAliasBounds (pheader);
 
 	//
 	// build the draw lists

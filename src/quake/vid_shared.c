@@ -73,6 +73,10 @@ int gl_supportslockarrays = false;
 int gl_videosyncavailable = false;
 // GL_SGIS_texture_edge_clamp
 int gl_support_clamptoedge = false;
+// GL_ARB_texture_env_combine
+int gl_support_texture_combine = false;
+// GL_ARB_texture_env_add
+int gl_support_texture_add = false;
 
 // GL_ARB_multitexture
 void (GLAPIENTRY *qglMultiTexCoord2f) (GLenum, GLfloat, GLfloat);
@@ -373,6 +377,8 @@ void VID_CheckExtensions(void)
 	gl_textureunits = 1;
 	gl_supportslockarrays = false;
 	gl_support_clamptoedge = false;
+	gl_support_texture_combine = false;
+	gl_support_texture_add = false;
 
 	if (!GL_CheckExtension("glbase", opengl110funcs, NULL, false))
 		Sys_Error("OpenGL 1.1.0 functions not found");
@@ -388,6 +394,8 @@ void VID_CheckExtensions(void)
 
 	gl_supportslockarrays = GL_CheckExtension("GL_EXT_compiled_vertex_array", compiledvertexarrayfuncs, "-nocva", false);
 	gl_support_clamptoedge = GL_CheckExtension("GL_EXT_texture_edge_clamp", NULL, "-noedgeclamp", false) || GL_CheckExtension("GL_SGIS_texture_edge_clamp", NULL, "-noedgeclamp", false);
+	gl_support_texture_combine = GL_CheckExtension("GL_ARB_texture_env_combine", NULL, "-notexcombine", false) || GL_CheckExtension("GL_EXT_texture_env_combine", NULL, "-notexcombine", false);
+	gl_support_texture_add = GL_CheckExtension("GL_ARB_texture_env_add", NULL, "-notexadd", false) || GL_CheckExtension("GL_EXT_texture_env_add", NULL, "-notexadd", false);
 }
 
 static void BuildGammaTable16(float prescale, float gamma, float scale, float base, unsigned short *out)

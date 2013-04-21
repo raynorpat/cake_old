@@ -14,7 +14,9 @@ RB_GL11_Init
 void RB_GL11_Init (void)
 {
 	qglClearColor (1,0,0,0);
+
 	qglCullFace(GL_FRONT);
+
 	qglEnable(GL_TEXTURE_2D);
 
 	qglEnable(GL_ALPHA_TEST);
@@ -30,8 +32,10 @@ void RB_GL11_Init (void)
 
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-//	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+	qglDepthFunc (GL_LEQUAL);
+	qglDepthRange (0, 1);
 
 	GL_SelectTexture ( GL_TEXTURE1_ARB );
 	qglTexCoordPointer( 2, GL_FLOAT, 0, coordsArrayMtex );
@@ -69,5 +73,6 @@ void RB_GL11_Set2DProjections (void)
 	qglEnable (GL_ALPHA_TEST);
 //	qglDisable (GL_ALPHA_TEST);
 
-	qglColor3f (1, 1, 1);
+	qglColor4f (1, 1, 1, 1);
 }
+

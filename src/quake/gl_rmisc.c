@@ -52,7 +52,8 @@ void R_TranslatePlayerSkin (int playernum)
 	extern	byte		player_8bit_texels[320*200];
 	char s[512];
 
-	GL_SelectTexture (GL_TEXTURE0_ARB);	player = &cl.players[playernum];
+	GL_SelectTexture (GL_TEXTURE0_ARB);
+	player = &cl.players[playernum];
 	if (!player->name[0])
 		return;
 

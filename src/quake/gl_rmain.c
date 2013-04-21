@@ -35,7 +35,7 @@ int			r_framecount;		// used for dlight push checking
 
 mplane_t	frustum[4];
 
-int			c_brush_polys, c_alias_polys;
+int			c_brush_polys, c_brush_passes, c_alias_polys;
 
 gltexture_t *playertextures[MAX_CLIENTS]; // up to 32 color translated skins
 gltexture_t *playerfbtextures[MAX_CLIENTS];
@@ -63,6 +63,7 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 cvar_t	r_norefresh = {"r_norefresh","0"};
 cvar_t	r_drawentities = {"r_drawentities","1"};
 cvar_t	r_drawflame = {"r_drawflame","1"};
+cvar_t	r_drawworld = {"r_drawworld","1"};
 cvar_t	r_speeds = {"r_speeds","0"};
 cvar_t	r_fullbright = {"r_fullbright","0"};
 cvar_t	r_lightmap = {"r_lightmap","0"};
@@ -77,7 +78,6 @@ cvar_t	r_skycolor = {"r_skycolor", "4"};
 cvar_t	r_fastturb = {"r_fastturb", "0"};
 
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
-cvar_t	gl_clear = {"gl_clear","0"};
 cvar_t	gl_cull = {"gl_cull","1"};
 cvar_t	gl_smoothmodels = {"gl_smoothmodels","1"};
 cvar_t	gl_polyblend = {"gl_polyblend","1"};
@@ -90,9 +90,6 @@ cvar_t	gl_lightmode = {"gl_lightmode","2"};
 cvar_t	gl_solidparticles = {"gl_solidparticles", "0"};
 
 int		lightmode = 2;
-
-void R_MarkLeaves (void);
-
 
 /*
 =================
@@ -151,6 +148,36 @@ qbool R_CullBox (vec3_t mins, vec3_t maxs)
 }
 
 /*
+===============
+R_CullModelForEntity
+
+uses correct bounds based on rotation
+===============
+*/
+qbool R_CullModelForEntity (entity_t *e)
+{
+	vec3_t mins, maxs;
+
+	if (e->angles[0] || e->angles[2]) // pitch or roll
+	{
+		VectorAdd (e->origin, e->model->rmins, mins);
+		VectorAdd (e->origin, e->model->rmaxs, maxs);
+	}
+	else if (e->angles[1]) // yaw
+	{
+		VectorAdd (e->origin, e->model->ymins, mins);
+		VectorAdd (e->origin, e->model->ymaxs, maxs);
+	}
+	else // no rotation
+	{
+		VectorAdd (e->origin, e->model->mins, mins);
+		VectorAdd (e->origin, e->model->maxs, maxs);
+	}
+
+	return R_CullBox (mins, maxs);
+}
+
+/*
 =================
 R_CullSphere
 
@@ -190,14 +217,10 @@ R_DrawEntitiesOnList
 void R_DrawEntitiesOnList (void)
 {
 	int		i;
-	qbool	draw_sprites;
-	qbool	draw_translucent;
 
 	if (!r_drawentities.value)
 		return;
-
-	draw_sprites = draw_translucent = false;
-
+	
 	for (i = 0; i < cl_numvisedicts; i++)
 	{
 		currententity = &cl_visedicts[i];
@@ -205,10 +228,7 @@ void R_DrawEntitiesOnList (void)
 		switch (currententity->model->type)
 		{
 			case mod_alias:
-				if (!(currententity->renderfx & RF_TRANSLUCENT))
-					R_DrawAliasModel (currententity);
-				else
-					draw_translucent = true;
+				R_DrawAliasModel (currententity);
 				break;
 
 			case mod_brush:
@@ -216,46 +236,12 @@ void R_DrawEntitiesOnList (void)
 				break;
 
 			case mod_sprite:
-				draw_sprites = true;
+				R_DrawSpriteModel (currententity);
 				break;
 
 			default:
 				break;
 		}
-	}
-
-	// draw sprites separately, because of alpha blending
-	if (draw_sprites)
-	{
-		GL_SelectTexture (GL_TEXTURE0_ARB);
-		qglEnable (GL_ALPHA_TEST);
-//		qglDepthMask (GL_FALSE);
-
-		for (i = 0; i < cl_numvisedicts; i++)
-		{
-			currententity = &cl_visedicts[i];
-
-			if (currententity->model->type == mod_sprite)
-				R_DrawSpriteModel (currententity);
-		}
-
-		qglDisable (GL_ALPHA_TEST);
-//		qglDepthMask (GL_TRUE);
-	}
-
-	// draw translucent models
-	if (draw_translucent)
-	{
-//		qglDepthMask (GL_FALSE);		// no z writes
-		for (i = 0; i < cl_numvisedicts; i++)
-		{
-			currententity = &cl_visedicts[i];
-
-			if (currententity->model->type == mod_alias
-					&& (currententity->renderfx & RF_TRANSLUCENT))
-				R_DrawAliasModel (currententity);
-		}
-//		qglDepthMask (GL_TRUE);
 	}
 }
 
@@ -449,9 +435,6 @@ void R_SetupFrame (void)
 	V_PrepBlend ();
 
 	r_cache_thrash = false;
-
-	c_brush_polys = 0;
-	c_alias_polys = 0;
 }
 
 
@@ -544,6 +527,7 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_fullbright);
 	Cvar_Register (&r_drawentities);
 	Cvar_Register (&r_drawflame);
+	Cvar_Register (&r_drawworld);
 	Cvar_Register (&r_shadows);
 	Cvar_Register (&r_wateralpha);
 	Cvar_Register (&r_dynamic);
@@ -556,7 +540,6 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_fastturb);
 
 	Cvar_Register (&gl_subdivide_size);
-	Cvar_Register (&gl_clear);
 	Cvar_Register (&gl_cull);
 	Cvar_Register (&gl_smoothmodels);
 	Cvar_Register (&gl_polyblend);
@@ -588,6 +571,193 @@ void R_Init (void)
 
 
 /*
+===============
+R_MarkSurfaces
+
+mark surfaces based on PVS and rebuild texture chains
+===============
+*/
+extern glpoly_t	*lightmap_polys[64];
+void R_MarkSurfaces (void)
+{
+	byte		*vis;
+	mleaf_t		*leaf;
+	mnode_t		*node;
+	msurface_t	*surf, **mark;
+	int			i, j;
+	byte		solid[MAX_MAP_LEAFS/8];
+
+	// clear lightmap chains
+	memset (lightmap_polys, 0, sizeof(lightmap_polys));
+
+	// choose vis data
+	if (r_novis.value || r_viewleaf->contents == CONTENTS_SOLID || r_viewleaf->contents == CONTENTS_SKY)
+	{
+		vis = solid;
+		memset (solid, 0xff, (r_worldmodel->numleafs+7)>>3);
+	}
+	else
+	{
+		vis = Mod_LeafPVS (r_viewleaf, r_worldmodel);
+		if (r_viewleaf2)
+		{
+			int			i, count;
+			unsigned	*src, *dest;
+
+			// merge visibility data for two leafs
+			count = (r_worldmodel->numleafs+7)>>3;
+			memcpy (solid, vis, count);
+			src = (unsigned *) Mod_LeafPVS (r_viewleaf2, r_worldmodel);
+			dest = (unsigned *) solid;
+			count = (count + 3)>>2;
+			for (i=0 ; i<count ; i++)
+				*dest++ |= *src++;
+			vis = solid;
+		}
+	}
+
+	// if surface chains don't need regenerating, just add static entities and return
+	if (r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
+	{
+		leaf = &r_worldmodel->leafs[1];
+		for (i=0 ; i<r_worldmodel->numleafs ; i++, leaf++)
+			if (vis[i>>3] & (1<<(i&7)))
+				if (leaf->efrags)
+					R_StoreEfrags (&leaf->efrags);
+		return;
+	}
+
+	r_visframecount++;
+	r_oldviewleaf = r_viewleaf;
+
+	// iterate through leaves, marking surfaces
+	leaf = &r_worldmodel->leafs[1];
+	for (i=0 ; i<r_worldmodel->numleafs ; i++, leaf++)
+	{
+		if (vis[i>>3] & (1<<(i&7)))
+		{
+			if (leaf->contents != CONTENTS_SKY)
+				for (j=0, mark = leaf->firstmarksurface; j<leaf->nummarksurfaces; j++, mark++)
+					(*mark)->visframe = r_visframecount;
+
+			// add static models
+			if (leaf->efrags)
+				R_StoreEfrags (&leaf->efrags);
+		}
+	}
+
+	// set all chains to null
+	for (i=0 ; i<r_worldmodel->numtextures ; i++)
+		if (r_worldmodel->textures[i])
+ 			r_worldmodel->textures[i]->texturechain = NULL;
+
+	// rebuild chains
+
+#if 1
+	// iterate through surfaces one node at a time to rebuild chains
+	// need to do it this way if we want to work with tyrann's skip removal tool
+	// becuase his tool doesn't actually remove the surfaces from the bsp surfaces lump
+	// nor does it remove references to them in each leaf's marksurfaces list
+	for (i=0, node = r_worldmodel->nodes ; i<r_worldmodel->numnodes ; i++, node++)
+	{
+		for (j=0, surf=&r_worldmodel->surfaces[node->firstsurface] ; j<node->numsurfaces ; j++, surf++)
+		{
+			if (surf->visframe == r_visframecount)
+			{
+				surf->texturechain = surf->texinfo->texture->texturechain;
+				surf->texinfo->texture->texturechain = surf;
+			}
+		}
+	}
+#else
+	// the old way
+	surf = &r_worldmodel->surfaces[r_worldmodel->firstmodelsurface];
+	for (i=0 ; i<r_worldmodel->nummodelsurfaces ; i++, surf++)
+	{
+		if (surf->visframe == r_visframecount)
+		{
+			surf->texturechain = surf->texinfo->texture->texturechain;
+			surf->texinfo->texture->texturechain = surf;
+		}
+	}
+#endif
+}
+
+/*
+================
+R_BackFaceCull
+
+returns true if the surface is facing away from vieworg
+================
+*/
+qbool R_BackFaceCull (msurface_t *surf)
+{
+	double dot;
+
+	switch (surf->plane->type)
+	{
+	case PLANE_X:
+		dot = r_refdef2.vieworg[0] - surf->plane->dist;
+		break;
+	case PLANE_Y:
+		dot = r_refdef2.vieworg[1] - surf->plane->dist;
+		break;
+	case PLANE_Z:
+		dot = r_refdef2.vieworg[2] - surf->plane->dist;
+		break;
+	default:
+		dot = DotProduct (r_refdef2.vieworg, surf->plane->normal) - surf->plane->dist;
+		break;
+	}
+
+	if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
+		return true;
+
+	return false;
+}
+
+/*
+================
+R_CullSurfaces
+================
+*/
+void R_CullSurfaces (void)
+{
+	msurface_t *s;
+	int i;
+
+	if (!r_drawworld.value)
+		return;
+
+	s = &r_worldmodel->surfaces[r_worldmodel->firstmodelsurface];
+	for (i=0 ; i<r_worldmodel->nummodelsurfaces ; i++, s++)
+	{
+		if (s->visframe == r_visframecount)
+		{
+			if (R_CullBox(s->mins, s->maxs) || R_BackFaceCull (s))
+			{
+				s->culled = true;
+			}
+			else
+			{
+				s->culled = false;
+				c_brush_polys++; // count wpolys here
+			}
+		}
+	}
+}
+
+/*
+=============
+R_Clear
+=============
+*/
+void R_Clear (void)
+{
+	qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+}
+
+/*
 ================
 R_RenderScene
 
@@ -597,12 +767,15 @@ r_refdef must be set before the first call
 void R_RenderScene (void)
 {
 	R_SetupFrame ();
-
 	R_SetFrustum ();
-
 	R_SetupGL ();
 
-	R_MarkLeaves ();	// done here so we know if we're in water
+	R_MarkSurfaces();	// create texture chains from PVS
+	R_CullSurfaces();
+
+	R_Clear ();
+
+	R_DrawSky ();
 
 	R_DrawWorld ();		// adds static entities to the list
 
@@ -610,37 +783,9 @@ void R_RenderScene (void)
 
 	R_DrawEntitiesOnList ();
 
-	GL_SelectTexture(GL_TEXTURE0_ARB);
-}
+	R_DrawTextureChains_Water ();
 
-
-/*
-=============
-R_Clear
-=============
-*/
-void R_Clear (void)
-{
-	static qbool cleartogray;
-	qbool	clear = false;
-
-	if (gl_clear.value) {
-		clear = true;
-		if (cleartogray) {
-			qglClearColor (1, 0, 0, 0);
-			cleartogray = false;
-		}
-	}
-
-	if (clear)
-		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	else
-		qglClear (GL_DEPTH_BUFFER_BIT);
-
-	gldepthmax = 1;
-	qglDepthFunc (GL_LEQUAL);
-
-	qglDepthRange (0, gldepthmax);
+	R_DrawParticles ();
 }
 
 /*
@@ -660,12 +805,8 @@ void R_RenderView (void)
 
 	RB_StartFrame ();
 
-	R_Clear ();
-
 	// render normal view
 	R_RenderScene ();
-	R_DrawWaterSurfaces ();
-	R_DrawParticles ();
 
 	RB_EndFrame ();
 }

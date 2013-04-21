@@ -65,9 +65,9 @@ static void rb_backend_start(void)
 			Com_Printf("Backend: OpenGL\n");
 			RB_GL11_Init ();
 			break;
-		case RENDERPATH_D3D11:
-			Com_Printf("Backend: Direct3D 11\n");
-			Sys_Error("TODO: D3D11");
+		case RENDERPATH_D3D:
+			Com_Printf("Backend: Direct3D\n");
+			Sys_Error("TODO: D3D");
 			break;
 	}
 }
@@ -86,11 +86,23 @@ void RB_InitBackend(void)
 	R_RegisterModule("RB_Backend", rb_backend_start, rb_backend_shutdown, rb_backend_newmap);
 }
 
+double	time1, time2;
+
 void RB_StartFrame (void)
 {
+	// reset counters
 	r_numverts = 0;
 	r_numtris = 0;
 	r_numflushes = 0;
+
+	c_brush_polys = c_brush_passes = 0;
+	c_alias_polys = 0;
+
+	if (r_speeds.value)
+	{
+		qglFinish ();
+		time1 = Sys_DoubleTime ();
+	}
 }
 
 void RB_EndFrame (void)
@@ -100,8 +112,11 @@ void RB_EndFrame (void)
 
 	if (r_speeds.value)
 	{
-		Com_Printf( "%4i wpoly %4i epoly %4i verts %4i tris %4i flushes\n",
-			c_brush_polys, 
+		time2 = Sys_DoubleTime ();
+		Com_Printf( "%3i ms  - %4i/%4i wpoly %4i epoly %4i verts %4i tris %4i flushes\n",
+			(int)((time2-time1)*1000),
+			c_brush_polys,
+			c_brush_passes,
 			c_alias_polys,
 			r_numverts,
 			r_numtris,
@@ -118,8 +133,8 @@ void RB_Finish(void)
 	case RENDERPATH_GL30:
 		qglFinish();
 		break;
-	case RENDERPATH_D3D11:
-		// no finish/flush in d3d11?
+	case RENDERPATH_D3D:
+		// no finish/flush in d3d?
 		break;
 	}
 }
@@ -134,8 +149,8 @@ void RB_Set2DProjections( void )
 	case RENDERPATH_GL30:
 		RB_GL11_Set2DProjections();
 		break;
-	case RENDERPATH_D3D11:
-		Sys_Error( "TODO: D3D11" );
+	case RENDERPATH_D3D:
+		Sys_Error( "TODO: D3D" );
 		break;
 	}
 }
@@ -146,12 +161,24 @@ void R_LockArrays (void)
 	if ( r_arrays_locked )
 		return;
 
-	if ( !gl_supportslockarrays )
-		return;
+	switch(vid.renderpath)
+	{
+	case RENDERPATH_GL11:
+	case RENDERPATH_GLES:
+	case RENDERPATH_GL30:
+		{
+			if ( !gl_supportslockarrays )
+				return;
 
-	if ( qglLockArraysEXT != 0 ) {
-		qglLockArraysEXT( 0, numVerts );
-		r_arrays_locked = true;
+			if ( qglLockArraysEXT != 0 ) {
+				qglLockArraysEXT( 0, numVerts );
+				r_arrays_locked = true;
+			}
+			break;
+		}
+	case RENDERPATH_D3D:
+		Sys_Error( "TODO: D3D" );
+		break;
 	}
 }
 
@@ -160,9 +187,21 @@ void R_UnlockArrays (void)
 	if ( !r_arrays_locked )
 		return;
 
-	if ( qglUnlockArraysEXT != 0 ) {
-		qglUnlockArraysEXT();
-		r_arrays_locked = false;
+	switch(vid.renderpath)
+	{
+	case RENDERPATH_GL11:
+	case RENDERPATH_GLES:
+	case RENDERPATH_GL30:
+		{
+			if ( qglUnlockArraysEXT != 0 ) {
+				qglUnlockArraysEXT();
+				r_arrays_locked = false;
+			}
+			break;
+		}
+	case RENDERPATH_D3D:
+		Sys_Error( "TODO: D3D" );
+		break;
 	}
 }
 
@@ -276,31 +315,4 @@ void R_VertexTCBase ( int tc_gen, qbool mtex )
 			}
 		}
 	}
-}
-
-qbool R_MeshWillNotFit ( int numvertexes, int numindexes )
-{
-	return ( numVerts + numvertexes > MAX_ARRAY_VERTS ||
-		numIndexes + numindexes > MAX_ARRAY_INDEXES );
-}
-
-/*
-================
-R_DrawTriangleOutlines
-================
-*/
-void R_DrawTriangleOutlines ( void )
-{
-	qglDisable( GL_TEXTURE_2D );
-	qglDisable( GL_DEPTH_TEST );
-	qglColor4f( 1, 1, 1, 1 );
-	qglDisable( GL_BLEND );
-//	qglPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-
-	R_FlushArrays();
-
-//	qglPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-	qglEnable( GL_DEPTH_TEST );
-	qglEnable( GL_TEXTURE_2D );
-	qglEnable( GL_BLEND );
 }

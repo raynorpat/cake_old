@@ -79,6 +79,35 @@ void GL_MBind( GLenum target, int texnum )
 	GL_Bind( texnum );
 }
 
+qbool mtexenabled = false;
+
+/*
+================
+GL_DisableMultitexture -- selects texture unit 0
+================
+*/
+void GL_DisableMultitexture(void)
+{
+	if (mtexenabled)
+	{
+		qglDisable(GL_TEXTURE_2D);
+		GL_SelectTexture(GL_TEXTURE0_ARB);
+		mtexenabled = false;
+	}
+}
+
+/*
+================
+GL_EnableMultitexture -- selects texture unit 1
+================
+*/
+void GL_EnableMultitexture(void)
+{
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	qglEnable(GL_TEXTURE_2D);
+	mtexenabled = true;
+}
+
 //====================================================================
 
 typedef struct
@@ -141,8 +170,16 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
     }
 	else
 	{
-        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		if (gl_support_clamptoedge)
+		{
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}
+		else
+		{
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		}
     }
 }
 

@@ -37,6 +37,8 @@ float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 #include "anorms.h"
 };
 
+qbool	shading = true;
+
 vec3_t	shadevector;
 float	shadescale = 0;
 
@@ -52,18 +54,21 @@ float	*shadedots = r_avertexnormal_dots[0];
 
 int	lastposenum;
 
+extern qbool mtexenabled;
+
 /*
 =============
 GL_DrawAliasFrame
 =============
 */
-void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
+void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 {
 	int		i;
 	float	l_v[4];
 	trivertx_t	*verts;
 	int		*order;
 	int		count;
+	float	u,v;
 
 	if (currententity->renderfx & RF_TRANSLUCENT)
 	{
@@ -93,26 +98,32 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum, qbool mtex)
 		do
 		{
 			// texture coordinates come from the draw list
-			if (mtex)
+			u = ((float *)order)[0];
+			v = ((float *)order)[1];
+			if (mtexenabled)
 			{
-				qglMultiTexCoord2f (GL_TEXTURE0_ARB, ((float *) order)[0], ((float *) order)[1]);
-				qglMultiTexCoord2f (GL_TEXTURE1_ARB, ((float *) order)[0], ((float *) order)[1]);
+				qglMultiTexCoord2f (GL_TEXTURE0_ARB, u, v);
+				qglMultiTexCoord2f (GL_TEXTURE1_ARB, u, v);
 			}
 			else
 			{
-				qglTexCoord2f (((float *) order)[0], ((float *) order)[1]);
+				qglTexCoord2f (u, v);
 			}
 
 			order += 2;
 
 			// normals and vertexes come from the frame list
-			for (i = 0; i < 3; i++) {
-				l_v[i] = (shadedots[verts->lightnormalindex] * shadelight_v[i] + ambientlight_v[i]) / 256.0;
+			if (shading)
+			{
+				for (i = 0; i < 3; i++) {
+					l_v[i] = (shadedots[verts->lightnormalindex] * shadelight_v[i] + ambientlight_v[i]) / 256.0;
 			
-				if (l_v[i] > 1)
-					l_v[i] = 1;
+					if (l_v[i] > 1)
+						l_v[i] = 1;
+				}
+				qglColor4fv (l_v);
 			}
-			qglColor4fv (l_v);
+
 			qglVertex3f (verts->v[0], verts->v[1], verts->v[2]);
 			verts++;
 		} while (--count);
@@ -180,15 +191,12 @@ void GL_DrawAliasShadow (aliashdr_t *paliashdr, int posenum)
 	}	
 }
 
-
-
 /*
 =================
 R_SetupAliasFrame
-
 =================
 */
-void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr, qbool mtex)
+void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr)
 {
 	int				pose, numposes;
 	float			interval;
@@ -208,11 +216,8 @@ void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr, qbool mtex)
 		pose += (int)(r_refdef2.time / interval) % numposes;
 	}
 
-	GL_DrawAliasFrame (paliashdr, pose, mtex);
+	GL_DrawAliasFrame (paliashdr, pose);
 }
-
-
-void GL_SelectTexture (GLenum target);
 
 // Because of poor quality of the lits out there, in many situations
 // I'd prefer the models not to be colored at all.
@@ -237,7 +242,6 @@ void R_DrawAliasModel (entity_t *ent)
 	int			lnum;
 	vec3_t		dist;
 	float		add;
-	vec3_t		mins, maxs;
 	aliashdr_t	*paliashdr;
 	int			anim, skinnum;
 	qbool		full_light;
@@ -247,19 +251,9 @@ void R_DrawAliasModel (entity_t *ent)
 	float		shadelight, ambientlight;
 	float	original_light;
 
-	VectorAdd (ent->origin, clmodel->mins, mins);
-	VectorAdd (ent->origin, clmodel->maxs, maxs);
-
-	if (ent->angles[0] || ent->angles[1] || ent->angles[2])
-	{
-		if (R_CullSphere (ent->origin, clmodel->radius))
-			return;
-	}
-	else
-	{
-		if (R_CullBox (mins, maxs))
-			return;
-	}
+	// cull it
+	if (R_CullModelForEntity(ent))
+		return;
 
 	VectorCopy (ent->origin, r_entorigin);
 	VectorSubtract (r_origin, r_entorigin, modelorg);
@@ -335,6 +329,7 @@ void R_DrawAliasModel (entity_t *ent)
 	}
 
 	shadedots = r_avertexnormal_dots[((int)(ent->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1)];
+	shading = true;
 
 	//
 	// locate the proper data
@@ -352,7 +347,7 @@ void R_DrawAliasModel (entity_t *ent)
 
 	if (clmodel->modhint == MOD_EYES) {
 		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2] - (22 + 8));
-	// double size of eyes, since they are really hard to see in gl
+		// HACK: double size of eyes, since they are really hard to see in gl
 		qglScalef (paliashdr->scale[0]*2, paliashdr->scale[1]*2, paliashdr->scale[2]*2);
 	} else {
 		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
@@ -365,6 +360,8 @@ void R_DrawAliasModel (entity_t *ent)
 		Com_DPrintf ("R_DrawAliasModel: no such skin # %d\n", skinnum);
 		skinnum = 0;
 	}
+
+	GL_DisableMultitexture();
 
 	texture = paliashdr->gl_texture[skinnum][anim];
 	fb_texture = paliashdr->fb_texture[skinnum][anim];
@@ -392,61 +389,83 @@ void R_DrawAliasModel (entity_t *ent)
 
 	// hack the depth range to prevent view model from poking into walls
 	if (ent->renderfx & RF_WEAPONMODEL)
-		qglDepthRange (0, 0.3*(gldepthmax));
-	
-	if (fb_texture) {
-		GL_SelectTexture (GL_TEXTURE0_ARB);
+		qglDepthRange (0, 0.3);
+
+	if (r_fullbright.value)
+	{
 		GL_Bind (texture->texnum);
-		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		shading = false;
+		qglColor4f(1,1,1,1);
+		R_SetupAliasFrame (ent->frame, paliashdr);
+		if (fb_texture)
+		{
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_Bind(fb_texture->texnum);
 
-		GL_SelectTexture (GL_TEXTURE1_ARB);
-		GL_Bind (fb_texture->texnum);
-		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+			qglEnable(GL_BLEND);
+			qglBlendFunc (GL_ONE, GL_ONE);
+			qglDepthMask(GL_FALSE);
+			qglColor4f(1,1,1,1);
 
-		R_SetupAliasFrame (ent->frame, paliashdr, true);
+			R_SetupAliasFrame (ent->frame, paliashdr);
+
+			qglDepthMask(GL_TRUE);
+			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			qglDisable(GL_BLEND);
+		}
 	}
 	else
 	{
-		GL_SelectTexture (GL_TEXTURE0_ARB);
-		GL_Bind (texture->texnum);
-		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		if (fb_texture && gl_support_texture_add)
+		{
+			// fullbright mask using multitexture
+			GL_DisableMultitexture(); // selects TEXTURE0
+			GL_Bind (texture->texnum);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-		R_SetupAliasFrame (ent->frame, paliashdr, false);
+			GL_EnableMultitexture(); // selects TEXTURE1
+			GL_Bind (fb_texture->texnum);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
+			qglEnable(GL_BLEND);
+
+			R_SetupAliasFrame (ent->frame, paliashdr);
+
+			qglDisable(GL_BLEND);
+			GL_DisableMultitexture();
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		else
+		{
+			// fullbright mask without multitexture
+			GL_Bind (texture->texnum);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			R_SetupAliasFrame (ent->frame, paliashdr);
+			if (fb_texture)
+			{
+				GL_Bind(fb_texture->texnum);
+				qglEnable(GL_BLEND);
+				qglBlendFunc (GL_ONE, GL_ONE);
+				qglDepthMask(GL_FALSE);
+				shading = false;
+				qglColor4f(1,1,1,1);
+
+				R_SetupAliasFrame (ent->frame, paliashdr);
+
+				qglDepthMask(GL_TRUE);
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				qglDisable(GL_BLEND);
+			}
+		}
 	}
 
+	// restore normal depth range
 	if (ent->renderfx & RF_WEAPONMODEL)
-		qglDepthRange (0, gldepthmax);	// restore normal depth range
+		qglDepthRange (0, 1);
 
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	qglColor4f (1, 1, 1, 1);
+	qglDepthMask(GL_TRUE);
+	qglDisable(GL_BLEND);
 	qglPopMatrix ();
-
-	if (r_shadows.value && !full_light && !(ent->renderfx & RF_WEAPONMODEL))
-	{
-		float an = -ent->angles[1] / 180 * M_PI;
-		
-		if (!shadescale)
-			shadescale = 1/sqrt(2.0f);
-
-		shadevector[0] = cos(an) * shadescale;
-		shadevector[1] = sin(an) * shadescale;
-		shadevector[2] = shadescale;
-
-		qglPushMatrix ();
-
-		qglTranslatef (ent->origin[0],  ent->origin[1],  ent->origin[2]);
-		qglRotatef (ent->angles[1],  0, 0, 1);
-
-		//FIXME qglRotatef (-ent->angles[0],  0, 1, 0);
-		//FIXME qglRotatef (ent->angles[2],  1, 0, 0);
-
-		qglDisable (GL_TEXTURE_2D);
-		qglEnable (GL_BLEND);
-		qglColor4f (0, 0, 0, 0.5);
-		GL_DrawAliasShadow (paliashdr, lastposenum);
-		qglEnable (GL_TEXTURE_2D);
-		qglDisable (GL_BLEND);
-		qglPopMatrix ();
-	}
-
-	qglColor3f (1, 1, 1);
 }
 
