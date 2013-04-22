@@ -222,15 +222,9 @@ float turbsin[] =
 {
 	#include "gl_warp_sin.h"
 };
-#define TURBSCALE (256.0 / (2 * M_PI))
 
-
-#define TURBWARP_OLD(s, t)	\
-	((s + turbsin[(int) ((t * 0.125 + r_refdef2.time) * TURBSCALE) & 255]) * 1 / 64.0f)
-
-#define TURBWARP_NEW(s, t)	\
-	((s + turbsin[(int) ((t * 2) + r_refdef2.time * TURBSCALE) & 255]) * 1 / 64.0f)
-
+#define TURBWARP(s, t)	\
+	((s + turbsin[(int) ((t * 2) + r_refdef2.time * (128.0 / M_PI)) & 255]) * (1.0f / 64.0f))
 
 /*
 =============
@@ -250,7 +244,7 @@ void EmitWaterPolys (msurface_t *fa)
 		qglBegin (GL_POLYGON);
 		for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
 		{
-			qglTexCoord2f (TURBWARP_NEW(v[3], v[4]), TURBWARP_NEW(v[4], v[3]));
+			qglTexCoord2f (TURBWARP(v[3], v[4]), TURBWARP(v[4], v[3]));
 			qglVertex3fv (v);
 		}
 		qglEnd ();
