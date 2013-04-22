@@ -137,7 +137,6 @@ void Host_InitLocal (void)
 	Cvar_Register (&host_mapname);
 }
 
-extern void R_FlushCaches (void);
 extern void Mod_ClearAll (void);
 
 /*
@@ -151,10 +150,6 @@ Can only be called when changing levels!
 void Host_ClearMemory ()
 {
 	Com_DPrintf ("Clearing memory\n");
-
-	// FIXME, move to CL_ClearState
-	if (!dedicated)
-		R_FlushCaches ();
 
 	// FIXME, move to CL_ClearState
 #ifndef SERVERONLY

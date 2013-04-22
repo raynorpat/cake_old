@@ -613,6 +613,7 @@ R_Init
 */
 void R_Init (void)
 {
+	RB_InitBackend ();
 	GL_Main_Init ();
 	TexMgr_Init ();
 	R_Draw_Init ();

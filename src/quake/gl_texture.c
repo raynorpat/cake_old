@@ -832,7 +832,7 @@ static void TexMgr_InitParticleTexture (void)
 		}
 	}
 
-	particletexture = TexMgr_LoadImage (NULL, "particle", 2, 2, SRC_RGBA, data, "", (unsigned)data, TEXPREF_PERSIST | TEXPREF_NEAREST);
+	particletexture = TexMgr_LoadImage (NULL, "particle", 2, 2, SRC_RGBA, data, "", (unsigned)data, TEXPREF_NEAREST);
 }
 
 static void r_textures_start(void)
@@ -843,7 +843,7 @@ static void r_textures_start(void)
 	TexMgr_LoadPalette ();
 
 	// load notexture image
-	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_PERSIST | TEXPREF_NEAREST);
+	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST);
 
 	// generate particle images
 	TexMgr_InitParticleTexture ();
@@ -869,17 +869,6 @@ static void r_textures_shutdown(void)
 
 static void r_textures_newmap(void)
 {
-}
-
-/*
-================
-TexMgr_Flush
-================
-*/
-void TexMgr_Flush (void)
-{
-	TexMgr_FreeTextures (0, TEXPREF_PERSIST); // deletes all textures where TEXPREF_PERSIST is unset
-	TexMgr_LoadPalette ();
 }
 
 /*

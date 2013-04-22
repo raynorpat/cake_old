@@ -160,8 +160,6 @@ void R_RSShot (byte **pcxdata, int *pcxsize);
 //
 extern qbool	r_cache_thrash;	// set if thrashing the surface cache
 
-void R_FlushCaches (void);
-
 void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 
 // 2D drawing functions
@@ -175,7 +173,6 @@ void R_LoadingScreen (void);
 void R_FadeScreen (void);
 mpic_t *R_CachePic (char *path);
 mpic_t *R_CacheWadPic (char *name);
-void R_FlushPics (void);
 void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float alpha);
 void R_DrawCrosshair (int num, byte color, int crossx, int crossy);
 

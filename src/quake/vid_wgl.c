@@ -878,8 +878,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 	VID_CheckExtensions();
 
-	RB_InitBackend ();
-
 	vid_usingmouse = false;
 	vid_usingvsync = false;
 	vid_hidden = false;

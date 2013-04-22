@@ -149,19 +149,6 @@ int CL_Stat_Monsters (void) { return cl.stats[STAT_MONSTERS]; }
 int CL_Stat_TotalMonsters (void) { return cl.stats[STAT_TOTALMONSTERS]; }
 
 /*
-*/
-extern void TexMgr_Flush (void);
-void CL_GamedirChanged (void)
-{
-	if (dedicated || !cls.initialized)
-		return;
-
-	// free old data and load a new gfx.wad
-	TexMgr_Flush ();
-	R_FlushPics ();
-}
-
-/*
 ==================
 CL_UserinfoChanged
 

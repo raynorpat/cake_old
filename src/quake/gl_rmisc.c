@@ -237,12 +237,6 @@ void R_NewMap (struct model_s *worldmodel)
 }
 
 
-void R_FlushCaches (void)
-{
-
-}
-
-
 void R_LoadSky_f ()
 {
 	if (Cmd_Argc() < 2) {

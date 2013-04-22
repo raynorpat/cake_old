@@ -389,9 +389,8 @@ void GL_DisableMultitexture(void);
 #define TEXPREF_LINEAR			0x0002	// force linear
 #define TEXPREF_NEAREST			0x0004	// force nearest
 #define TEXPREF_UPSCALE			0x0008	// use hq2x upscale
-#define TEXPREF_PERSIST			0x0010	// never free
-#define TEXPREF_OVERWRITE		0x0020	// overwrite existing same-name texture
-#define TEXPREF_NOPICMIP		0x0040	// always load full-sized
+#define TEXPREF_OVERWRITE		0x0010	// overwrite existing same-name texture
+#define TEXPREF_NOPICMIP		0x0020	// always load full-sized
 
 enum srcformat {SRC_INDEXED, SRC_INDEXED_UPSCALE, SRC_LIGHTMAP, SRC_RGBA};
 
@@ -421,7 +420,6 @@ typedef struct gltexture_s
 
 gltexture_t *notexture, *particletexture;
 
-void TexMgr_Flush (void);
 void TexMgr_Init (void);
 
 gltexture_t *TexMgr_FindTexture (model_t *owner, char *name);

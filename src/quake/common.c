@@ -960,9 +960,6 @@ void FS_SetGamedir (char *dir)
 
 	sprintf (com_gamedir, "%s/%s", com_basedir, dir);
 
-	if (!strcmp(dir, "id1") || !strcmp(dir, "qw"))
-		goto breakOut;
-
 	//
 	// add the directory to the search path
 	//
@@ -986,10 +983,6 @@ void FS_SetGamedir (char *dir)
 		search->next = com_searchpaths;
 		com_searchpaths = search;		
 	}
-
-breakOut:
-	// notify the client so that it reloads its data, etc
-	CL_GamedirChanged ();
 }
 
 /*

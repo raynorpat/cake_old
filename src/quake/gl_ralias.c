@@ -540,7 +540,6 @@ void R_DrawAliasShadow (entity_t *e)
 	float		lheight;
 	aliashdr_t	*paliashdr;
 	vec3_t		lightcolor;
-	vec3_t		mins, maxs;
 
 	if (R_CullModelForEntity(e))
 		return;
