@@ -272,6 +272,29 @@ void R_DrawEntitiesOnList (void)
 }
 
 /*
+================
+R_DrawShadows
+================
+*/
+void R_DrawShadows (void)
+{
+	int i;
+
+	if (!r_shadows.value || !r_drawentities.value || r_lightmap.value)
+		return;
+
+	for (i=0 ; i<cl_numvisedicts ; i++)
+	{
+		currententity = &cl_visedicts[i];
+
+		if (currententity->model->type != mod_alias)
+			continue;
+
+		R_DrawAliasShadow (currententity);
+	}
+}
+
+/*
 ===============
 R_DrawParticles
 ===============
@@ -807,6 +830,8 @@ void R_RenderScene (void)
 	R_DrawWorld ();		// adds static entities to the list
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
+
+	R_DrawShadows ();	// render entity shadows
 
 	R_DrawEntitiesOnList ();
 

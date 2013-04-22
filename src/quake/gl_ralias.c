@@ -137,61 +137,6 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 
 
 /*
-=============
-GL_DrawAliasShadow
-=============
-*/
-extern	vec3_t			lightspot;
-
-void GL_DrawAliasShadow (aliashdr_t *paliashdr, int posenum)
-{
-	trivertx_t	*verts;
-	int		*order;
-	vec3_t	point;
-	int		count;
-	float	lheight = currententity->origin[2] - lightspot[2];
-	float	height = 1 - lheight;
-
-	verts = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
-	verts += posenum * paliashdr->poseverts;
-	order = (int *)((byte *)paliashdr + paliashdr->commands);
-
-	while ((count = *order++))
-	{
-		// get the vertex count and primitive type
-		if (count < 0)
-		{
-			count = -count;
-			qglBegin (GL_TRIANGLE_FAN);
-		}
-		else
-			qglBegin (GL_TRIANGLE_STRIP);
-
-		do
-		{
-			// texture coordinates come from the draw list
-			// (skipped for shadows) qglTexCoord2fv ((float *)order);
-			order += 2;
-
-			// normals and vertexes come from the frame list
-			point[0] = verts->v[0] * paliashdr->scale[0] + paliashdr->scale_origin[0];
-			point[1] = verts->v[1] * paliashdr->scale[1] + paliashdr->scale_origin[1];
-			point[2] = verts->v[2] * paliashdr->scale[2] + paliashdr->scale_origin[2];
-
-			point[0] -= shadevector[0]*(point[2]+lheight);
-			point[1] -= shadevector[1]*(point[2]+lheight);
-			point[2] = height;
-//			height -= 0.001;
-			qglVertex3fv (point);
-
-			verts++;
-		} while (--count);
-
-		qglEnd ();
-	}	
-}
-
-/*
 =================
 R_SetupAliasFrame
 =================
@@ -262,7 +207,7 @@ void R_DrawAliasModel (entity_t *ent)
 	// get lighting information
 	//
 
-// make thunderbolt and torches full light
+	// make thunderbolt and torches full light
 	if (clmodel->modhint == MOD_THUNDERBOLT) {
 		ambientlight = 210;
 		shadelight = 0;
@@ -571,3 +516,69 @@ void R_DrawAliasModel (entity_t *ent)
 	qglPopMatrix ();
 }
 
+// values for shadow matrix
+#define SHADOW_SKEW_X -0.7	// skew along x axis. -0.7 to mimic glquake shadows
+#define SHADOW_SKEW_Y 0		// skew along y axis. 0 to mimic glquake shadows
+#define SHADOW_VSCALE 0		// 0 = completely flat
+#define SHADOW_HEIGHT 0.1	// how far above the floor to render the shadow
+
+extern	vec3_t			lightspot;
+
+/*
+=============
+R_DrawAliasShadow
+
+TODO: orient shadow onto "lightplane" (a global mplane_t*)
+=============
+*/
+void R_DrawAliasShadow (entity_t *e)
+{
+	float	shadowmatrix[16] = {1,				0,				0,				0,
+								0,				1,				0,				0,
+								SHADOW_SKEW_X,	SHADOW_SKEW_Y,	SHADOW_VSCALE,	0,
+								0,				0,				SHADOW_HEIGHT,	1};
+	float		lheight;
+	aliashdr_t	*paliashdr;
+	vec3_t		lightcolor;
+	vec3_t		mins, maxs;
+
+	if (R_CullModelForEntity(e))
+		return;
+
+	if (e->renderfx & RF_WEAPONMODEL)
+		return;
+	
+	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
+
+	R_LightPoint (e->origin, lightcolor);
+	lheight = currententity->origin[2] - lightspot[2];
+
+	// set up matrix
+    qglPushMatrix ();
+	qglTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
+	qglTranslatef (0,0,-lheight);
+	qglMultMatrixf (shadowmatrix);
+	qglTranslatef (0,0,lheight);
+	qglRotatef (e->angles[1],  0, 0, 1);
+	qglRotatef (-e->angles[0],  0, 1, 0);
+	qglRotatef (e->angles[2],  1, 0, 0);
+	qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
+	qglScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
+
+	// draw it
+	qglDepthMask(GL_FALSE);
+	qglEnable (GL_BLEND);
+	GL_DisableMultitexture ();
+	qglDisable (GL_TEXTURE_2D);
+	shading = false;
+	qglColor4f(0,0,0,0.5);
+
+	R_SetupAliasFrame (e->frame, paliashdr);
+
+	qglEnable (GL_TEXTURE_2D);
+	qglDisable (GL_BLEND);
+	qglDepthMask(GL_TRUE);
+
+	// clean up
+	qglPopMatrix ();
+}

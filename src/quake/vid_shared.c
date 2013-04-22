@@ -152,7 +152,7 @@ void (GLAPIENTRY *qglLoadIdentity)(void);
 //void (GLAPIENTRY *qglLoadMatrixd)(const GLdouble *m);
 void (GLAPIENTRY *qglLoadMatrixf)(const GLfloat *m);
 //void (GLAPIENTRY *qglMultMatrixd)(const GLdouble *m);
-//void (GLAPIENTRY *qglMultMatrixf)(const GLfloat *m);
+void (GLAPIENTRY *qglMultMatrixf)(const GLfloat *m);
 //void (GLAPIENTRY *qglRotated)(GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
 void (GLAPIENTRY *qglRotatef)(GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
 //void (GLAPIENTRY *qglScaled)(GLdouble x, GLdouble y, GLdouble z);
@@ -321,7 +321,7 @@ static dllfunction_t opengl110funcs[] =
 //	{"glLoadMatrixd", (void **) &qglLoadMatrixd},
 	{"glLoadMatrixf", (void **) &qglLoadMatrixf},
 //	{"glMultMatrixd", (void **) &qglMultMatrixd},
-//	{"glMultMatrixf", (void **) &qglMultMatrixf},
+	{"glMultMatrixf", (void **) &qglMultMatrixf},
 //	{"glRotated", (void **) &qglRotated},
 	{"glRotatef", (void **) &qglRotatef},
 //	{"glScaled", (void **) &qglScaled},

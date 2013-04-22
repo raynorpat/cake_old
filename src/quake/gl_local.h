@@ -246,7 +246,7 @@ extern void (GLAPIENTRY *qglLoadIdentity)(void);
 //extern void (GLAPIENTRY *qglLoadMatrixd)(const GLdouble *m);
 extern void (GLAPIENTRY *qglLoadMatrixf)(const GLfloat *m);
 //extern void (GLAPIENTRY *qglMultMatrixd)(const GLdouble *m);
-//extern void (GLAPIENTRY *qglMultMatrixf)(const GLfloat *m);
+extern void (GLAPIENTRY *qglMultMatrixf)(const GLfloat *m);
 //extern void (GLAPIENTRY *qglRotated)(GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
 extern void (GLAPIENTRY *qglRotatef)(GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
 //extern void (GLAPIENTRY *qglScaled)(GLdouble x, GLdouble y, GLdouble z);
@@ -491,6 +491,7 @@ void R_NetGraph (void);
 // gl_ralias.c
 //
 void R_DrawAliasModel (entity_t *ent);
+void R_DrawAliasShadow (entity_t *e);
 
 //
 // gl_rsprite.c
