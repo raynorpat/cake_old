@@ -67,6 +67,7 @@ char gl_driver[256];
 
 // GL_ARB_multitexture
 int gl_textureunits = 0;
+int gl_maxtexturesize = 256;
 // GL_EXT_compiled_vertex_array
 int gl_supportslockarrays = false;
 // GLX_SGI_video_sync or WGL_EXT_swap_control
@@ -77,6 +78,8 @@ int gl_support_clamptoedge = false;
 int gl_support_texture_combine = false;
 // GL_ARB_texture_env_add
 int gl_support_texture_add = false;
+// GL_ARB_texture_non_power_of_two
+int gl_support_texture_npot = false;
 
 // GL_ARB_multitexture
 void (GLAPIENTRY *qglMultiTexCoord2f) (GLenum, GLfloat, GLfloat);
@@ -195,6 +198,9 @@ void (GLAPIENTRY *qglCopyTexSubImage3D)(GLenum target, GLint level, GLint xoffse
 void (GLAPIENTRY *qglScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
 
 void (GLAPIENTRY *qglPolygonOffset)(GLfloat factor, GLfloat units);
+
+// OpenGL 3.0 core functions
+void (GLAPIENTRY *qglGenerateMipmap)(GLenum target);
 
 int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, char *disableparm, int silent)
 {
@@ -368,6 +374,12 @@ static dllfunction_t compiledvertexarrayfuncs[] =
 	{NULL, NULL}
 };
 
+static dllfunction_t opengl30funcs[] =
+{
+	{"glGenerateMipmap", (void **) &qglGenerateMipmap },
+	{NULL, NULL}
+};
+
 void VID_CheckExtensions(void)
 {
 	vid.renderpath = RENDERPATH_GL11;
@@ -375,10 +387,12 @@ void VID_CheckExtensions(void)
 	// reset all the gl extension variables here
 	// this should match the declarations
 	gl_textureunits = 1;
+	gl_maxtexturesize = 256;
 	gl_supportslockarrays = false;
 	gl_support_clamptoedge = false;
 	gl_support_texture_combine = false;
 	gl_support_texture_add = false;
+	gl_support_texture_npot = false;
 
 	if (!GL_CheckExtension("glbase", opengl110funcs, NULL, false))
 		Sys_Error("OpenGL 1.1.0 functions not found");
@@ -390,12 +404,21 @@ void VID_CheckExtensions(void)
 	Com_DPrintf ("%s_EXTENSIONS: %s\n", gl_platform, gl_platformextensions);
 
 	if (GL_CheckExtension("GL_ARB_multitexture", multitexturefuncs, "-nomtex", false))
+	{
 		qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_textureunits);
+		qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_maxtexturesize);
+	}
+
+	if (GL_CheckExtension("gl3", opengl30funcs, NULL, false))
+	{
+		// todo: grab shader limits, etc...
+	}
 
 	gl_supportslockarrays = GL_CheckExtension("GL_EXT_compiled_vertex_array", compiledvertexarrayfuncs, "-nocva", false);
 	gl_support_clamptoedge = GL_CheckExtension("GL_EXT_texture_edge_clamp", NULL, "-noedgeclamp", false) || GL_CheckExtension("GL_SGIS_texture_edge_clamp", NULL, "-noedgeclamp", false);
 	gl_support_texture_combine = GL_CheckExtension("GL_ARB_texture_env_combine", NULL, "-notexcombine", false) || GL_CheckExtension("GL_EXT_texture_env_combine", NULL, "-notexcombine", false);
 	gl_support_texture_add = GL_CheckExtension("GL_ARB_texture_env_add", NULL, "-notexadd", false) || GL_CheckExtension("GL_EXT_texture_env_add", NULL, "-notexadd", false);
+	gl_support_texture_npot = GL_CheckExtension("GL_ARB_texture_non_power_of_two", NULL, "-nonpottex", false) && (gl_maxtexturesize >= 8192);
 }
 
 static void BuildGammaTable16(float prescale, float gamma, float scale, float base, unsigned short *out)

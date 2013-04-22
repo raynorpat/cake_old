@@ -47,6 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // GL_ARB_multitexture
 extern int gl_textureunits;
+extern int gl_maxtexturesize;
 extern void (GLAPIENTRY *qglMultiTexCoord2f) (GLenum, GLfloat, GLfloat);
 extern void (GLAPIENTRY *qglActiveTexture) (GLenum);
 extern void (GLAPIENTRY *qglClientActiveTexture) (GLenum);
@@ -135,6 +136,9 @@ extern int gl_support_texture_combine;
 
 // GL_ARB_texture_env_add
 extern int gl_support_texture_add;
+
+// GL_ARB_texture_non_power_of_two
+extern int gl_support_texture_npot;
 
 #ifndef GL_VERSION_1_2
 #define GL_UNSIGNED_BYTE_3_3_2            0x8032
@@ -295,6 +299,9 @@ extern PROC (WINAPI *qwglGetProcAddress)(LPCSTR);
 extern BOOL (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 extern BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
 #endif
+
+// OpenGL 3.0 core functions
+extern void (GLAPIENTRY *qglGenerateMipmap)(GLenum target);
 
 //====================================================
 

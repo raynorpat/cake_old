@@ -415,6 +415,19 @@ static inline unsigned npot32(unsigned k)
     return k + 1;
 }
 
+static qbool makePowerOfTwo(int *width, int *height)
+{
+    if (!(*width & (*width - 1)) && !(*height & (*height - 1)))
+        return true;   // already power of two
+
+    if (gl_support_texture_npot && (qglGenerateMipmap != NULL))
+        return false;  // assume full NPOT texture support
+
+    *width = npot32(*width);
+    *height = npot32(*height);
+    return false;
+}
+
 /*
 ================
 mipMap
@@ -505,18 +518,14 @@ handles 32bit source data
 void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
 {
 	byte        *scaled;
-    int         scaled_width, scaled_height, maxsize;
+    int         scaled_width, scaled_height;
     qbool		power_of_two;
 
-	// find the next-highest power of two
-    scaled_width = npot32(glt->width);
-    scaled_height = npot32(glt->height);
+    scaled_width = glt->width;
+    scaled_height = glt->height;
+    power_of_two = makePowerOfTwo(&scaled_width, &scaled_height);
 
-    // save the flag indicating if costly resampling can be avoided
-    power_of_two = (scaled_width == glt->width && scaled_height == glt->height);
-
-	maxsize = MAX_TEXTURE_SIZE; // HACK!
-    if ((glt->flags & TEXPREF_MIPMAP) && !(glt->flags & TEXPREF_NOPICMIP))
+	if ((glt->flags & TEXPREF_MIPMAP) && !(glt->flags & TEXPREF_NOPICMIP))
 	{
         // let people sample down the textures for speed
         scaled_width >>= (int)gl_picmip.value;
@@ -524,7 +533,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
     }
 
     // don't ever bother with > 256 textures
-    while (scaled_width > maxsize || scaled_height > maxsize)
+    while (scaled_width > gl_maxtexturesize || scaled_height > gl_maxtexturesize)
 	{
         scaled_width >>= 1;
         scaled_height >>= 1;
@@ -564,17 +573,21 @@ void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
 	{
-		int miplevel = 0;
+		if (qglGenerateMipmap != NULL) {
+			qglGenerateMipmap (GL_TEXTURE_2D);
+		} else {
+			int miplevel = 0;
 
-		while (scaled_width > 1 || scaled_height > 1)
-		{
-			mipMap (scaled, scaled, scaled_width, scaled_height);
+			while (scaled_width > 1 || scaled_height > 1)
+			{
+				mipMap (scaled, scaled, scaled_width, scaled_height);
 
-			scaled_width = max (scaled_width >> 1, 1);
-			scaled_height = max (scaled_height >> 1, 1);
+				scaled_width = max (scaled_width >> 1, 1);
+				scaled_height = max (scaled_height >> 1, 1);
 
-			miplevel++;
-			qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+				miplevel++;
+				qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+			}
 		}
 	}
 
