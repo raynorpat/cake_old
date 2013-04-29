@@ -81,10 +81,6 @@ void Con_ToggleConsole_f (void)
 	else
 		key_dest = key_console;
 
-#ifdef AGRIP
-        key_dest == key_console ? Sys_Printf("!Entering console.\n") : Sys_Printf("!Exiting console.\n");
-#endif
-
 	SCR_EndLoadingPlaque ();
 	Con_ClearNotify ();
 }
@@ -167,7 +163,7 @@ void Con_CheckResize (void)
 
 	if (width < 1)			// video hasn't been initialized yet
 	{
-		width = 38;
+		width = 78;
 		con_linewidth = width;
 		con_totallines = CON_TEXTSIZE / con_linewidth;
 		memset (con.text, ' ', CON_TEXTSIZE);
@@ -308,8 +304,7 @@ void Con_Linefeed (void)
 	con.current++;
 	if (con.numlines < con_totallines)
 		con.numlines++;
-	memset (&con.text[(con.current%con_totallines)*con_linewidth]
-	, ' ', con_linewidth);
+	memset (&con.text[(con.current%con_totallines)*con_linewidth], ' ', con_linewidth);
 }
 
 /*
