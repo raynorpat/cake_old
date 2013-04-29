@@ -23,8 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rc_wad.h"
 #include "crc.h"
 
-//#define HALFLIFEBSP	// enable Half-Life map support
-
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
@@ -411,28 +409,10 @@ void Mod_LoadTextures (lump_t *l)
 		for (j = 0; j < MIPLEVELS; j++)
 			tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
 
-#ifdef HALFLIFEBSP
-		if (loadmodel->halflifebsp) {
-			byte *data;
-			if ((data = WAD3_LoadTexture(mt)) != NULL) {
-				qbool alpha = (tx->name[0] == '{');
-				tx->gl_texturenum = GL_LoadTexture32 (tx->name, tx->width, tx->height, data, true, alpha, true);
-				Q_free (data);
-				continue;
-			}
-		}
-#endif
-
 		if (mt->offsets[0])
 		{
 			// the pixels immediately follow the structures
 			memcpy (tx+1, mt+1, pixels);
-
-			// just for r_fastturb's sake
-			{
-				byte *data = (byte *) &d_8to24table[*((byte *) mt + mt->offsets[0] + ((mt->height * mt->width) >> 1))];
-				tx->flatcolor3ub = (255 << 24) + (data[0] << 0) + (data[1] << 8) + (data[2] << 16);
-			}
 		}
 		else
 		{
@@ -442,7 +422,7 @@ void Mod_LoadTextures (lump_t *l)
 			continue;
 		}
 
-		if (!loadmodel->halflifebsp && !strncmp(mt->name,"sky",3))
+		if (!strncmp(mt->name,"sky",3))
 		{
 			R_InitSky (tx);
 		}
@@ -574,15 +554,7 @@ void Mod_LoadLighting (lump_t *l)
 		loadmodel->lightdata = NULL;
 		return;
 	}
-
-#ifdef HALFLIFEBSP
-	if (loadmodel->halflifebsp) {
-		loadmodel->lightdata = Hunk_AllocName(l->filelen, loadname);
-		memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
-		return;
-	}
-#endif
-
+	
 	// LordHavoc's .lit support
 	strlcpy (litname, loadmodel->name, sizeof(litname));
 	COM_StripExtension (litname, litname);
@@ -897,7 +869,6 @@ void Mod_CalcSurfaceBounds (msurface_t *s)
 	}
 }
 
-
 /*
 =================
 Mod_LoadFaces
@@ -909,7 +880,7 @@ void Mod_LoadFaces (lump_t *l)
 	msurface_t 	*out;
 	int			i, count, surfnum;
 	int			planenum, side;
-	char		turbchar = loadmodel->halflifebsp ? '!' : '*';
+	char		turbchar = '*';
 
 	in = (dface_t *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -947,7 +918,7 @@ void Mod_LoadFaces (lump_t *l)
 		if (i == -1)
 			out->samples = NULL;
 		else
-			out->samples = loadmodel->lightdata + (loadmodel->halflifebsp ? i : i * 3);
+			out->samples = loadmodel->lightdata + (i * 3);
 		
 	// set the drawing flags flag
 
@@ -957,8 +928,7 @@ void Mod_LoadFaces (lump_t *l)
 			GL_BuildSkySurfacePolys (out);	// build gl polys
 			continue;
 		}
-
-		if (out->texinfo->texture->name[0] == turbchar)		// turbulent
+		else if (out->texinfo->texture->name[0] == '*')		// turbulent
 		{
 			out->flags |= (SURF_DRAWTURB | SURF_UNLIT);
 			GL_SubdivideSurface (out);	// cut up polygon for warps
@@ -1182,72 +1152,6 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 	return VectorLength (corner);
 }
 
-#ifdef HALFLIFEBSP
-static void Mod_ParseWadsFromEntityLump(lump_t *l)
-{
-	char *data;
-	char *s, key[1024], value[1024];	
-	int i, j, k;
-
-	if (!l->filelen)
-		return;
-
-	data = (char *)(mod_base + l->fileofs);
-	data = COM_Parse(data);
-	if (!data)
-		return;
-
-	if (com_token[0] != '{')
-		return; // error
-
-	while (1) {
-		if (!(data = COM_Parse(data)))
-			return; // error
-
-		if (com_token[0] == '}')
-			break; // end of worldspawn
-
-		strlcpy (key, (com_token[0] == '_') ? com_token + 1 : com_token, sizeof(key));
-
-		for (s = key + strlen(key) - 1; s >= key && *s == ' '; s--)		// remove trailing spaces
-			*s = 0;
-
-		if (!(data = COM_Parse(data)))
-			return; // error
-
-		strlcpy (value, com_token, sizeof(value));
-
-//let the server decide
-//		if (!strcmp("sky", key) || !strcmp("skyname", key))
-//			R_SetSky (value);
-
-		if (!strcmp("wad", key)) {
-			j = 0;
-			for (i = 0; i < strlen(value); i++) {
-				if (value[i] != ';' && value[i] != '\\' && value[i] != '/' && value[i] != ':')
-					break;
-			}
-			if (!value[i])
-				continue;
-			for ( ; i < sizeof(value); i++) {
-				// skip path
-				if (value[i] == '\\' || value[i] == '/' || value[i] == ':') {
-					j = i + 1;
-				} else if (value[i] == ';' || value[i] == 0) {
-					k = value[i];
-					value[i] = 0;
-					if (value[j])
-						WAD3_LoadWadFile (value + j);
-					j = i + 1;
-					if (!k)
-						break;
-				}
-			}
-		}
-	}
-}
-#endif /* HALFLIFEBSP */
-
 
 /*
 =================
@@ -1266,14 +1170,8 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 	header = (dheader_t *)buffer;
 
 	i = LittleLong (header->version);
-#ifdef HALFLIFEBSP
-	if (i != BSPVERSION && i != HL_BSPVERSION)
-#else
 	if (i != BSPVERSION)
-#endif
 		Host_Error ("Mod_LoadBrushModel: %s has wrong version number (%i should be %i)", mod->name, i, BSPVERSION);
-
-	loadmodel->halflifebsp = (i == HL_BSPVERSION);
 
 // swap all the lumps
 	mod_base = (byte *)header;
@@ -1282,14 +1180,9 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 		((int *)header)[i] = LittleLong (((int *)header)[i]);
 
 // load into heap
-
 	Mod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
 	Mod_LoadEdges (&header->lumps[LUMP_EDGES]);
 	Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
-#ifdef HALFLIFEBSP
-	if (loadmodel->halflifebsp)
-		Mod_ParseWadsFromEntityLump (&header->lumps[LUMP_ENTITIES]);
-#endif
 	Mod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
 	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);
 	Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);

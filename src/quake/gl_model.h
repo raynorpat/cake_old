@@ -59,13 +59,12 @@ typedef struct texture_s
 	unsigned	width, height;
 	struct gltexture_s *gl_texture;
 	struct gltexture_s *fb_texture;		// index of fullbright mask or 0
-	struct msurface_s *texturechain;	// for gl_texsort drawing
+	struct msurface_s *texturechain;	// for texture chains
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
 	unsigned	offsets[MIPLEVELS];		// four mip maps stored
-	int			flatcolor3ub;			// just for r_fastturb's sake
 } texture_t;
 
 #define	SURF_PLANEBACK		1
@@ -92,7 +91,6 @@ typedef struct glpoly_s
 {
 	struct	glpoly_s	*next;
 	struct	glpoly_s	*chain;
-	struct	glpoly_s	*fb_chain;
 	int		numverts;
 	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2)
 } glpoly_t;
@@ -322,8 +320,6 @@ typedef struct model_s
 //
 // brush model
 //
-	qbool		halflifebsp;
-
 	int			firstmodelsurface, nummodelsurfaces;
 
 	// FIXME, don't really need these two
