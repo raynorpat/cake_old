@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #else
 #include "quakedef.h"
 #include "winquake.h"
-#include "msvc\resource.h"
+#include "resource.h"
 #endif
 #include <limits.h>
 #include <direct.h>		// _mkdir

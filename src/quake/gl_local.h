@@ -287,7 +287,7 @@ extern void (GLAPIENTRY *qglCopyTexSubImage2D)(GLenum target, GLint level, GLint
 
 extern void (GLAPIENTRY *qglPolygonOffset)(GLfloat factor, GLfloat units);
 
-#if WIN32
+#ifdef WIN32
 extern int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
 extern int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
 //extern int (WINAPI *qwglGetPixelFormat)(HDC);
