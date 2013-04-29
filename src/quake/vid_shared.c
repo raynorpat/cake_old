@@ -216,17 +216,21 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 	else
 		ext = 1; // extension name
 
-	if (ext)
-		Com_DPrintf("checking for %s...  ", minglver_or_ext);
-	else
-		Com_DPrintf("checking for OpenGL %s core features...  ", minglver_or_ext);
+	if (!silent)
+	{
+		if (ext)
+			Com_Printf("checking for %s...  ", minglver_or_ext);
+		else
+			Com_Printf("checking for OpenGL %s core features...  ", minglver_or_ext);
+	}
 
 	for (func = funcs; func && func->name; func++)
 		*func->funcvariable = NULL;
 
 	if (disableparm && COM_CheckParm(disableparm))
 	{
-		Com_DPrintf("disabled by commandline\n");
+		if (!silent)
+			Com_Printf("disabled by commandline\n");
 		return false;
 	}
 
@@ -234,7 +238,8 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 	{
 		if (!strstr(gl_extensions ? gl_extensions : "", minglver_or_ext) && !strstr(gl_platformextensions ? gl_platformextensions : "", minglver_or_ext))
 		{
-			Com_DPrintf("not detected\n");
+			if (!silent)
+				Com_Printf("not detected\n");
 			return false;
 		}
 	}
@@ -257,7 +262,7 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 		if (!(*func->funcvariable = (void *) GL_GetProcAddress(func->name)))
 		{
 			if (!silent)
-				Com_DPrintf("missing function \"%s\" - broken driver!\n", func->name);
+				Com_Printf("missing function \"%s\" - broken driver!\n", func->name);
 			failed = true;
 		}
 	}
@@ -266,7 +271,8 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 	if (failed)
 		return false;
 	
-	Com_DPrintf("enabled\n");
+	if (!silent)
+		Com_Printf("enabled\n");
 	return true;
 }
 
@@ -409,7 +415,7 @@ void VID_CheckExtensions(void)
 		qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_maxtexturesize);
 	}
 
-	if (GL_CheckExtension("gl3", opengl30funcs, NULL, false))
+	if (GL_CheckExtension("gl3.0", opengl30funcs, NULL, false))
 	{
 		// todo: grab shader limits, etc...
 	}
