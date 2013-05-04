@@ -123,8 +123,8 @@ byte *Skin_Cache (skin_t *skin)
 
 	if (cls.downloadtype == dl_skin)
 		return NULL;		// use base until downloaded
-	if (noskins.value == 1) // JACK: So NOSKINS > 1 will show skins, but
-		return NULL;		// not download new ones.
+	if (noskins.value == 1) 
+		return NULL;		// JACK: So NOSKINS > 1 will show skins, but not download new ones.
 	if (skin->failedload)
 		return NULL;
 
@@ -141,7 +141,6 @@ byte *Skin_Cache (skin_t *skin)
 	{
 		if (pic)
 			Q_free (pic);
-		Com_Printf ("Couldn't load skin %s\n", name);
 
 		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
 		pic = Image_LoadImage (name, &width, &height);
@@ -150,6 +149,7 @@ byte *Skin_Cache (skin_t *skin)
 			if (pic)
 				Q_free (pic);
 			skin->failedload = true;
+			Com_DPrintf ("Couldn't load skin %s\n", name);
 			return NULL;
 		}
 	}
