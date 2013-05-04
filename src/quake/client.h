@@ -290,7 +290,6 @@ typedef struct
 	float		maxfps;
 	float		minpitch;
 	float		maxpitch;
-	qbool		allow_fbskins;
 	qbool		allow_truelightning;
 	qbool		allow_frj;
 

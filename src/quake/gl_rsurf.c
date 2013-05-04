@@ -764,12 +764,14 @@ void R_DrawWorld (void)
 	if (!r_drawworld.value)
 		return;
 
+// r_fullbright
 	if (r_fullbright.value)
 	{
 		R_DrawTextureChains_TextureOnly ();
 		goto fullbrights;
 	}
 
+// r_lightmap
 	if (r_lightmap.value)
 	{
 		R_BuildLightmapChains ();
@@ -792,6 +794,7 @@ void R_DrawWorld (void)
 		return;
 	}
 
+// diffuse * lightmap
 	if (gl_overbright.value)
 	{
 		if (gl_support_texture_combine) // case 1: texture and lightmap in one pass, overbright using texture combiners

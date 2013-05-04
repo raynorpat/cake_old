@@ -1222,9 +1222,6 @@ void CL_ProcessServerInfo (void)
 
 	cl.maxfps = Q_atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
 
-	p = Info_ValueForKey (cl.serverinfo, "fbskins");
-	cl.allow_fbskins = *p ? (Q_atoi(p) != 0) : !cl.teamfortress; // for TF, fbskins are disabled by default
-
 	p = Info_ValueForKey (cl.serverinfo, "truelightning");
 	cl.allow_truelightning = *p ? (Q_atoi(p) != 0) : true;	// allowed by default
 

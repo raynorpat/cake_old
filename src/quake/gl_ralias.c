@@ -221,12 +221,6 @@ void R_DrawAliasModel (entity_t *ent)
 		VectorClear (shadelight_v);
 		full_light = true;
 	}
-	else if ((clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL)	&& r_fullbrightSkins.value && r_refdef2.allow_fbskins) {
-		ambientlight = shadelight = 128;
-		VectorSet (ambientlight_v, 128, 128, 128);
-		VectorSet (shadelight_v, 128, 128, 128);
-		full_light = true;
-	}
 	else
 	{
 		// normal lighting 

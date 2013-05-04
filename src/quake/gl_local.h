@@ -352,25 +352,18 @@ extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
-extern	cvar_t	r_fullbrightSkins;
 extern	cvar_t	r_fastsky;
-extern	cvar_t	r_skycolor;
 
 extern	cvar_t	gl_subdivide_size;
 extern	cvar_t	gl_cull;
-extern	cvar_t	gl_smoothmodels;
-extern	cvar_t	gl_polyblend;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
 extern	cvar_t	gl_fb_bmodels;
 extern	cvar_t	gl_fb_models;
 extern	cvar_t	gl_overbright;
 extern	cvar_t	gl_lightmode;
-extern	cvar_t	gl_solidparticles;
 
 extern	float	lightmode;		// set to gl_lightmode on mapchange
-
-extern	cvar_t	gl_playermip;
 
 void R_TranslatePlayerSkin (int playernum);
 

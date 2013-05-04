@@ -71,16 +71,10 @@ cvar_t	r_wateralpha = {"r_wateralpha","1"};
 cvar_t	r_dynamic = {"r_dynamic","1"};
 cvar_t	r_novis = {"r_novis","0"};
 cvar_t	r_netgraph = {"r_netgraph","0"};
-cvar_t	r_fullbrightSkins = {"r_fullbrightSkins", "0"};
 cvar_t	r_fastsky = {"r_fastsky", "0"};
-cvar_t	r_skycolor = {"r_skycolor", "4"};
-cvar_t	r_fastturb = {"r_fastturb", "0"};
 
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
 cvar_t	gl_cull = {"gl_cull","1"};
-cvar_t	gl_smoothmodels = {"gl_smoothmodels","1"};
-cvar_t	gl_polyblend = {"gl_polyblend","1"};
-cvar_t	gl_playermip = {"gl_playermip","0"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fb_bmodels = {"gl_fb_bmodels","1"};
@@ -88,7 +82,6 @@ cvar_t	gl_fb_models = {"gl_fb_models","1"};
 cvar_t	gl_overbright = {"gl_overbright","1"};
 void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel);
 cvar_t	gl_lightmode = {"gl_lightmode","1", 0, OnChange_lightmode_var};
-cvar_t	gl_solidparticles = {"gl_solidparticles", "0"};
 
 float	lightmode = 2.0f;
 void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel)
@@ -312,8 +305,7 @@ void R_DrawParticles (void)
 	GL_Bind (particletexture->texnum);
 	
 	qglEnable (GL_BLEND);
-	if (!gl_solidparticles.value)
-		qglDepthMask (GL_FALSE);
+	qglDepthMask (GL_FALSE);
 	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 	qglBegin (GL_QUADS);
@@ -581,23 +573,16 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_novis);
 	Cvar_Register (&r_speeds);
 	Cvar_Register (&r_netgraph);
-	Cvar_Register (&r_fullbrightSkins);
-	Cvar_Register (&r_skycolor);
 	Cvar_Register (&r_fastsky);
-	Cvar_Register (&r_fastturb);
 
 	Cvar_Register (&gl_subdivide_size);
 	Cvar_Register (&gl_cull);
-	Cvar_Register (&gl_smoothmodels);
-	Cvar_Register (&gl_polyblend);
-	Cvar_Register (&gl_playermip);
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);
 	Cvar_Register (&gl_fb_bmodels);
 	Cvar_Register (&gl_fb_models);
 	Cvar_Register (&gl_overbright);
 	Cvar_Register (&gl_lightmode);
-	Cvar_Register (&gl_solidparticles);
 
 	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
 }

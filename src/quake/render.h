@@ -109,7 +109,6 @@ typedef struct {
 
 	float			time;
 	qbool			allowCheats;
-	qbool			allow_fbskins;
 	int				viewplayernum;	// don't draw own glow
 	qbool			watervis;
 
