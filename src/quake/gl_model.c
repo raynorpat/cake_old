@@ -880,7 +880,6 @@ void Mod_LoadFaces (lump_t *l)
 	msurface_t 	*out;
 	int			i, count, surfnum;
 	int			planenum, side;
-	char		turbchar = '*';
 
 	in = (dface_t *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
