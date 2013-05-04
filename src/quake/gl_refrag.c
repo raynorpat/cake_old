@@ -188,40 +188,26 @@ void R_AddEfrags (entity_t *ent)
 ================
 R_StoreEfrags
 
-// FIXME: a lot of this goes away with edge-based
+FIXME: a lot of this goes away with edge-based
 ================
 */
 void R_StoreEfrags (efrag_t **ppefrag)
 {
 	entity_t	*pent;
-	model_t		*model;
 	efrag_t		*pefrag;
 
-	for (pefrag = *ppefrag ; pefrag ; pefrag = pefrag->leafnext)
+	while ((pefrag = *ppefrag) != NULL)
 	{
 		pent = pefrag->entity;
-		model = pent->model;
 
-		if (model->modhint == MOD_FLAME && !r_drawflame.value)
-			continue;
-
-		switch (model->type)
+		if ((pent->visframe != r_framecount) &&	(cl_numvisedicts < MAX_VISEDICTS))
 		{
-		case mod_alias:
-		case mod_brush:
-		case mod_sprite:
-			if ((pent->visframe != r_framecount) &&
-				(cl_numvisedicts < MAX_VISEDICTS))
-			{
-				V_AddEntity (pent);
+			V_AddEntity (pent);
 
 			// mark that we've recorded this entity for this frame
-				pent->visframe = r_framecount;
-			}
-			break;
-
-		default:	
-			Sys_Error ("R_StoreEfrags: Bad entity type %d", model->type);
+			pent->visframe = r_framecount;
 		}
+
+		ppefrag = &pefrag->leafnext;
 	}
 }

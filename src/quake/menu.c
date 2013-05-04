@@ -802,14 +802,13 @@ void M_Keys_Key (int k)
 //=============================================================================
 /* FPS SETTINGS MENU */
 
-#define	FPS_ITEMS	14
+#define	FPS_ITEMS	13
 
 int		fps_cursor = 0;
 
 extern cvar_t v_bonusflash;
 extern cvar_t v_damagecshift;
 extern cvar_t r_fastsky;
-extern cvar_t r_drawflame;
 
 void M_Menu_Fps_f (void)
 {
@@ -859,15 +858,12 @@ void M_Fps_Draw (void)
 	M_Print (220, 104, r_powerupglow.value==2 ? "own off" :
 		r_powerupglow.value ? "on" : "off");
 
-	M_Print (16, 112, "         Draw torches");
-	M_DrawCheckbox (220, 112, r_drawflame.value);
+	M_Print (16, 112, "             Fast sky");
+	M_DrawCheckbox (220, 112, r_fastsky.value);
 
-	M_Print (16, 120, "             Fast sky");
-	M_DrawCheckbox (220, 120, r_fastsky.value);
+	M_PrintWhite (16, 120, "            Fast mode");
 
-	M_PrintWhite (16, 128, "            Fast mode");
-
-	M_PrintWhite (16, 136, "         High quality");
+	M_PrintWhite (16, 128, "         High quality");
 
 // cursor
 	M_DrawChar (200, 32 + fps_cursor*8, 12+((int)(curtime*4)&1));
@@ -960,33 +956,28 @@ void M_Fps_Key (int k)
 			Cvar_SetValue (&r_powerupglow, i);
 			break;
 		case 10:
-			Cvar_SetValue (&r_drawflame, !r_drawflame.value);
-			break;
-		case 11:
 			Cvar_SetValue (&r_fastsky, !r_fastsky.value);
 			break;
 
 		// fast
-		case 12:
+		case 11:
 			Cvar_SetValue (&cl_explosion, 3);
 			Cvar_SetValue (&cl_muzzleflash, 2);
 			Cvar_SetValue (&cl_gibfilter, 1);
 			Cvar_SetValue (&cl_deadbodyfilter, 1);
 			Cvar_SetValue (&r_rocketlight, 0);
 			Cvar_SetValue (&r_powerupglow, 0);
-			Cvar_SetValue (&r_drawflame, 0);
 			Cvar_SetValue (&r_fastsky, 1);
 			break;
 
 		// high quality
-		case 13:
+		case 12:
 			Cvar_SetValue (&cl_explosion, 0);
 			Cvar_SetValue (&cl_muzzleflash, 1);
 			Cvar_SetValue (&cl_gibfilter, 0);
 			Cvar_SetValue (&cl_deadbodyfilter, 0);
 			Cvar_SetValue (&r_rocketlight, 1);
 			Cvar_SetValue (&r_powerupglow, 2);
-			Cvar_SetValue (&r_drawflame, 1);
 			Cvar_SetValue (&r_fastsky, 0);
 		}
 	}

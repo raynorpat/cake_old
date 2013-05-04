@@ -62,7 +62,6 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 cvar_t	r_norefresh = {"r_norefresh","0"};
 cvar_t	r_drawentities = {"r_drawentities","1"};
-cvar_t	r_drawflame = {"r_drawflame","1"};
 cvar_t	r_drawworld = {"r_drawworld","1"};
 cvar_t	r_speeds = {"r_speeds","0"};
 cvar_t	r_fullbright = {"r_fullbright","0"};
@@ -575,7 +574,6 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_lightmap);
 	Cvar_Register (&r_fullbright);
 	Cvar_Register (&r_drawentities);
-	Cvar_Register (&r_drawflame);
 	Cvar_Register (&r_drawworld);
 	Cvar_Register (&r_shadows);
 	Cvar_Register (&r_wateralpha);
