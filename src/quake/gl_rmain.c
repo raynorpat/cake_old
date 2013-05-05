@@ -225,6 +225,34 @@ void R_RotateForEntity (entity_t *e)
 	qglRotatef (e->angles[2], 1, 0, 0);
 }
 
+/*
+=============
+GL_PolygonOffset
+
+negative offset moves polygon closer to camera
+=============
+*/
+void GL_PolygonOffset (int offset)
+{
+	if (offset > 0)
+	{
+		qglEnable (GL_POLYGON_OFFSET_FILL);
+		qglEnable (GL_POLYGON_OFFSET_LINE);
+		qglPolygonOffset(1, offset);
+	}
+	else if (offset < 0)
+	{
+		qglEnable (GL_POLYGON_OFFSET_FILL);
+		qglEnable (GL_POLYGON_OFFSET_LINE);
+		qglPolygonOffset(-1, offset);
+	}
+	else
+	{
+		qglDisable (GL_POLYGON_OFFSET_FILL);
+		qglDisable (GL_POLYGON_OFFSET_LINE);
+	}
+}
+
 //==================================================================================
 
 /*

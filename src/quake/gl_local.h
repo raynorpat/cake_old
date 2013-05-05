@@ -373,6 +373,13 @@ void GL_SelectTexture ( GLenum target );
 void GL_EnableMultitexture(void);
 void GL_DisableMultitexture(void);
 
+#define OFFSET_BMODEL 1
+#define OFFSET_NONE 0
+#define OFFSET_DECAL -1
+#define OFFSET_FOG -2
+#define OFFSET_SHOWTRIS -3
+void GL_PolygonOffset (int);
+
 //
 // gl_texture.c
 //
