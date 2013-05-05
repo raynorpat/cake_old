@@ -38,7 +38,7 @@ glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
 qbool		lightmap_modified[MAX_LIGHTMAPS];
 glRect_t	lightmap_rectchange[MAX_LIGHTMAPS];
 
-int			lightmap_textures[MAX_LIGHTMAPS];
+gltexture_t *lightmap_textures[MAX_LIGHTMAPS];
 
 int			allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
 
@@ -392,7 +392,7 @@ void R_UploadLightmaps (void)
 		if (!lightmap_modified[lmap])
 			continue;
 
-		GL_Bind (lightmap_textures[lmap]);
+		GL_Bind (lightmap_textures[lmap]->texnum);
 		lightmap_modified[lmap] = false;
 
 		theRect = &lightmap_rectchange[lmap];
@@ -637,7 +637,7 @@ static void R_DrawTextureChains_Multitexture (void)
 					bound = true;
 				}
 				R_RenderDynamicLightmaps (s);
-				GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+				GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 
 				qglBegin(GL_POLYGON);
 				v = s->polys->verts[0];
@@ -693,7 +693,7 @@ void R_DrawLightmapChains (void)
 		if (!lightmap_polys[i])
 			continue;
 
-		GL_Bind (lightmap_textures[i]);
+		GL_Bind (lightmap_textures[i]->texnum);
 		for (p = lightmap_polys[i]; p; p=p->chain)
 		{
 			qglBegin (GL_POLYGON);
@@ -902,7 +902,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 		}
 
 		R_RenderDynamicLightmaps (s);
-		GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+		GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 		if (!gl_overbright.value)
 		{
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -965,7 +965,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 			GL_EnableMultitexture(); // selects TEXTURE1
-			GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+			GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 			R_RenderDynamicLightmaps (s);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
@@ -999,7 +999,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 
 			// second pass -- lightmap modulate blended
 			R_RenderDynamicLightmaps (s);
-			GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+			GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 			qglDepthMask (GL_FALSE);
 			qglEnable (GL_BLEND);
 			qglBlendFunc(GL_DST_COLOR, GL_SRC_COLOR); // 2x modulate
@@ -1027,7 +1027,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 	
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		GL_EnableMultitexture(); // selects TEXTURE1
-		GL_Bind (lightmap_textures[s->lightmaptexturenum]);
+		GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 		R_RenderDynamicLightmaps (s);
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	
@@ -1297,15 +1297,15 @@ with all the surfaces from all brush models
 */
 void GL_BuildLightmaps (void)
 {
+	char	name[16];
+	byte	*data;
 	int		i, j;
 	model_t	*m;
 
 	memset (allocated, 0, sizeof(allocated));
 
-	qglDeleteTextures(MAX_LIGHTMAPS, lightmap_textures);
 	for (i=0; i < MAX_LIGHTMAPS; i++)
 		lightmap_textures[i] = NULL;
-	qglGenTextures(MAX_LIGHTMAPS, lightmap_textures); 
 
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
@@ -1336,9 +1336,9 @@ void GL_BuildLightmaps (void)
 		lightmap_rectchange[i].w = 0;
 		lightmap_rectchange[i].h = 0;
 
-		GL_Bind(lightmap_textures[i]);
-		qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, BLOCK_WIDTH, BLOCK_HEIGHT, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*4);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		sprintf(name, "lightmap%03i", i);
+		data = lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*4;
+		lightmap_textures[i] = TexMgr_LoadImage (r_worldmodel, name, BLOCK_WIDTH, BLOCK_HEIGHT,
+			 SRC_LIGHTMAP, data, "", (unsigned)data, TEXPREF_LINEAR | TEXPREF_NOPICMIP);
 	}
 }

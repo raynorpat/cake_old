@@ -694,6 +694,26 @@ void TexMgr_LoadUpscaledImage8 (gltexture_t *glt, byte *data)
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1);
 }
 
+/*
+================
+TexMgr_LoadLightmap
+
+handles lightmap data
+================
+*/
+void TexMgr_LoadLightmap (gltexture_t *glt, byte *data)
+{
+	// upload it
+	GL_Bind (glt->texnum);
+
+	// internal format can't be bgra but format can be
+//	GL_PixelStore (4, 0);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
+
+	// set filter modes
+	TexMgr_SetFilterModes (glt);
+}
+
 
 /*
 ================
@@ -716,6 +736,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 		case SRC_INDEXED:
 			crc = CRC_Block(data, width * height);
 			break;
+		case SRC_LIGHTMAP:
 		case SRC_RGBA:
 			crc = CRC_Block(data, width * height * 4);
 			break;
@@ -757,6 +778,9 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 		case SRC_INDEXED_UPSCALE:
 			TexMgr_LoadUpscaledImage8 (glt, data);
 			break;
+		case SRC_LIGHTMAP:
+			TexMgr_LoadLightmap (glt, data);
+			break;
 		case SRC_RGBA:
 			TexMgr_LoadImage32 (glt, data);
 			break;
@@ -766,6 +790,128 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 
 	return glt;
 }
+
+/*
+================================================================================
+
+	COLORMAPPING AND TEXTURE RELOADING
+
+================================================================================
+*/
+
+/*
+================
+TexMgr_ReloadImage
+
+reloads a texture, and colormaps it if needed
+================
+*/
+void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
+{
+	byte	translation[256];
+	byte	*src, *dst, *data = NULL, *translated;
+	int		mark, size, i;
+
+	// get source data
+	mark = Hunk_LowMark ();
+
+	if (glt->source_file[0] && glt->source_offset)
+	{
+		// lump inside file
+		data = FS_LoadHunkFile (glt->source_file);
+
+		if (!data)
+			goto invalid;
+
+		data += glt->source_offset;
+	}
+	else if (glt->source_file[0] && !glt->source_offset)
+		data = Image_LoadImage (glt->source_file, (int *) &glt->source_width, (int *) &glt->source_height); //simple file
+	else if (!glt->source_file[0] && glt->source_offset)
+		data = (byte *) glt->source_offset; //image in memory
+
+	if (!data)
+	{
+invalid:
+		Com_Printf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
+		Hunk_FreeToLowMark (mark);
+		return;
+	}
+
+	glt->width = glt->source_width;
+	glt->height = glt->source_height;
+
+	// apply shirt and pants colors
+	// if shirt and pants are -1,-1, use existing shirt and pants colors
+	// if existing shirt and pants colors are -1,-1, don't bother colormapping
+	if (shirt > -1 && pants > -1)
+	{
+		if (glt->source_format == SRC_INDEXED)
+		{
+			glt->shirt = shirt;
+			glt->pants = pants;
+		}
+		else
+		{
+			Com_Printf ("TexMgr_ReloadImage: can't colormap a non SRC_INDEXED texture: %s\n", glt->name);
+		}
+	}
+
+	if (glt->shirt > -1 && glt->pants > -1)
+	{
+		//create new translation table
+		for (i = 0; i < 256; i++)
+			translation[i] = i;
+
+		shirt = glt->shirt * 16;
+
+		if (shirt < 128)
+			for (i = 0; i < 16; i++)
+				translation[TOP_RANGE+i] = shirt + i;
+		else
+			for (i = 0; i < 16; i++)
+				translation[TOP_RANGE+i] = shirt + 15 - i;
+
+		pants = glt->pants * 16;
+
+		if (pants < 128)
+			for (i = 0; i < 16; i++)
+				translation[BOTTOM_RANGE+i] = pants + i;
+		else
+			for (i = 0; i < 16; i++)
+				translation[BOTTOM_RANGE+i] = pants + 15 - i;
+
+		//translate texture
+		size = glt->width * glt->height;
+		dst = translated = (byte *) Hunk_Alloc (size);
+		src = data;
+
+		for (i = 0; i < size; i++)
+			*dst++ = translation[*src++];
+
+		data = translated;
+	}
+
+	// upload it
+	switch (glt->source_format)
+	{
+	case SRC_INDEXED:
+		TexMgr_LoadImage8 (glt, data);
+		break;
+	case SRC_INDEXED_UPSCALE:
+		TexMgr_LoadUpscaledImage8 (glt, data);
+		break;
+	case SRC_LIGHTMAP:
+		TexMgr_LoadLightmap (glt, data);
+		break;
+	case SRC_RGBA:
+		TexMgr_LoadImage32 (glt, data);
+		break;
+	}
+
+	Hunk_FreeToLowMark (mark);
+}
+
 
 
 /*
