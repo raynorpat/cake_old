@@ -113,7 +113,7 @@ void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel)
 =================
 R_CullBox
 
-Returns true if the box is completely outside the frustom
+Returns true if the box is completely outside the frustum
 =================
 */
 qbool R_CullBox (vec3_t mins, vec3_t maxs)

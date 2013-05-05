@@ -276,17 +276,12 @@ void R_DrawAliasModel (entity_t *ent)
 
 	c_alias_polys += paliashdr->numtris;
 
-	//
-	// draw all the triangles
-	//
-
 	qglPushMatrix ();
 	R_RotateForEntity (ent);
 
 	if (clmodel->modhint == MOD_EYES) {
 		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2] - (22 + 8));
-		// HACK: double size of eyes, since they are really hard to see in gl
-		qglScalef (paliashdr->scale[0]*2, paliashdr->scale[1]*2, paliashdr->scale[2]*2);
+		qglScalef (paliashdr->scale[0]*2, paliashdr->scale[1]*2, paliashdr->scale[2]*2); // HACK: double size of eyes, since they are really hard to see in gl
 	} else {
 		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
 		qglScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
@@ -299,6 +294,9 @@ void R_DrawAliasModel (entity_t *ent)
 		skinnum = 0;
 	}
 
+	//
+	// set up textures
+	//
 	GL_DisableMultitexture();
 
 	overbright = gl_overbright.value;
@@ -326,6 +324,10 @@ void R_DrawAliasModel (entity_t *ent)
 	if (full_light || !gl_fb_models.value) {
 		fb_texture = 0;
 	}
+
+	//
+	// draw it
+	//
 
 	// hack the depth range to prevent view model from poking into walls
 	if (ent->renderfx & RF_WEAPONMODEL)
@@ -355,6 +357,16 @@ void R_DrawAliasModel (entity_t *ent)
 			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			qglDisable(GL_BLEND);
 		}
+	}
+	else if (r_lightmap.value)
+	{
+		qglDisable (GL_TEXTURE_2D);
+		shading = false;
+		qglColor4f(1,1,1,1);
+
+		R_SetupAliasFrame (ent->frame, paliashdr);
+
+		qglEnable (GL_TEXTURE_2D);
 	}
 	else if (overbright)
 	{

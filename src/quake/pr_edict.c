@@ -1057,8 +1057,8 @@ void PR_LoadProgs (void)
 	pr_globaldefs = (ddef_t *)((byte *)progs + progs->ofs_globaldefs);
 	pr_fielddefs = (ddef_t *)((byte *)progs + progs->ofs_fielddefs);
 	pr_statements = (dstatement_t *)((byte *)progs + progs->ofs_statements);
-	pr_global_struct = (globalvars_t *)((byte *)progs + progs->ofs_globals);
 
+	pr_global_struct = (globalvars_t *)((byte *)progs + progs->ofs_globals);
 	pr_globals = (float *)pr_global_struct;
 
 	PR_InitStrings ();
