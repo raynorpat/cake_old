@@ -913,6 +913,7 @@ cdlight_t *CL_AllocDlight (int key)
 			{
 				memset (dl, 0, sizeof(*dl));
 				dl->key = key;
+				dl->color[0] = dl->color[1] = dl->color[2] = 1;
 				return dl;
 			}
 		}
@@ -926,6 +927,7 @@ cdlight_t *CL_AllocDlight (int key)
 		{
 			memset (dl, 0, sizeof(*dl));
 			dl->key = key;
+			dl->color[0] = dl->color[1] = dl->color[2] = 1;
 			return dl;
 		}
 	}
@@ -933,6 +935,7 @@ cdlight_t *CL_AllocDlight (int key)
 	dl = &cl_dlights[0];
 	memset (dl, 0, sizeof(*dl));
 	dl->key = key;
+	dl->color[0] = dl->color[1] = dl->color[2] = 1;
 	return dl;
 }
 
@@ -941,7 +944,7 @@ cdlight_t *CL_AllocDlight (int key)
 CL_NewDlight
 ===============
 */
-void CL_NewDlight (int key, vec3_t origin, float radius, float time, dlighttype_t type)
+void CL_NewDlight (int key, vec3_t origin, float radius, float time, vec3_t color)
 {
 	cdlight_t	*dl;
 
@@ -949,14 +952,13 @@ void CL_NewDlight (int key, vec3_t origin, float radius, float time, dlighttype_
 	VectorCopy (origin, dl->origin);
 	dl->radius = radius;
 	dl->die = cl.time + time;
-	dl->type = type;
+	VectorCopy(color, dl->color);
 }
 
 
 /*
 ===============
 CL_LinkDlights
-
 ===============
 */
 void CL_LinkDlights (void)
@@ -970,7 +972,7 @@ void CL_LinkDlights (void)
 		if (dl->die < cl.time || dl->radius <= 0)
 			continue;
 
-		V_AddDlight(dl->key, dl->origin, dl->radius, dl->minlight, dl->type);
+		V_AddDlight(dl->key, dl->origin, dl->radius, dl->minlight, dl->color);
 
 		dl->radius -= cls.frametime * dl->decay;
 	}
@@ -979,7 +981,6 @@ void CL_LinkDlights (void)
 /*
 ===============
 CL_ClearDlights
-
 ===============
 */
 void CL_ClearDlights (void)

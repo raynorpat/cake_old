@@ -732,8 +732,8 @@ void NQD_LinkEntities (void)
 	float				f;
 	struct model_s		*model;
 	int					modelflags;
-	vec3_t				cur_origin;
-	vec3_t				old_origin;
+	vec3_t				cur_origin, old_origin;
+	vec3_t				color;
 	float				autorotate;
 	int					i;
 	int					num;
@@ -772,18 +772,21 @@ void NQD_LinkEntities (void)
 			dl->radius = 200 + (rand()&31);
 			dl->minlight = 32;
 			dl->die = cl.time + 0.1;
-			dl->type = lt_muzzleflash;
+			dl->color[0] = 0.9; dl->color[2] = 0.6; dl->color[3] = 0.4;
 		}
 		if (state->effects & EF_BRIGHTLIGHT) {
 			if (state->modelindex != cl_playerindex || r_powerupglow.value) {
 				vec3_t	tmp;
 				VectorCopy (cur_origin, tmp);
 				tmp[2] += 16;
-				CL_NewDlight (state->number, tmp, 400 + (rand()&31), 0.1, lt_default);
+				color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
+				CL_NewDlight (state->number, tmp, 400 + (rand()&31), 0.1, color);
 			}
 		}
-		if (state->effects & EF_DIMLIGHT)
-			CL_NewDlight (state->number, cur_origin, 200 + (rand()&31), 0.1, lt_default);
+		if (state->effects & EF_DIMLIGHT) {
+			color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
+			CL_NewDlight (state->number, cur_origin, 200 + (rand()&31), 0.1, color);
+		}
 
 		// if set to invisible, skip
 		if (!state->modelindex)
@@ -901,7 +904,10 @@ void NQD_LinkEntities (void)
 				}
 
 				if (r_rocketlight.value)
-					CL_NewDlight (state->number, ent.origin, 200, 0.1, lt_rocket);
+				{
+					color[0] = 0.9; color[1] = 0.6; color[2] = 0.4;
+					CL_NewDlight (state->number, ent.origin, 200, 0.1, color);
+				}
 			}
 			else if (modelflags & MF_GRENADE && r_grenadetrail.value)
 				CL_GrenadeTrail (old_origin, ent.origin);

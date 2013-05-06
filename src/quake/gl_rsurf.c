@@ -48,38 +48,23 @@ byte		lightmaps[4*MAX_LIGHTMAPS*BLOCK_WIDTH*BLOCK_HEIGHT];
 
 void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
 
-//=============================================================
-// Dynamic lights
-
-typedef struct dlightinfo_s {
-	int local[2];
-	int rad;
-	int minlight;	// rad - minlight
-	int type;
-} dlightinfo_t;
-
-static dlightinfo_t dlightlist[MAX_DLIGHTS];
-static int	numdlights;
-
 /*
 ===============
-R_BuildDlightList
+R_AddDynamicLights
 ===============
 */
-void R_BuildDlightList (msurface_t *surf)
+void R_AddDynamicLights (msurface_t *surf)
 {
 	int			lnum;
-	float		dist;
-	vec3_t		impact;
+	int			sd, td;
+	float		dist, rad, minlight;
+	vec3_t		impact, local;
+	int			s, t;
 	int			i;
 	int			smax, tmax;
 	mtexinfo_t	*tex;
-	int			irad, iminlight;
-	int			local[2];
-	int			tdmin, sdmin, distmin;
-	dlightinfo_t	*light;
-
-	numdlights = 0;
+	float		cred, cgreen, cblue, brightness;
+	unsigned	*bl;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -88,125 +73,54 @@ void R_BuildDlightList (msurface_t *surf)
 	for (lnum=0 ; lnum<r_refdef2.numDlights ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
-			continue;		// not lit by this light
+			continue; // not lit by this light
 
-		dist = DotProduct (r_refdef2.dlights[lnum].origin, surf->plane->normal) -
-				surf->plane->dist;
-		irad = (r_refdef2.dlights[lnum].radius - fabs(dist)) * 256;
-		iminlight = r_refdef2.dlights[lnum].minlight * 256;
-		if (irad < iminlight)
+		rad = r_refdef2.dlights[lnum].radius;
+		dist = DotProduct (r_refdef2.dlights[lnum].origin, surf->plane->normal) - surf->plane->dist;
+		rad -= fabs(dist);
+		minlight = r_refdef2.dlights[lnum].minlight;
+		if (rad < minlight)
 			continue;
+		minlight = rad - minlight;
 
-		iminlight = irad - iminlight;
-		
-		for (i=0 ; i<3 ; i++) {
-			impact[i] = r_refdef2.dlights[lnum].origin[i] -
-				surf->plane->normal[i]*dist;
-		}
-		
-		local[0] = DotProduct (impact, tex->vecs[0]) +
-			tex->vecs[0][3] - surf->texturemins[0];
-		local[1] = DotProduct (impact, tex->vecs[1]) +
-			tex->vecs[1][3] - surf->texturemins[1];
-		
-		// check if this dlight will touch the surface
-		if (local[1] > 0) {
-			tdmin = local[1] - (tmax<<4);
-			if (tdmin < 0)
-				tdmin = 0;
-		} else
-			tdmin = -local[1];
-
-		if (local[0] > 0) {
-			sdmin = local[0] - (smax<<4);
-			if (sdmin < 0)
-				sdmin = 0;
-		} else
-			sdmin = -local[0];
-
-		if (sdmin > tdmin)
-			distmin = (sdmin<<8) + (tdmin<<7);
-		else
-			distmin = (tdmin<<8) + (sdmin<<7);
-
-		if (distmin < iminlight)
+		for (i=0 ; i<3 ; i++)
 		{
-			// save dlight info
-			light = &dlightlist[numdlights];
-			light->minlight = iminlight;
-			light->rad = irad;
-			light->local[0] = local[0];
-			light->local[1] = local[1];
-			light->type = r_refdef2.dlights[lnum].type;
-			numdlights++;
+			impact[i] = r_refdef2.dlights[lnum].origin[i] -	surf->plane->normal[i]*dist;
 		}
-	}
-}
 
-int dlightcolor[NUM_DLIGHTTYPES][3] = {
-	{ 100, 90, 80 },	// dimlight or brightlight
-	{ 0, 0, 128 },		// blue
-	{ 128, 0, 0 },		// red
-	{ 128, 0, 128 },	// red + blue
-	{ 100, 50, 10 },		// muzzleflash
-	{ 100, 50, 10 },		// explosion
-	{ 90, 60, 7 }		// rocket
-};
+		local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
+		local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
 
-/*
-===============
-R_AddDynamicLights
+		local[0] -= surf->texturemins[0];
+		local[1] -= surf->texturemins[1];
 
-NOTE: R_BuildDlightList must be called first!
-===============
-*/
-void R_AddDynamicLights (msurface_t *surf)
-{
-	int			i;
-	int			smax, tmax;
-	int			s, t;
-	int			sd, td;
-	int			_sd, _td;
-	int			irad, idist, iminlight;
-	dlightinfo_t	*light;
-	unsigned	*dest;
-	int			color[3];
-	int			tmp;
+		bl = blocklights;
+		cred = r_refdef2.dlights[lnum].color[0] * 256.0f;
+		cgreen = r_refdef2.dlights[lnum].color[1] * 256.0f;
+		cblue = r_refdef2.dlights[lnum].color[2] * 256.0f;
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
-
-	for (i=0,light=dlightlist ; i<numdlights ; i++,light++)
-	{
-		color[0] = dlightcolor[light->type][0];
-		color[1] = dlightcolor[light->type][1];
-		color[2] = dlightcolor[light->type][2];
-
-		irad = light->rad;
-		iminlight = light->minlight;
-
-		_td = light->local[1];
-		dest = blocklights;
 		for (t = 0 ; t<tmax ; t++)
 		{
-			td = _td;
-			if (td < 0)	td = -td;
-			_td -= 16;
-			_sd = light->local[0];
-			for (s=0 ; s<smax ; s++) {
-				sd = _sd < 0 ? -_sd : _sd;
-				_sd -= 16;
+			td = local[1] - t*16;
+			if (td < 0)
+				td = -td;
+			for (s=0 ; s<smax ; s++)
+			{
+				sd = local[0] - s*16;
+				if (sd < 0)
+					sd = -sd;
 				if (sd > td)
-					idist = (sd<<8) + (td<<7);
+					dist = sd + (td>>1);
 				else
-					idist = (td<<8) + (sd<<7);
-				if (idist < iminlight) {
-					tmp = (irad - idist) >> 7;
-					dest[0] += tmp * color[0];
-					dest[1] += tmp * color[1];
-					dest[2] += tmp * color[2];
+					dist = td + (sd>>1);
+				if (dist < minlight)
+				{
+					brightness = rad - dist;
+					bl[0] += (int) (brightness * cred);
+					bl[1] += (int) (brightness * cgreen);
+					bl[2] += (int) (brightness * cblue);
 				}
-				dest += 3;
+				bl += 3;
 			}
 		}
 	}
@@ -223,7 +137,6 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	int			maps;
 	glRect_t    *theRect;
 	int			smax, tmax;
-	qbool		lightstyle_modified = false;
 
 	if (fa->flags & SURF_UNLIT) // not a lightmapped surface
 		return;
@@ -233,43 +146,38 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	lightmap_polys[fa->lightmaptexturenum] = fa->polys;
 
 	// check for lightmap modification
-	for (maps=0 ; maps<MAXLIGHTMAPS && fa->styles[maps] != 255 ; maps++)
-		if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps]) {
-			lightstyle_modified = true;
-			break;
-		}
+	for (maps=0; maps < MAXLIGHTMAPS && fa->styles[maps] != 255; maps++)
+		if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps])
+			goto dynamic;
 
-	if (fa->dlightframe == r_framecount)
-		R_BuildDlightList (fa);
-	else
-		numdlights = 0;
-
-	if (numdlights == 0 && !fa->cached_dlight && !lightstyle_modified)
-		return;
-	
-	if (r_dynamic.value)
+	if (fa->dlightframe == r_framecount	// dynamic this frame
+		|| fa->cached_dlight)			// dynamic previously
 	{
-		lightmap_modified[fa->lightmaptexturenum] = true;
-		theRect = &lightmap_rectchange[fa->lightmaptexturenum];
-		if (fa->light_t < theRect->t) {
-			if (theRect->h)
-				theRect->h += theRect->t - fa->light_t;
-			theRect->t = fa->light_t;
+dynamic:
+		if (r_dynamic.value)
+		{
+			lightmap_modified[fa->lightmaptexturenum] = true;
+			theRect = &lightmap_rectchange[fa->lightmaptexturenum];
+			if (fa->light_t < theRect->t) {
+				if (theRect->h)
+					theRect->h += theRect->t - fa->light_t;
+				theRect->t = fa->light_t;
+			}
+			if (fa->light_s < theRect->l) {
+				if (theRect->w)
+					theRect->w += theRect->l - fa->light_s;
+				theRect->l = fa->light_s;
+			}
+			smax = (fa->extents[0]>>4)+1;
+			tmax = (fa->extents[1]>>4)+1;
+			if ((theRect->w + theRect->l) < (fa->light_s + smax))
+				theRect->w = (fa->light_s-theRect->l)+smax;
+			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
+				theRect->h = (fa->light_t-theRect->t)+tmax;
+			base = lightmaps + fa->lightmaptexturenum*4*BLOCK_WIDTH*BLOCK_HEIGHT;
+			base += fa->light_t * BLOCK_WIDTH * 4 + fa->light_s * 4;
+			R_BuildLightMap (fa, base, BLOCK_WIDTH*4);
 		}
-		if (fa->light_s < theRect->l) {
-			if (theRect->w)
-				theRect->w += theRect->l - fa->light_s;
-			theRect->l = fa->light_s;
-		}
-		smax = (fa->extents[0]>>4)+1;
-		tmax = (fa->extents[1]>>4)+1;
-		if ((theRect->w + theRect->l) < (fa->light_s + smax))
-			theRect->w = (fa->light_s-theRect->l)+smax;
-		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
-			theRect->h = (fa->light_t-theRect->t)+tmax;
-		base = lightmaps + fa->lightmaptexturenum*4*BLOCK_WIDTH*BLOCK_HEIGHT;
-		base += fa->light_t * BLOCK_WIDTH * 4 + fa->light_s * 4;
-		R_BuildLightMap (fa, base, BLOCK_WIDTH*4);
 	}
 }
 
@@ -1282,7 +1190,6 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 	surf->lightmaptexturenum = AllocBlock (smax, tmax, &surf->light_s, &surf->light_t);
 	base = lightmaps + surf->lightmaptexturenum*4*BLOCK_WIDTH*BLOCK_HEIGHT;
 	base += (surf->light_t * BLOCK_WIDTH + surf->light_s) * 4;
-	numdlights = 0;
 	R_BuildLightMap (surf, base, BLOCK_WIDTH*4);
 }
 

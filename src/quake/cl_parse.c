@@ -1602,7 +1602,7 @@ void CL_MuzzleFlash (void)
 				dl->radius = 200 + (rand()&31);
 				dl->minlight = 32;
 				dl->die = cl.time + 0.1;
-				dl->type = lt_muzzleflash;
+				dl->color[0] = 0.9; dl->color[2] = 0.6; dl->color[3] = 0.4;
 				break;
 			}
 		}
@@ -1633,7 +1633,7 @@ void CL_MuzzleFlash (void)
 	dl->radius = 200 + (rand()&31);
 	dl->minlight = 32;
 	dl->die = cl.time + 0.1;
-	dl->type = lt_muzzleflash;
+	dl->color[0] = 0.9; dl->color[2] = 0.6; dl->color[3] = 0.4;
 }
 
 

@@ -336,7 +336,7 @@ void CL_ParseTEnt (void)
 				dl->radius = 350;
 				dl->die = cl.time + 0.5;
 				dl->decay = 300;
-				dl->type = lt_explosion;
+				dl->color[0] = 1; dl->color[2] = 1; dl->color[3] = 1;
 			}
 		}
 

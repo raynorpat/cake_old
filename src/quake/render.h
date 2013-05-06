@@ -40,12 +40,7 @@ typedef struct
 	char	map[64];
 } lightstyle_t;
 
-
 #define	MAX_DLIGHTS		32
-
-typedef enum {	lt_default, lt_blue, lt_red, lt_redblue, lt_muzzleflash,
-				lt_explosion, lt_rocket, NUM_DLIGHTTYPES
-} dlighttype_t;
 
 typedef struct
 {
@@ -53,7 +48,7 @@ typedef struct
 	vec3_t			origin;
 	float			radius;
 	float			minlight;
-	dlighttype_t	type;
+	vec3_t			color;
 } dlight_t;
 
 typedef struct efrag_s

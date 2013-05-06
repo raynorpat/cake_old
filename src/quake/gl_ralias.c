@@ -21,15 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
+extern qbool mtexenabled;
+
+// up to 32 color translated skins
 extern gltexture_t *playertextures[MAX_CLIENTS];
-
-/*
-=============================================================
-
-  ALIAS MODELS
-
-=============================================================
-*/
 
 #define NUMVERTEXNORMALS	162
 
@@ -38,9 +33,7 @@ float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 };
 
 vec3_t	shadevector;
-float	shadescale = 0;
-
-vec3_t	shadelight_v, ambientlight_v;
+extern vec3_t lightcolor;
 
 // precalculated dot products for quantized angles
 #define SHADEDOT_QUANT 16
@@ -52,8 +45,7 @@ float	*shadedots = r_avertexnormal_dots[0];
 
 int	lastposenum;
 
-extern qbool mtexenabled;
-
+qbool	overbright;
 qbool	shading = true;
 
 /*
@@ -63,8 +55,7 @@ GL_DrawAliasFrame
 */
 void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 {
-	int		i;
-	float	l_v[4];
+	float 	vertcolor[4];
 	trivertx_t	*verts;
 	int		*order;
 	int		count;
@@ -73,10 +64,10 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 	if (currententity->renderfx & RF_TRANSLUCENT)
 	{
 		qglEnable (GL_BLEND);
-		l_v[3] = currententity->alpha;
+		vertcolor[3] = currententity->alpha;
 	}
 	else
-		l_v[3] = 1.0;
+		vertcolor[3] = 1.0;
 
 	lastposenum = posenum;
 
@@ -115,13 +106,10 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 			// normals and vertexes come from the frame list
 			if (shading)
 			{
-				for (i = 0; i < 3; i++) {
-					l_v[i] = (shadedots[verts->lightnormalindex] * shadelight_v[i] + ambientlight_v[i]) / 256.0;
-			
-					if (l_v[i] > 1)
-						l_v[i] = 1;
-				}
-				qglColor4fv (l_v);
+				vertcolor[0] = shadedots[verts->lightnormalindex] * lightcolor[0];
+				vertcolor[1] = shadedots[verts->lightnormalindex] * lightcolor[1];
+				vertcolor[2] = shadedots[verts->lightnormalindex] * lightcolor[2];
+				qglColor4fv (vertcolor);
 			}
 
 			qglVertex3f (verts->v[0], verts->v[1], verts->v[2]);
@@ -134,7 +122,6 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 	if (currententity->renderfx & RF_TRANSLUCENT)
 		qglDisable (GL_BLEND);
 }
-
 
 /*
 =================
@@ -164,17 +151,75 @@ void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr)
 	GL_DrawAliasFrame (paliashdr, pose);
 }
 
-// Because of poor quality of the lits out there, in many situations
-// I'd prefer the models not to be colored at all.
-// This is an attempt to compromise
-static void DesaturateColor (vec3_t color, float white_level)
+/*
+=================
+R_SetupAliasLighting
+=================
+*/
+void R_SetupAliasLighting (entity_t	*e)
 {
-#define white_fraction 0.5
-	int i;
-	for (i = 0; i < 3; i++) {
-		color[i] = color[i] * (1 - white_fraction) + white_level * white_fraction;
+	vec3_t		dist;
+	float		add;
+	int			i;
+
+	R_LightPoint (e->origin);
+
+	// add dlights
+	for (i = 0; i < r_refdef2.numDlights; i++)
+	{
+		VectorSubtract (e->origin, r_refdef2.dlights[i].origin, dist);
+		add = r_refdef2.dlights[i].radius - VectorLength(dist);		
+		if (add > 0)
+			VectorMA (lightcolor, add, r_refdef2.dlights[i].color, lightcolor);
 	}
+
+	// minimum light value on gun (24)
+	if (e->renderfx & RF_WEAPONMODEL)
+	{
+		add = 72.0f - (lightcolor[0] + lightcolor[1] + lightcolor[2]);
+		if (add > 0.0f)
+		{
+			lightcolor[0] += add / 3.0f;
+			lightcolor[1] += add / 3.0f;
+			lightcolor[2] += add / 3.0f;
+		}
+	}
+
+	// minimum light value on players (8)
+	if (e->model->modhint == MOD_PLAYER || e->renderfx & RF_PLAYERMODEL)
+	{
+		add = 24.0f - (lightcolor[0] + lightcolor[1] + lightcolor[2]);
+		if (add > 0.0f)
+		{
+			lightcolor[0] += add / 3.0f;
+			lightcolor[1] += add / 3.0f;
+			lightcolor[2] += add / 3.0f;
+		}
+	}
+
+	// clamp lighting so it doesn't overbright as much (96)
+	if (overbright)
+	{
+		add = 288.0f / (lightcolor[0] + lightcolor[1] + lightcolor[2]);
+		if (add < 1.0f)
+			VectorScale(lightcolor, add, lightcolor);
+	}
+
+	// hack up the brightness when fullbrights but no overbrights (256)
+	if (gl_fullbrights.value && !gl_overbright.value)
+	{
+		if (e->model->modhint == MOD_THUNDERBOLT || e->model->modhint == MOD_FLAME)
+		{
+			lightcolor[0] = 256.0f;
+			lightcolor[1] = 256.0f;
+			lightcolor[2] = 256.0f;
+		}
+	}
+
+	shadedots = r_avertexnormal_dots[((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1)];
+	VectorScale(lightcolor, 1.0f / 200.0f, lightcolor);
 }
+
 
 /*
 =================
@@ -184,17 +229,10 @@ R_DrawAliasModel
 void R_DrawAliasModel (entity_t *ent)
 {
 	int			i;
-	int			lnum;
-	vec3_t		dist;
-	float		add;
 	aliashdr_t	*paliashdr;
 	int			anim, skinnum;
-	qbool		full_light, overbright;
 	model_t		*clmodel = ent->model;
 	gltexture_t	*texture, *fb_texture;
-	vec3_t		lightcolor;
-	float		shadelight, ambientlight;
-	float		original_light;
 
 	// cull it
 	if (R_CullModelForEntity(ent))
@@ -204,76 +242,9 @@ void R_DrawAliasModel (entity_t *ent)
 	VectorSubtract (r_origin, r_entorigin, modelorg);
 
 	//
-	// get lighting information
-	//
-
-	// make thunderbolt and torches full light
-	if (clmodel->modhint == MOD_THUNDERBOLT) {
-		ambientlight = 210;
-		shadelight = 0;
-		VectorSet (ambientlight_v, 210, 210, 210);
-		VectorClear (shadelight_v);
-		full_light = true;
-	} else if (clmodel->modhint == MOD_FLAME) {
-		ambientlight = 255;
-		shadelight = 0;
-		VectorSet (ambientlight_v, 255, 255, 255);
-		VectorClear (shadelight_v);
-		full_light = true;
-	}
-	else
-	{
-		// normal lighting 
-		full_light = false;
-		original_light = ambientlight = shadelight = R_LightPoint (ent->origin, lightcolor);
-
-		DesaturateColor (lightcolor, original_light);
-
-		for (lnum = 0; lnum < r_refdef2.numDlights; lnum++)
-		{
-
-			VectorSubtract (ent->origin,
-				r_refdef2.dlights[lnum].origin,
-				dist);
-			add = r_refdef2.dlights[lnum].radius - VectorLength(dist);
-			
-			if (add > 0)
-				ambientlight += add;
-		}
-		
-		// clamp lighting so it doesn't overbright as much
-		if (ambientlight > 128)
-			ambientlight = 128;
-		if (ambientlight + shadelight > 192)
-			shadelight = 192 - ambientlight;
-		
-		// always give the gun some light
-		if ((ent->renderfx & RF_WEAPONMODEL) && ambientlight < 24)
-			ambientlight = shadelight = 24;
-		
-		// never allow players to go totally black
-		if (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL) {
-			if (ambientlight < 8)
-				ambientlight = shadelight = 8;
-		}
-
-		if (original_light) {
-			VectorScale (lightcolor, ambientlight / original_light, ambientlight_v);
-			VectorScale (lightcolor, shadelight / original_light, shadelight_v);
-		} else {
-			VectorSet (ambientlight_v, ambientlight, ambientlight, ambientlight);
-			VectorSet (shadelight_v, shadelight, shadelight, shadelight);
-		}
-	}
-
-	shadedots = r_avertexnormal_dots[((int)(ent->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1)];
-
-	//
 	// locate the proper data
 	//
 	paliashdr = (aliashdr_t *)Mod_Extradata (ent->model);
-
-	c_alias_polys += paliashdr->numtris;
 
 	//
 	// transform it
@@ -294,6 +265,12 @@ void R_DrawAliasModel (entity_t *ent)
 	//
 	overbright = gl_overbright.value;
 	shading = true;
+
+	//
+	// set up lighting
+	//
+	c_alias_polys += paliashdr->numtris;
+	R_SetupAliasLighting(ent);
 
 	//
 	// set up textures
@@ -547,7 +524,6 @@ void R_DrawAliasShadow (entity_t *e)
 								0,				0,				SHADOW_HEIGHT,	1};
 	float		lheight;
 	aliashdr_t	*paliashdr;
-	vec3_t		lightcolor;
 
 	if (R_CullModelForEntity(e))
 		return;
@@ -557,7 +533,7 @@ void R_DrawAliasShadow (entity_t *e)
 	
 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
 
-	R_LightPoint (e->origin, lightcolor);
+	R_LightPoint (e->origin);
 	lheight = currententity->origin[2] - lightspot[2];
 
 	// set up matrix

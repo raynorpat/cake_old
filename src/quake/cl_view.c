@@ -805,7 +805,7 @@ V_AddDlight
 ==================
 */
 
-void V_AddDlight(int key, vec3_t origin, float	radius, float minlight, dlighttype_t type)
+void V_AddDlight(int key, vec3_t origin, float	radius, float minlight, vec3_t color)
 {
 	if (cl_numvisdlights >= MAX_DLIGHTS)
 		return;
@@ -814,7 +814,7 @@ void V_AddDlight(int key, vec3_t origin, float	radius, float minlight, dlighttyp
 	VectorCopy (origin, cl_visdlights[cl_numvisdlights].origin);
 	cl_visdlights[cl_numvisdlights].radius = radius;
 	cl_visdlights[cl_numvisdlights].minlight = minlight;
-	cl_visdlights[cl_numvisdlights].type = type;
+	VectorCopy (color, cl_visdlights[cl_numvisdlights].color);
 	cl_numvisdlights++;
 }
 

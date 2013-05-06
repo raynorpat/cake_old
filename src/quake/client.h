@@ -160,7 +160,7 @@ typedef struct
 	float			die;		// stop lighting after this time
 	float			decay;		// drop this each second
 	float			minlight;	// don't add when contributing less
-	dlighttype_t	type;
+	vec3_t			color;
 } cdlight_t;
 
 typedef struct cparticle_s
@@ -513,7 +513,7 @@ void CL_UpdateTEnts (void);
 // cl_effects.c
 //
 cdlight_t *CL_AllocDlight (int key);
-void CL_NewDlight (int key, vec3_t origin, float radius, float time, dlighttype_t type);
+void CL_NewDlight (int key, vec3_t origin, float radius, float time, vec3_t color);
 void CL_LinkDlights (void);
 void CL_ClearDlights (void);
 

@@ -375,8 +375,8 @@ void CL_LinkPacketEntities (void)
 	float				f;
 	struct model_s		*model;
 	int					modelflags;
-	vec3_t				cur_origin;
-	vec3_t				old_origin;
+	vec3_t				cur_origin, old_origin;
+	vec3_t				color;
 	float				autorotate, flicker;
 	int					i;
 	int					pnum;
@@ -406,18 +406,25 @@ void CL_LinkPacketEntities (void)
 			flicker = r_lightflicker.value ? (rand() & 31) : 10;
 			// spawn light flashes, even ones coming from invisible objects
 			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, lt_redblue);
-			else if (state->effects & EF_BLUE)
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, lt_blue);
-			else if (state->effects & EF_RED)
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, lt_red);
-			else if (state->effects & EF_BRIGHTLIGHT) {
+			{
+				color[0] = 1; color[1] = 0; color[2] = 1;
+				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
+			} else if (state->effects & EF_BLUE) {
+				color[0] = 0; color[1] = 0; color[2] = 1;
+				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
+			} else if (state->effects & EF_RED)	{
+				color[0] = 1; color[1] = 0; color[2] = 0;
+				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
+			} else if (state->effects & EF_BRIGHTLIGHT) {
 				vec3_t	tmp;
 				VectorCopy (cur_origin, tmp);
 				tmp[2] += 16;
-				CL_NewDlight (state->number, tmp, 400 + flicker, 0.1, lt_default);
-			} else if (state->effects & EF_DIMLIGHT)
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, lt_default);
+				color[0] = 0.8; color[1] = 0.6; color[2] = 0.5;
+				CL_NewDlight (state->number, tmp, 400 + flicker, 0.1, color);
+			} else if (state->effects & EF_DIMLIGHT) {
+				color[0] = 0.8; color[1] = 0.6; color[2] = 0.5;
+				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
+			}
 		}
 
 		if (state->effects & EF_BRIGHTFIELD)
@@ -516,7 +523,10 @@ void CL_LinkPacketEntities (void)
 				}
 
 				if (r_rocketlight.value)
-					CL_NewDlight (state->number, ent.origin, 200, 0.1, lt_rocket);
+				{
+					color[0] = 0.9; color[1] = 0.6; color[2] = 0.4;
+					CL_NewDlight (state->number, ent.origin, 200, 0.1, color);
+				}
 			}
 			else if (modelflags & MF_GRENADE && r_grenadetrail.value)
 				CL_GrenadeTrail (old_origin, ent.origin);
@@ -882,7 +892,7 @@ void CL_LinkPlayers (void)
 	int				msec;
 	frame_t			*frame;
 	int				oldphysent;
-	vec3_t			org;
+	vec3_t			org, color;
 	float			flicker;
 
 	playertime = cls.realtime - cls.latency + 0.02;
@@ -909,20 +919,25 @@ void CL_LinkPlayers (void)
 
 			flicker = r_lightflicker.value ? (rand() & 31) : 10;
 
-			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, lt_redblue);
-			else if (state->effects & EF_BLUE)
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, lt_blue);
-			else if (state->effects & EF_RED)
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, lt_red);
-			else if (state->effects & EF_BRIGHTLIGHT) {
+			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED)) {
+				color[0] = 1; color[2] = 0; color[3] = 1;
+				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
+			} else if (state->effects & EF_BLUE) {
+				color[0] = 0; color[2] = 0; color[3] = 1;
+				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
+			} else if (state->effects & EF_RED) {
+				color[0] = 1; color[2] = 0; color[3] = 0;
+				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
+			} else if (state->effects & EF_BRIGHTLIGHT) {
 				vec3_t	tmp;
 				VectorCopy (org, tmp);
 				tmp[2] += 16;
-				CL_NewDlight (j+1, tmp, 400 + flicker, 0.1, lt_default);
+				color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
+				CL_NewDlight (j+1, tmp, 400 + flicker, 0.1, color);
+			} else if (state->effects & EF_DIMLIGHT) {
+				color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
+				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
 			}
-			else if (state->effects & EF_DIMLIGHT)
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, lt_default);
 		}
 
 		if (!state->modelindex)
