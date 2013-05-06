@@ -844,7 +844,7 @@ void R_DrawWorld (void)
 	}
 
 fullbrights:
-	if (gl_fb_bmodels.value)
+	if (gl_fullbrights.value)
 	{
 		qglDepthMask (GL_FALSE);
 		qglEnable (GL_BLEND);
@@ -1047,7 +1047,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 
 // fullbrights
 fullbrights:
-	if (gl_fb_bmodels.value && t->fb_texture)
+	if (gl_fullbrights.value && t->fb_texture)
 	{
 		qglDepthMask (GL_FALSE);
 		qglEnable (GL_BLEND);

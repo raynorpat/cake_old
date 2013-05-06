@@ -44,7 +44,7 @@ Draw_TextBox
 */
 void Draw_TextBox (int x, int y, int width, int lines)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 	int		cx, cy;
 	int		n;
 

@@ -33,7 +33,10 @@ int		numgltextures;
 
 gltexture_t *particletexture;
 
-unsigned	d_8to24table[256];
+unsigned int d_8to24table[256];
+unsigned int d_8to24table_fbright[256];
+unsigned int d_8to24table_nobright[256];
+unsigned int d_8to24table_conchars[256];
 
 //====================================================================
 
@@ -607,6 +610,8 @@ handles 8bit source data, then passes it to LoadImage32
 */
 void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 {
+	byte	padbyte;
+	unsigned int *usepal;
 	byte    stackbuf[MAX_STACK_PIXELS * 4];
     byte    *buffer, *dest;
     int     i, s, p;
@@ -620,6 +625,28 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 		memcpy (data, data + 32*31, 32);
 	}
 
+	// choose palette and padbyte
+	if (glt->flags & TEXPREF_FULLBRIGHT)
+	{
+		usepal = d_8to24table_fbright;
+		padbyte = 0;
+	}
+	else if (glt->flags & TEXPREF_NOBRIGHT && gl_fullbrights.value)
+	{
+		usepal = d_8to24table_nobright;
+		padbyte = 0;
+	}
+	else if (glt->flags & TEXPREF_CONCHARS)
+	{
+		usepal = d_8to24table_conchars;
+		padbyte = 0;
+	}
+	else
+	{
+		usepal = d_8to24table;
+		padbyte = 255;
+	}
+
     s = glt->width * glt->height;
     if (s > MAX_STACK_PIXELS)
         buffer = malloc(s * 4);
@@ -630,20 +657,20 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
     for (i = 0; i < s; i++)
 	{
         p = data[i];
-        *(unsigned long int *)dest = d_8to24table[p];
+        *(unsigned long int *)dest = usepal[p];
 
-        if (p == 255)
+        if (p == padbyte)
 		{
             // transparent, so scan around for another color
             // to avoid alpha fringes
             // FIXME: do a full flood fill so mips work...
-            if (i > glt->width && data[i - glt->width] != 255)
+            if (i > glt->width && data[i - glt->width] != padbyte)
                 p = data[i - glt->width];
-            else if (i < s - glt->width && data[i + glt->width] != 255)
+            else if (i < s - glt->width && data[i + glt->width] != padbyte)
                 p = data[i + glt->width];
-            else if (i > 0 && data[i - 1] != 255)
+            else if (i > 0 && data[i - 1] != padbyte)
                 p = data[i - 1];
-            else if (i < s - 1 && data[i + 1] != 255)
+            else if (i < s - 1 && data[i + 1] != padbyte)
                 p = data[i + 1];
             else
                 p = 0;
@@ -732,6 +759,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	// cache check
 	switch (format)
 	{
+		default:
 		case SRC_INDEXED_UPSCALE:
 		case SRC_INDEXED:
 			crc = CRC_Block(data, width * height);
@@ -766,6 +794,8 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	glt->source_width = width;
 	glt->source_height = height;
 	glt->source_crc = crc;
+	glt->shirt = -1;
+	glt->pants = -1;
 
 	// upload it
 	mark = Hunk_LowMark();
@@ -826,9 +856,9 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 		data += glt->source_offset;
 	}
 	else if (glt->source_file[0] && !glt->source_offset)
-		data = Image_LoadImage (glt->source_file, (int *) &glt->source_width, (int *) &glt->source_height); //simple file
+		data = Image_LoadImage (glt->source_file, (int *) &glt->source_width, (int *) &glt->source_height); // simple file
 	else if (!glt->source_file[0] && glt->source_offset)
-		data = (byte *) glt->source_offset; //image in memory
+		data = (byte *) glt->source_offset; // image in memory
 
 	if (!data)
 	{
@@ -853,13 +883,13 @@ invalid:
 		}
 		else
 		{
-			Com_Printf ("TexMgr_ReloadImage: can't colormap a non SRC_INDEXED texture: %s\n", glt->name);
+			Com_DPrintf ("TexMgr_ReloadImage: can't colormap a non SRC_INDEXED texture: %s\n", glt->name);
 		}
 	}
 
 	if (glt->shirt > -1 && glt->pants > -1)
 	{
-		//create new translation table
+		// create new translation table
 		for (i = 0; i < 256; i++)
 			translation[i] = i;
 
@@ -881,7 +911,7 @@ invalid:
 			for (i = 0; i < 16; i++)
 				translation[BOTTOM_RANGE+i] = pants + 15 - i;
 
-		//translate texture
+		// translate texture
 		size = glt->width * glt->height;
 		dst = translated = (byte *) Hunk_Alloc (size);
 		src = data;
@@ -929,10 +959,9 @@ TexMgr_LoadPalette
 */
 static void TexMgr_LoadPalette (void)
 {
-	unsigned v;
-	unsigned *table;
-	byte r,g,b;
-	byte *pal;
+	byte mask[] = {255,255,255,0};
+	byte black[] = {0,0,0,255};
+	byte *pal, *src, *dst;
 	int i, mark;
 	FILE *f;
 
@@ -941,21 +970,51 @@ static void TexMgr_LoadPalette (void)
 		Sys_Error ("Couldn't load gfx/palette.lmp");
 
 	mark = Hunk_LowMark ();
-
 	pal = Hunk_Alloc (768);
 	fread (pal, 1, 768, f);
 	fclose(f);
 
-	table = d_8to24table;
-	for (i=0 ; i<256 ; i++, pal+=3)
+	// standard palette, 255 is transparent
+	dst = (byte *)d_8to24table;
+	src = pal;
+	for (i=0; i<256; i++)
 	{
-		r = pal[0];
-		g = pal[1];
-		b = pal[2];
-		v = (r<<0) + (g<<8) + (b<<16) + (255<<24);
-		*table++ = v;
+		*dst++ = *src++;
+		*dst++ = *src++;
+		*dst++ = *src++;
+		*dst++ = 255;
 	}
-	d_8to24table[255] &= 0xffffff;	// 255 is transparent
+	d_8to24table[255] &= *(int *)mask;
+
+	// fullbright palette, 0-223 are black (for additive blending)
+	src = pal + 224*3;
+	dst = (byte *)(d_8to24table_fbright) + 224*4;
+	for (i=224; i<256; i++)
+	{
+		*dst++ = *src++;
+		*dst++ = *src++;
+		*dst++ = *src++;
+		*dst++ = 255;
+	}
+	for (i=0; i<224; i++)
+		d_8to24table_fbright[i] = *(int *)black;
+
+	// nobright palette, 224-255 are black (for additive blending)
+	dst = (byte *)d_8to24table_nobright;
+	src = pal;
+	for (i=0; i<256; i++)
+	{
+		*dst++ = *src++;
+		*dst++ = *src++;
+		*dst++ = *src++;
+		*dst++ = 255;
+	}
+	for (i=224; i<256; i++)
+		d_8to24table_nobright[i] = *(int *)black;
+
+	// conchars palette, 0 and 255 are transparent
+	memcpy(d_8to24table_conchars, d_8to24table, 256*4);
+	d_8to24table_conchars[0] &= *(int *)mask;
 
 	Hunk_FreeToLowMark (mark);
 }

@@ -115,44 +115,15 @@ void M_PrintWhite (int cx, int cy, char *str)
 	R_DrawString (cx + ((menuwidth - 320)>>1), cy + m_yofs, str);
 }
 
-void M_DrawPic (int x, int y, mpic_t *pic)
+void M_DrawPic (int x, int y, qpic_t *pic)
 {
 	R_DrawPic (x + ((menuwidth - 320)>>1), y + m_yofs, pic);
 }
 
-static byte identityTable[256];
-static byte translationTable[256];
-
-static void M_BuildTranslationTable (int top, int bottom)
+void M_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom)
 {
-	int		j;
-	byte	*dest, *source;
-
-	for (j = 0; j < 256; j++)
-		identityTable[j] = j;
-	dest = translationTable;
-	source = identityTable;
-	memcpy (dest, source, 256);
-
-	if (top < 128)	// the artists made some backwards ranges.  sigh.
-		memcpy (dest + TOP_RANGE, source + top, 16);
-	else
-		for (j=0 ; j<16 ; j++)
-			dest[TOP_RANGE+j] = source[top+15-j];
-
-	if (bottom < 128)
-		memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
-	else
-		for (j=0 ; j<16 ; j++)
-			dest[BOTTOM_RANGE+j] = source[bottom+15-j];
+	R_DrawTransPicTranslate (x + ((menuwidth - 320)>>1), y + m_yofs, pic, top, bottom);
 }
-
-
-void M_DrawTransPicTranslate (int x, int y, mpic_t *pic)
-{
-	R_DrawTransPicTranslate (x + ((menuwidth - 320)>>1), y + m_yofs, pic, translationTable);
-}
-
 
 void M_DrawTextBox (int x, int y, int width, int lines)
 {
@@ -240,7 +211,7 @@ void M_Menu_Main_f (void)
 void M_Main_Draw (void)
 {
 	int		f;
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
 	p = R_CachePic ("gfx/ttl_main.lmp");
@@ -456,7 +427,7 @@ void M_DrawCheckbox (int x, int y, int on)
 void M_Options_Draw (void)
 {
 	float		r;
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic("gfx/qplaque.lmp"));
 	p = R_CachePic ("gfx/p_option.lmp");
@@ -680,7 +651,7 @@ void M_Keys_Draw (void)
 	int		keys[2];
 	char	*name;
 	int		x, y;
-	mpic_t	*p;
+	qpic_t	*p;
 
 	p = R_CachePic ("gfx/ttl_cstm.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
@@ -817,7 +788,7 @@ void M_Menu_Fps_f (void)
 
 void M_Fps_Draw (void)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
 	p = R_CachePic ("gfx/ttl_cstm.lmp");
@@ -1024,7 +995,7 @@ void M_Menu_Video_f (void)
 
 void M_Video_Draw (void)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 	char	*string;
 
 	M_DrawPic(16, 4, R_CachePic("gfx/qplaque.lmp"));
@@ -1294,7 +1265,7 @@ void M_Menu_SinglePlayer_f (void)
 void M_SinglePlayer_Draw (void)
 {
 	int		f;
-	mpic_t	*p;
+	qpic_t	*p;
 
 	if (m_singleplayer_confirm) {
 		M_DrawTextBox (50, 9*8, 25, 4);
@@ -1402,7 +1373,7 @@ void M_Menu_SinglePlayer_f (void)
 
 void M_SinglePlayer_Draw (void)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic("gfx/qplaque.lmp"));
 	p = R_CachePic ("gfx/ttl_sgl.lmp");
@@ -1489,7 +1460,7 @@ void M_Menu_Save_f (void)
 void M_Load_Draw (void)
 {
 	int		i;
-	mpic_t	*p;
+	qpic_t	*p;
 
 	p = R_CachePic ("gfx/p_load.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
@@ -1505,7 +1476,7 @@ void M_Load_Draw (void)
 void M_Save_Draw (void)
 {
 	int		i;
-	mpic_t	*p;
+	qpic_t	*p;
 
 	p = R_CachePic ("gfx/p_save.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
@@ -1614,7 +1585,7 @@ void M_Menu_MultiPlayer_f (void)
 
 void M_MultiPlayer_Draw (void)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp"));
 	p = R_CachePic ("gfx/p_multi.lmp");
@@ -2169,7 +2140,7 @@ int		gameoptions_cursor;
 
 void M_GameOptions_Draw (void)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
 	p = R_CachePic ("gfx/p_multi.lmp");
@@ -2448,7 +2419,7 @@ void M_Menu_Setup_f (void)
 
 void M_Setup_Draw (void)
 {
-	mpic_t	*p;
+	qpic_t	*p;
 
 	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
 	p = R_CachePic ("gfx/p_multi.lmp");
@@ -2471,8 +2442,7 @@ void M_Setup_Draw (void)
 	p = R_CachePic ("gfx/bigbox.lmp");
 	M_DrawPic (160, 64, p);
 	p = R_CachePic ("gfx/menuplyr.lmp");
-	M_BuildTranslationTable(setup_top*16, setup_bottom*16);
-	M_DrawTransPicTranslate (172, 72, p);
+	M_DrawTransPicTranslate (172, 72, p, setup_top, setup_bottom);
 
 	M_DrawChar (56, setup_cursor_table [setup_cursor], 12+((int)(curtime*4)&1));
 

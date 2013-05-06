@@ -413,6 +413,8 @@ void Mod_LoadTextures (lump_t *l)
 		{
 			// the pixels immediately follow the structures
 			memcpy (tx+1, mt+1, pixels);
+
+			tx->fb_texture = NULL;
 		}
 		else
 		{
@@ -430,15 +432,15 @@ void Mod_LoadTextures (lump_t *l)
 		{
 			sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
 			offset = (unsigned)(mt+1) - (unsigned)mod_base;
-			tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 			if (Mod_CheckFullbrights ((byte *)(tx+1), pixels))
 			{
+				tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT);
 				sprintf (texturename, "%s:%s_glow", loadmodel->name, tx->name);
-				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
+				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT);
 			}
 			else
 			{
-				tx->fb_texture = NULL;
+				tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 			}
 		}
 	}
@@ -667,42 +669,6 @@ void Mod_LoadVertexes (lump_t *l)
 
 /*
 =================
-Mod_LoadSubmodels
-=================
-*/
-void Mod_LoadSubmodels (lump_t *l)
-{
-	dmodel_t	*in;
-	dmodel_t	*out;
-	int			i, j, count;
-
-	in = (dmodel_t *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
-		Host_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
-	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
-
-	loadmodel->submodels = out;
-	loadmodel->numsubmodels = count;
-
-	for (i = 0; i < count; i++, in++, out++)
-	{
-		for (j = 0; j < 3; j++)
-		{	// spread the mins / maxs by a pixel
-			out->mins[j] = LittleFloat (in->mins[j]) - 1;
-			out->maxs[j] = LittleFloat (in->maxs[j]) + 1;
-			out->origin[j] = LittleFloat (in->origin[j]);
-		}
-		for (j = 0; j < MAX_MAP_HULLS; j++)
-			out->headnode[j] = LittleLong (in->headnode[j]);
-		out->visleafs = LittleLong (in->visleafs);
-		out->firstface = LittleLong (in->firstface);
-		out->numfaces = LittleLong (in->numfaces);
-	}
-}
-
-/*
-=================
 Mod_LoadEdges
 =================
 */
@@ -829,6 +795,53 @@ void CalcSurfaceExtents (msurface_t *s)
 	}
 }
 
+/*
+================
+Mod_PolyForUnlitSurface
+
+creates polys for unlightmapped surfaces (sky and water)
+TODO: merge this into BuildSurfaceDisplayList?
+================
+*/
+void Mod_PolyForUnlitSurface (msurface_t *fa)
+{
+	vec3_t		verts[64];
+	int			numverts, i, lindex;
+	float		*vec;
+	glpoly_t	*poly;
+	float		texscale;
+
+	if (fa->flags & (SURF_DRAWTURB | SURF_DRAWSKY))
+		texscale = (1.0/128.0); //warp animation repeats every 128
+	else
+		texscale = (1.0/32.0); //to match r_notexture_mip
+
+	// convert edges back to a normal polygon
+	numverts = 0;
+	for (i=0 ; i<fa->numedges ; i++)
+	{
+		lindex = loadmodel->surfedges[fa->firstedge + i];
+
+		if (lindex > 0)
+			vec = loadmodel->vertexes[loadmodel->edges[lindex].v[0]].position;
+		else
+			vec = loadmodel->vertexes[loadmodel->edges[-lindex].v[1]].position;
+		VectorCopy (vec, verts[numverts]);
+		numverts++;
+	}
+
+	//create the poly
+	poly = Hunk_Alloc (sizeof(glpoly_t) + (numverts-4) * VERTEXSIZE*sizeof(float));
+	poly->next = NULL;
+	fa->polys = poly;
+	poly->numverts = numverts;
+	for (i=0, vec=(float *)verts; i<numverts; i++, vec+= 3)
+	{
+		VectorCopy (vec, poly->verts[i]);
+		poly->verts[i][3] = DotProduct(vec, fa->texinfo->vecs[0]) * texscale;
+		poly->verts[i][4] = DotProduct(vec, fa->texinfo->vecs[1]) * texscale;
+	}
+}
 
 /*
 =================
@@ -930,6 +943,7 @@ void Mod_LoadFaces (lump_t *l)
 		else if (out->texinfo->texture->name[0] == '*')		// turbulent
 		{
 			out->flags |= (SURF_DRAWTURB | SURF_UNLIT);
+			//Mod_PolyForUnlitSurface (out);
 			GL_SubdivideSurface (out);	// cut up polygon for warps
 			continue;
 		}
@@ -982,16 +996,25 @@ void Mod_LoadNodes (lump_t *l)
 		p = LittleLong(in->planenum);
 		out->plane = loadmodel->planes + p;
 
-		out->firstsurface = LittleShort (in->firstface);
-		out->numsurfaces = LittleShort (in->numfaces);
+		out->firstsurface = (unsigned short)LittleShort (in->firstface);
+		out->numsurfaces = (unsigned short)LittleShort (in->numfaces);
 		
 		for (j = 0; j < 2; j++)
 		{
-			p = LittleShort (in->children[j]);
-			if (p >= 0)
+			p = (unsigned short)LittleShort (in->children[j]);
+			if (p < count)
 				out->children[j] = loadmodel->nodes + p;
 			else
-				out->children[j] = (mnode_t *)(loadmodel->leafs + (-1 - p));
+			{
+				p = 65535 - p; // note this uses 65535 intentionally, -1 is leaf 0
+				if (p < loadmodel->numleafs)
+					out->children[j] = (mnode_t *)(loadmodel->leafs + p);
+				else
+				{
+					Com_Printf("Mod_LoadNodes: invalid leaf index %i (file has only %i leafs)\n", p, loadmodel->numleafs);
+					out->children[j] = (mnode_t *)(loadmodel->leafs); // map it to the solid leaf
+				}
+			}
 		}
 	}
 	
@@ -1029,9 +1052,8 @@ void Mod_LoadLeafs (lump_t *l)
 		p = LittleLong(in->contents);
 		out->contents = p;
 
-		out->firstmarksurface = loadmodel->marksurfaces +
-			LittleShort(in->firstmarksurface);
-		out->nummarksurfaces = LittleShort(in->nummarksurfaces);
+		out->firstmarksurface = loadmodel->marksurfaces + (unsigned short)LittleShort(in->firstmarksurface);
+		out->nummarksurfaces = (unsigned short)LittleShort(in->nummarksurfaces);
 		
 		p = LittleLong(in->visofs);
 		if (p == -1)
@@ -1064,7 +1086,7 @@ void Mod_LoadMarksurfaces (lump_t *l)
 
 	for (i = 0; i < count; i++)
 	{
-		j = LittleShort(in[i]);
+		j = (unsigned short)LittleShort(in[i]);
 		if (j >= loadmodel->numsurfaces)
 			Host_Error ("Mod_LoadMarksurfaces: bad surface number");
 		out[i] = loadmodel->surfaces + j;
@@ -1112,7 +1134,7 @@ void Mod_LoadPlanes (lump_t *l)
 	if (l->filelen % sizeof(*in))
 		Host_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 	
 	loadmodel->planes = out;
 	loadmodel->numplanes = count;
@@ -1151,6 +1173,41 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 	return VectorLength (corner);
 }
 
+/*
+=================
+Mod_LoadSubmodels
+=================
+*/
+void Mod_LoadSubmodels (lump_t *l)
+{
+	dmodel_t	*in;
+	dmodel_t	*out;
+	int			i, j, count;
+
+	in = (dmodel_t *)(mod_base + l->fileofs);
+	if (l->filelen % sizeof(*in))
+		Host_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	count = l->filelen / sizeof(*in);
+	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+	loadmodel->submodels = out;
+	loadmodel->numsubmodels = count;
+
+	for (i = 0; i < count; i++, in++, out++)
+	{
+		for (j = 0; j < 3; j++)
+		{	// spread the mins / maxs by a pixel
+			out->mins[j] = LittleFloat (in->mins[j]) - 1;
+			out->maxs[j] = LittleFloat (in->maxs[j]) + 1;
+			out->origin[j] = LittleFloat (in->origin[j]);
+		}
+		for (j = 0; j < MAX_MAP_HULLS; j++)
+			out->headnode[j] = LittleLong (in->headnode[j]);
+		out->visleafs = LittleLong (in->visleafs);
+		out->firstface = LittleLong (in->firstface);
+		out->numfaces = LittleLong (in->numfaces);
+	}
+}
 
 /*
 =================
@@ -1448,20 +1505,22 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 			}
 			Q_snprintfz (name, sizeof(name), "%s_%i", loadmodel->name, i);
 			offset = (unsigned)(pskintype+1) - (unsigned)mod_base;
-			pheader->gl_texture[i][0] =
-			pheader->gl_texture[i][1] =
-			pheader->gl_texture[i][2] =
-			pheader->gl_texture[i][3] =	TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 
 			if (Mod_CheckFullbrights((byte *)(pskintype + 1),	pheader->skinwidth*pheader->skinheight))
-				pheader->fb_texture[i][0] = pheader->fb_texture[i][1] =
-				pheader->fb_texture[i][2] = pheader->fb_texture[i][3] =
-					TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight,
-						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_MIPMAP);
+			{
+				pheader->gl_texture[i][0] =	TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_NOBRIGHT);
+				pheader->fb_texture[i][0] =	TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight, 
+					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_FULLBRIGHT);
+			}
 			else
-				pheader->fb_texture[i][0] = pheader->fb_texture[i][1] =
-				pheader->fb_texture[i][2] = pheader->fb_texture[i][3] = NULL;
+			{
+				pheader->gl_texture[i][0] =	TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_NONE);
+				pheader->fb_texture[i][0] = NULL;
+			}
 			
+			pheader->gl_texture[i][3] = pheader->gl_texture[i][2] = pheader->gl_texture[i][1] = pheader->gl_texture[i][0];
+			pheader->fb_texture[i][3] = pheader->fb_texture[i][2] = pheader->fb_texture[i][1] = pheader->fb_texture[i][0];
+
 			pskintype = (daliasskintype_t *)((byte *)(pskintype+1) + s);
 		} else {
 			// animating skin group.  yuck.
@@ -1477,14 +1536,19 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 					Mod_FloodFillSkin (skin, pheader->skinwidth, pheader->skinheight);
 					Q_snprintfz (name, sizeof(name), "%s_%i_%i", loadmodel->name, i, j);
 					offset = (unsigned)(pskintype) - (unsigned)mod_base;
-					pheader->gl_texture[i][j&3] = 
-						TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,	SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_MIPMAP);
 
 					if (Mod_CheckFullbrights((byte *)(pskintype),	pheader->skinwidth*pheader->skinheight))
-						pheader->fb_texture[i][j&3] =
-							TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_MIPMAP);
+					{
+						pheader->gl_texture[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, 
+							SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_NOBRIGHT);
+						pheader->fb_texture[i][j&3] = TexMgr_LoadImage (loadmodel, va("@fb_%s", name), pheader->skinwidth, pheader->skinheight, 
+							SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_FULLBRIGHT);
+					}
 					else
+					{
+						pheader->gl_texture[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight, SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_NONE);
 						pheader->fb_texture[i][j&3] = NULL;
+					}
 
 					pskintype = (daliasskintype_t *)((byte *)(pskintype) + s);
 			}
@@ -1775,7 +1839,7 @@ void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
 
 	sprintf (name, "%s_%i", loadmodel->name, framenum);
 	offset = (unsigned)(pinframe+1) - (unsigned)mod_base;
-	pspriteframe->gl_texture = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1), loadmodel->name, offset, TEXPREF_NONE);
+	pspriteframe->gl_texture = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1), loadmodel->name, offset, TEXPREF_NOPICMIP);
 
 	return (void *)((byte *)pinframe + sizeof (dspriteframe_t) + size);
 }

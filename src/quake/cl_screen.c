@@ -88,7 +88,7 @@ cvar_t		scr_viewsize = {"viewsize","100",CVAR_ARCHIVE};
 cvar_t		scr_fov = {"fov","90",CVAR_ARCHIVE};	// 10 - 170
 cvar_t		scr_consize = {"scr_consize","0.5"};
 cvar_t		scr_conspeed = {"scr_conspeed","1000"};
-cvar_t		scr_conalpha = {"scr_conalpha", "0.8"};
+cvar_t		scr_conalpha = {"scr_conalpha", "0.7"};
 cvar_t		scr_centertime = {"scr_centertime","2"};
 cvar_t		scr_showram = {"showram","1"};
 cvar_t		scr_showturtle = {"showturtle","0"};
@@ -104,9 +104,9 @@ cvar_t		gl_triplebuffer = {"gl_triplebuffer", "1", CVAR_ARCHIVE};
 
 qbool		scr_initialized;		// ready to draw
 
-mpic_t		*scr_ram;
-mpic_t		*scr_net;
-mpic_t		*scr_turtle;
+qpic_t		*scr_ram;
+qpic_t		*scr_net;
+qpic_t		*scr_turtle;
 
 static int	scr_fullupdate;		// set to 0 to force full redraw
 
@@ -596,7 +596,7 @@ DrawPause
 void SCR_DrawPause (void)
 {
 	extern cvar_t sv_paused;
-	mpic_t	*pic;
+	qpic_t	*pic;
 
 	if (!scr_showpause.value)		// turn off for screenshots
 		return;
@@ -705,7 +705,7 @@ void SCR_DrawConsole (void)
 {
 	const char *ver = PROGRAM " " PROGRAM_VERSION;
 	float	alpha;
-	mpic_t	*conback;
+	qpic_t	*conback;
 
 	if (!scr_con_current)
 	{

@@ -23,186 +23,242 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 byte		*draw_chars;				// 8*8 graphic characters
 
-gltexture_t	*translate_texture, *char_texture;
-gltexture_t *crosshairtextures[3];
+gltexture_t	*char_texture;
 
-static byte crosshairdata[3][64] = {
-	{
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xfe, 0xff, 0xfe, 0xff, 0xfe, 0xff, 0xfe, 0xff,
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
-	},
+qpic_t		*pic_ovr, *pic_ins; // new cursor handling
+qpic_t		*pic_nul; // for missing gfx, don't crash
 
-	{
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xfe, 0xfe, 0xfe, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
-	},
-
-	{
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
-	}
+byte pic_ovr_data[8][8] =
+{
+	{255,255,255,255,255,255,255,255},
+	{255, 15, 15, 15, 15, 15, 15,255},
+	{255, 15, 15, 15, 15, 15, 15,  2},
+	{255, 15, 15, 15, 15, 15, 15,  2},
+	{255, 15, 15, 15, 15, 15, 15,  2},
+	{255, 15, 15, 15, 15, 15, 15,  2},
+	{255, 15, 15, 15, 15, 15, 15,  2},
+	{255,255,  2,  2,  2,  2,  2,  2},
 };
 
-static void	R_LoadCharset (void);
+byte pic_ins_data[9][8] =
+{
+	{ 15, 15,255,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{ 15, 15,  2,255,255,255,255,255},
+	{255,  2,  2,255,255,255,255,255},
+};
 
-//=============================================================================
+byte pic_nul_data[8][8] =
+{
+	{252,252,252,252,  0,  0,  0,  0},
+	{252,252,252,252,  0,  0,  0,  0},
+	{252,252,252,252,  0,  0,  0,  0},
+	{252,252,252,252,  0,  0,  0,  0},
+	{  0,  0,  0,  0,252,252,252,252},
+	{  0,  0,  0,  0,252,252,252,252},
+	{  0,  0,  0,  0,252,252,252,252},
+	{  0,  0,  0,  0,252,252,252,252},
+};
+
+byte pic_stipple_data[8][8] =
+{
+	{255,  0,  0,  0,255,  0,  0,  0},
+	{  0,  0,255,  0,  0,  0,255,  0},
+	{255,  0,  0,  0,255,  0,  0,  0},
+	{  0,  0,255,  0,  0,  0,255,  0},
+	{255,  0,  0,  0,255,  0,  0,  0},
+	{  0,  0,255,  0,  0,  0,255,  0},
+	{255,  0,  0,  0,255,  0,  0,  0},
+	{  0,  0,255,  0,  0,  0,255,  0},
+};
+
+byte pic_crosshair_data[8][8] =
+{
+	{255,255,255,255,255,255,255,255},
+	{255,255,255,  8,  9,255,255,255},
+	{255,255,255,  6,  8,  2,255,255},
+	{255,  6,  8,  8,  6,  8,  8,255},
+	{255,255,  2,  8,  8,  2,  2,  2},
+	{255,255,255,  7,  8,  2,255,255},
+	{255,255,255,255,  2,  2,255,255},
+	{255,255,255,255,255,255,255,255},
+};
+
+typedef struct
+{
+	gltexture_t *gltexture;
+	float		sl, tl, sh, th;
+} glpic_t;
+
+//==============================================================================
+//
+//  PIC CACHING
+//
+//==============================================================================
 
 typedef struct cachepic_s
 {
-	mpic_t		pic;
 	char		name[MAX_QPATH];
-	gltexture_t *gltexture;
-	float		sl, tl, sh, th;
+	qpic_t		pic;
+	byte		padding[32];	// for appended glpic
 } cachepic_t;
 
-#define	MAX_CACHED_PICS		256
-static cachepic_t	cachepics[MAX_CACHED_PICS];
-static int			numcachepics;
+#define	MAX_CACHED_PICS		128
+cachepic_t	menu_cachepics[MAX_CACHED_PICS];
+int			menu_numcachepics;
 
-byte		menuplyr_pixels[4096];		// the menu needs them
+byte		menuplyr_pixels[4096];
 
-static mpic_t *R_CachePic_impl (char *path, qbool wad, qbool crash)
+extern byte	*wad_base;
+
+/*
+================
+R_CacheWadPic
+================
+*/
+qpic_t *R_CacheWadPic (char *name)
 {
 	qpic_t	*p;
-	cachepic_t	*pic;
-	int		i;
-	unsigned offset;
-	extern byte	*wad_base;
+	glpic_t	*gl;
 	char texturename[64];
+	unsigned offset;
 
-	for (pic = cachepics, i = 0; i < numcachepics; pic++, i++)
+	p = W_GetLumpName (name, false);
+	if (!p)
+		return pic_nul;
+	gl = (glpic_t *)p->data;
+
+	sprintf (texturename, "gfx:%s", name);
+
+	offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
+
+	gl->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx", offset, TEXPREF_NOPICMIP);
+	gl->sl = 0;
+	gl->sh = 1;
+	gl->tl = 0;
+	gl->th = 1;
+
+	return p;
+}
+
+/*
+================
+R_CachePic
+================
+*/
+qpic_t	*R_CachePic (char *path)
+{
+	cachepic_t	*pic;
+	int			i;
+	qpic_t		*dat;
+	glpic_t		*gl;
+
+	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
 		if (!strcmp (path, pic->name))
 			return &pic->pic;
 
-	if (wad) {
-		p = W_GetLumpName (path, crash);
-		if (!p)
-			return NULL;
-	}
-	else {
-		// load the pic from disk
-		p = (qpic_t *)FS_LoadTempFile (path);	
-		if (!p) {
-			if (crash)
-				Sys_Error ("R_CachePic: failed to load %s", path);
-			else
-				return NULL;
-		}
-		SwapPic (p);
+	if (menu_numcachepics == MAX_CACHED_PICS)
+		Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
+	menu_numcachepics++;
+	strcpy (pic->name, path);
 
-		// HACK HACK HACK --- we need to keep the bytes for
-		// the translatable player picture just for the menu
-		// configuration dialog
-		if (!strcmp (path, "gfx/menuplyr.lmp")) {
-			if ((unsigned)(p->width*p->height) > sizeof(menuplyr_pixels))
-				Sys_Error ("gfx/menuplyr.lmp has invalid dimensions");
-			memcpy (menuplyr_pixels, p->data, p->width*p->height);
-		}
-	}
+	// load the pic from disk
+	dat = (qpic_t *)FS_LoadTempFile (path);
+	if (!dat)
+		Sys_Error ("Draw_CachePic: failed to load %s", path);
+	SwapPic (dat);
 
-	if (numcachepics == MAX_CACHED_PICS)
-		Sys_Error ("numcachepics == MAX_CACHED_PICS");
+	// HACK HACK HACK --- we need to keep the bytes for
+	// the translatable player picture just for the menu
+	// configuration dialog
+	if (!strcmp (path, "gfx/menuplyr.lmp"))
+		memcpy (menuplyr_pixels, dat->data, dat->width*dat->height);
 
-	numcachepics++;
+	pic->pic.width = dat->width;
+	pic->pic.height = dat->height;
 
-	strlcpy (pic->name, path, sizeof(pic->name));
-	pic->pic.width = p->width;
-	pic->pic.height = p->height;
-
-	sprintf (texturename, "pic:%s", path);
-	offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
-
-	pic->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED_UPSCALE, p->data, "", offset, TEXPREF_UPSCALE);
-
-	pic->sl = 0;
-	pic->sh = 1;
-	pic->tl = 0;
-	pic->th = 1;
+	gl = (glpic_t *)pic->pic.data;
+	gl->gltexture = TexMgr_LoadImage (NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path, sizeof(int)*2, TEXPREF_NOPICMIP);
+	gl->sl = 0;
+	gl->sh = 1;
+	gl->tl = 0;
+	gl->th = 1;
 
 	return &pic->pic;
 }
 
-mpic_t *R_CachePic (char *path)
+/*
+================
+Draw_MakePic
+================
+*/
+qpic_t *Draw_MakePic (char *name, int width, int height, byte *data)
 {
-	return R_CachePic_impl (path, false, true);
+	qpic_t		*pic;
+	glpic_t		*gl;
+
+	pic = Hunk_Alloc (sizeof(qpic_t) - 4 + sizeof (glpic_t));
+	pic->width = width;
+	pic->height = height;
+
+	gl = (glpic_t *)pic->data;
+	gl->gltexture = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, data, "", (unsigned)data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+	gl->sl = 0;
+	gl->sh = 1;
+	gl->tl = 0;
+	gl->th = 1;
+
+	return pic;
 }
 
-mpic_t *R_CacheWadPic (char *name)
-{
-	return R_CachePic_impl (name, true, false);
-}
-
-
-static void R_LoadCharset (void)
-{
-	int		i;
-	byte	buf[128*256];
-	byte	*src, *dest;
-	unsigned offset;
-	extern byte	*wad_base;
-
-	draw_chars = W_GetLumpName ("conchars", true);
-	offset = (unsigned)draw_chars - (unsigned)wad_base;
-	for (i=0 ; i<256*64 ; i++)
-		if (draw_chars[i] == 0)
-			draw_chars[i] = 255;	// proper transparent color
-
-	// Convert the 128*128 conchars texture to 128*256 leaving
-	// empty space between rows so that chars don't stumble on
-	// each other because of texture smoothing.
-	// This hack costs us 64K of GL texture memory
-	memset (buf, 255, sizeof(buf));
-	src = draw_chars;
-	dest = buf;
-	for (i=0 ; i<16 ; i++) {
-		memcpy (dest, src, 128*8);
-		src += 128*8;
-		dest += 128*8*2;
-	}
-
-	char_texture = TexMgr_LoadImage (NULL, "pic:conchars", 128, 256, SRC_INDEXED, buf, "", offset, TEXPREF_NEAREST);
-}
+//==============================================================================
+//
+//  INIT
+//
+//==============================================================================
 
 static void gl_draw_start(void)
 {
-	int i;
-
-	numcachepics = 0;
-	draw_chars = NULL;
-
-	// load the crosshair pics
-	for (i=0 ; i<3 ; i++)
-		crosshairtextures[i] = TexMgr_LoadImage (NULL, va("pic:crosshair_%d", i), 8, 8, SRC_INDEXED, crosshairdata[i], "", (unsigned)crosshairdata[i], TEXPREF_NEAREST);
+	byte		*data;
+	unsigned	offset;
+	cachepic_t	*pic;
+	int			i;
 
 	// load wad file
 	W_LoadWadFile ("gfx.wad");
 
-	// load the charset by hand
-	R_LoadCharset ();
+	// load conchars from wad file
+	data = W_GetLumpName ("conchars", false);
+	if (!data)
+		Sys_Error ("Draw_LoadPics: couldn't load conchars");
+	offset = (unsigned)data - (unsigned)wad_base;
+	char_texture = TexMgr_LoadImage (NULL, "gfx:conchars", 128, 128, SRC_INDEXED, data,	"gfx", offset, TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+
+	// create internal pics
+	pic_ins = Draw_MakePic ("ins", 8, 9, &pic_ins_data[0][0]);
+	pic_ovr = Draw_MakePic ("ovr", 8, 8, &pic_ovr_data[0][0]);
+	pic_nul = Draw_MakePic ("nul", 8, 8, &pic_nul_data[0][0]);
+
+	// empty lmp cache
+	for (pic = menu_cachepics, i = 0; i < menu_numcachepics; pic++, i++)
+		pic->name[0] = 0;
+	menu_numcachepics = 0;
 }
 
 static void gl_draw_shutdown(void)
 {
-	numcachepics = 0;
-	draw_chars = NULL;
+	cachepic_t	*pic;
+	int			i;
+
+	// empty lmp cache
+	for (pic = menu_cachepics, i = 0; i < menu_numcachepics; pic++, i++)
+		pic->name[0] = 0;
+	menu_numcachepics = 0;
 }
 
 static void gl_draw_newmap(void)
@@ -219,6 +275,12 @@ void R_Draw_Init (void)
 {
 	R_RegisterModule("GL_Draw", gl_draw_start, gl_draw_shutdown, gl_draw_newmap);
 }
+
+//==============================================================================
+//
+//  2D DRAWING
+//
+//==============================================================================
 
 static void Draw_StretchPic ( int x, int y, int w, int h, float s1, float t1, float s2, float t2 )
 {
@@ -280,7 +342,7 @@ void R_DrawChar (int x, int y, int num)
 
 	GL_Bind (char_texture->texnum);
 
-	Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.03125 );
+	Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.0625 );
 }
 
 void R_DrawString (int x, int y, const char *str)
@@ -302,13 +364,12 @@ void R_DrawString (int x, int y, const char *str)
 			frow = (float) (num >> 4)*0.0625;
 			fcol = (float) (num & 15)*0.0625;
 
-			Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.03125 );
+			Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.0625 );
 		}
 
 		x += 8;
 	}
 }
-
 
 void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 {
@@ -318,65 +379,21 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 	x = scr_vrect.x + scr_vrect.width/2 + crossx; 
 	y = scr_vrect.y + scr_vrect.height/2 + crossy;
 
-	if (num == 2 || num == 3 || num == 4) {
-		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		qglColor3ubv ((byte *) &d_8to24table[(byte) color]);
-
-		GL_Bind (crosshairtextures[num - 2]->texnum);
-
-		Draw_StretchPic( x, y, 16, 16, 0, 0, 1, 1 );
-
-		qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		qglColor4f (1, 1, 1, 1);
-	}
-	else {
-		R_DrawChar (x - 4, y - 4, '+');
-	}
+	R_DrawChar (x - 4, y - 4, '+');
 }
 
-void R_DrawPic (int x, int y, mpic_t *pic)
+void R_DrawPic (int x, int y, qpic_t *pic)
 {
-	cachepic_t *cpic = (cachepic_t *) pic;
+	glpic_t *glpic = (glpic_t *) pic->data;
 
 	if (!pic)
 		return;
 
-	GL_Bind (cpic->gltexture->texnum);
+	GL_Bind (glpic->gltexture->texnum);
 
 	Draw_StretchPic( x, y, pic->width, pic->height, 0, 0, 1, 1 );
 }
 
-void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
-{
-	float newsl, newtl, newsh, newth;
-	float oldglwidth, oldglheight;
-	cachepic_t *cpic = (cachepic_t *) pic;
-
-	if (!pic)
-		return;
-	
-	oldglwidth = cpic->sh - cpic->sl;
-	oldglheight = cpic->th - cpic->tl;
-
-	newsl = cpic->sl + (srcx*oldglwidth)/pic->width;
-	newsh = newsl + (width*oldglwidth)/pic->width;
-
-	newtl = cpic->tl + (srcy*oldglheight)/pic->height;
-	newth = newtl + (height*oldglheight)/pic->height;
-	
-	GL_Bind (cpic->gltexture->texnum);
-
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (newsl, newtl);
-	qglVertex2f (x, y);
-	qglTexCoord2f (newsh, newtl);
-	qglVertex2f (x + width, y);
-	qglTexCoord2f (newsh, newth);
-	qglVertex2f (x + width, y + height);
-	qglTexCoord2f (newsl, newth);
-	qglVertex2f (x, y + height);
-	qglEnd ();
-}
 
 /*
 =============
@@ -385,72 +402,52 @@ R_DrawTransPicTranslate
 Only used for the player color selection menu
 =============
 */
-void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation)
+void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom)
 {
-/*
-	int				v, u, c;
-	unsigned		trans[64*64], *dest;
-	byte			*src;
-	int				p;
+	static int oldtop = -2;
+	static int oldbottom = -2;
+	gltexture_t *glt;
+
+	if (top != oldtop || bottom != oldbottom)
+	{
+		oldtop = top;
+		oldbottom = bottom;
+		glt = ((glpic_t *)pic->data)->gltexture;
+		TexMgr_ReloadImage (glt, top, bottom);
+	}
+
+	R_DrawPic (x, y, pic);
+}
+
+
+void R_DrawStretchPic (int x, int y, int width, int height, qpic_t *pic, float alpha)
+{
+	glpic_t *glpic = (glpic_t *) pic->data;
 
 	if (!pic)
 		return;
 
-	c = pic->width * pic->height;
-
-	dest = trans;
-	for (v=0 ; v<64 ; v++, dest += 64)
+	if (alpha > 0.0)
 	{
-		src = &menuplyr_pixels[ ((v*pic->height)>>6) *pic->width];
-		for (u=0 ; u<64 ; u++)
+		if (alpha < 1.0)
 		{
-			p = src[(u*pic->width)>>6];
-			if (p == 255)
-				dest[u] = 0;
-			else
-				dest[u] =  d_8to24table[translation[p]];
+			qglEnable (GL_BLEND);
+			qglColor4f (1,1,1,alpha);
+			qglDisable (GL_ALPHA_TEST);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		}
+
+		GL_Bind (glpic->gltexture->texnum);
+		Draw_StretchPic (x, y, width, height, 0, 0, 1, 1);
+
+		if (alpha < 1.0)
+		{
+			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			qglEnable (GL_ALPHA_TEST);
+			qglDisable (GL_BLEND);
+			qglColor4f (1,1,1,1);
 		}
 	}
-
-	translate_texture = TexMgr_LoadImage32 ("translate_texture", 64, 64, trans, TEXPREF_NONE);
-	GL_Bind (translate_texture->texnum);
-
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (0, 0);
-	qglVertex2f (x, y);
-	qglTexCoord2f (1, 0);
-	qglVertex2f (x+pic->width, y);
-	qglTexCoord2f (1, 1);
-	qglVertex2f (x+pic->width, y+pic->height);
-	qglTexCoord2f (0, 1);
-	qglVertex2f (x, y+pic->height);
-	qglEnd ();
-	*/
-}
-
-
-void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float alpha)
-{
-	cachepic_t *cpic = (cachepic_t *) pic;
-
-	if (!pic || !alpha)
-		return;
-
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-//	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglCullFace(GL_FRONT);
-
-	qglColor4f (1, 1, 1, alpha);
-
-	GL_Bind (cpic->gltexture->texnum);
-
-	Draw_StretchPic ( x, y, width, height, 0, 0, 1, 1 );
-
-	qglColor4f (1, 1, 1, 1);
-
-	qglEnable(GL_ALPHA_TEST);
-	qglDisable (GL_BLEND);
 }
 
 
@@ -461,13 +458,15 @@ R_DrawFilledRect
 Fills a box of pixels with a single indexed color
 =============
 */
-void R_DrawFilledRect (int x, int y, int w, int h, int c)
+void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha)
 {
 	float v[3];
 	byte *pal = (byte *)d_8to24table;
 
 	qglDisable (GL_TEXTURE_2D);
-	qglColor4f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0, 1.0);
+	qglEnable (GL_BLEND);
+	qglDisable (GL_ALPHA_TEST);
+	qglColor4f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0, alpha);
 
 	VectorSet (v, x, y, 0);
 	R_PushVertex (v);
@@ -488,6 +487,8 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c)
 	R_ClearArrays ();
 
 	qglColor4f (1, 1, 1, 1);
+	qglDisable (GL_BLEND);
+	qglEnable (GL_ALPHA_TEST);
 	qglEnable (GL_TEXTURE_2D);
 }
 
@@ -496,7 +497,7 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c)
 void R_LoadingScreen (void)
 {
 	float x, y;
-	mpic_t *pic;
+	qpic_t *pic;
 
 	// don't do anything if not initialized yet
 	if (vid_hidden)
@@ -550,96 +551,3 @@ void R_FadeScreen (void)
 }
 
 //=============================================================================
-
-/*
-=============
-Draw_StretchRaw
-
-Used for cinematics
-=============
-*/
-void Draw_StretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data)
-{
-#if 0
-	extern unsigned	r_rawpalette[256];
-	unsigned	image32[256*256];
-	unsigned	*dest = image32;
-	int			i, j, trows;
-	byte		*source;
-	int			frac, fracstep;
-	float		hscale;
-	int			row;
-	float		t, tc[2], v[3];
-
-	GL_Bind (0);
-
-	if (rows <= 256)
-	{
-		hscale = 1;
-		trows = rows;
-	}
-	else
-	{
-		hscale = rows/256.0;
-		trows = 256;
-	}
-
-	t = rows*hscale / 256;
-	fracstep = cols*0x10000/256;
-
-	memset ( image32, 0, sizeof(unsigned)*256*256 );
-	
-	for (i=0 ; i<trows ; i++, dest+=256)
-	{
-		row = (int)(i*hscale);
-		if (row > rows)
-			break;
-		source = data + cols*row;
-		frac = fracstep >> 1;
-		for (j=0 ; j<256 ; j+=4)
-		{
-			dest[j] = r_rawpalette[source[frac>>16]];
-			frac += fracstep;
-			dest[j+1] = r_rawpalette[source[frac>>16]];
-			frac += fracstep;
-			dest[j+2] = r_rawpalette[source[frac>>16]];
-			frac += fracstep;
-			dest[j+3] = r_rawpalette[source[frac>>16]];
-			frac += fracstep;
-		}
-	}
-	
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, image32);
-
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	R_PushElems ( quad_elems, 6 );
-
-	VectorSet (v, x, y, 0);
-	tc[0] = 1.0/512.0; tc[1] = 1.0/512.0;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	VectorSet (v, x+w, y, 0);
-	tc[0] = 511.0/512.0; tc[1] = 1.0/512.0;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	VectorSet (v, x+w, y+h, 0);
-	tc[0] = 511.0/512.0; tc[1] = t;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	VectorSet (v, x, y+h, 0);
-	tc[0] = 1.0/512.0; tc[1] = t;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	R_VertexTCBase ( 0, false );
-	R_LockArrays ();
-	R_FlushArrays ();
-	R_UnlockArrays ();
-	R_ClearArrays ();
-#endif
-}

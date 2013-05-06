@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
-extern gltexture_t *playertextures[MAX_CLIENTS], *playerfbtextures[MAX_CLIENTS];
+extern gltexture_t *playertextures[MAX_CLIENTS];
 
 /*
 =============================================================
@@ -36,8 +36,6 @@ extern gltexture_t *playertextures[MAX_CLIENTS], *playerfbtextures[MAX_CLIENTS];
 float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 #include "anorms.h"
 };
-
-qbool	shading = true;
 
 vec3_t	shadevector;
 float	shadescale = 0;
@@ -55,6 +53,8 @@ float	*shadedots = r_avertexnormal_dots[0];
 int	lastposenum;
 
 extern qbool mtexenabled;
+
+qbool	shading = true;
 
 /*
 =============
@@ -267,7 +267,6 @@ void R_DrawAliasModel (entity_t *ent)
 	}
 
 	shadedots = r_avertexnormal_dots[((int)(ent->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1)];
-	shading = true;
 
 	//
 	// locate the proper data
@@ -276,6 +275,9 @@ void R_DrawAliasModel (entity_t *ent)
 
 	c_alias_polys += paliashdr->numtris;
 
+	//
+	// transform it
+	//
 	qglPushMatrix ();
 	R_RotateForEntity (ent);
 
@@ -287,20 +289,23 @@ void R_DrawAliasModel (entity_t *ent)
 		qglScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
 	}
 
+	//
+	// random stuff
+	//
+	overbright = gl_overbright.value;
+	shading = true;
+
+	//
+	// set up textures
+	//
+	GL_DisableMultitexture();
+	
 	anim = (int)(r_refdef2.time*10) & 3;
 	skinnum = ent->skinnum;
 	if ((skinnum >= paliashdr->numskins) || (skinnum < 0)) {
 		Com_DPrintf ("R_DrawAliasModel: no such skin # %d\n", skinnum);
 		skinnum = 0;
 	}
-
-	//
-	// set up textures
-	//
-	GL_DisableMultitexture();
-
-	overbright = gl_overbright.value;
-
 	texture = paliashdr->gl_texture[skinnum][anim];
 	fb_texture = paliashdr->fb_texture[skinnum][anim];
 
@@ -312,18 +317,16 @@ void R_DrawAliasModel (entity_t *ent)
 
 		if (!ent->scoreboard->skin) {
 			Skin_Find (ent->scoreboard);
-			R_TranslatePlayerSkin (i);
+			R_TranslateNewPlayerSkin (i);
 		}
 
 		if (i >= 0 && i < MAX_CLIENTS) {
 		    texture = playertextures[i];
-			fb_texture = playerfbtextures[i];
 		}
 	}
 
-	if (full_light || !gl_fb_models.value) {
-		fb_texture = 0;
-	}
+	if (!gl_fullbrights.value)
+		fb_texture = NULL;
 
 	//
 	// draw it

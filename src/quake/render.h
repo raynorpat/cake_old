@@ -21,12 +21,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _RENDER_H_
 #define _RENDER_H_
 
-#define	TOP_RANGE		16			// soldier uniform colors
-#define	BOTTOM_RANGE	96
+#define	TOP_RANGE				16		// player uniform colors
+#define	BOTTOM_RANGE			96
 
 #define	MAX_VISEDICTS			256
-#define MAX_PARTICLES			4096	// default max # of particles at one
-										// time
+#define MAX_PARTICLES			4096	// default max # of particles at one time
 
 // entity->renderfx
 #define RF_WEAPONMODEL	1
@@ -86,11 +85,9 @@ typedef struct entity_s
 // FIXME: could turn these into a union
 	int						trivial_accept;
 	struct mnode_s			*topnode;		// for bmodels, first world node
-											//  that splits bmodel, or NULL if
-											//  not split
+											//  that splits bmodel, or NULL if not split
 } entity_t;
 
-// !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
 {
 	vec3_t		org;
@@ -119,16 +116,9 @@ typedef struct {
 	particle_t		*particles;
 } refdef2_t;
 
-
-typedef struct mpic_s
-{
-	int			width;
-	int			height;
-	qbool		alpha;	// will be true if there are any transparent pixels
-} mpic_t;
-
 //====================================================
 
+#include "rc_wad.h"
 #include "rc_modules.h"
 
 //
@@ -164,15 +154,14 @@ void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 // 2D drawing functions
 void R_DrawChar (int x, int y, int num);
 void R_DrawString (int x, int y, const char *str);
-void R_DrawPic (int x, int y, mpic_t *pic);
-void R_DrawSubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
-void R_DrawTransPicTranslate (int x, int y, mpic_t *pic, byte *translation);
-void R_DrawFilledRect (int x, int y, int w, int h, int c);
+void R_DrawPic (int x, int y, qpic_t *pic);
+void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom);
+void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha);
 void R_LoadingScreen (void);
 void R_FadeScreen (void);
-mpic_t *R_CachePic (char *path);
-mpic_t *R_CacheWadPic (char *name);
-void R_DrawStretchPic (int x, int y, int width, int height, mpic_t *pic, float alpha);
+qpic_t *R_CachePic (char *path);
+qpic_t *R_CacheWadPic (char *name);
+void R_DrawStretchPic (int x, int y, int width, int height, qpic_t *pic, float alpha);
 void R_DrawCrosshair (int num, byte color, int crossx, int crossy);
 
 #define GetPicWidth(pic) (pic->width)

@@ -358,14 +358,14 @@ extern	cvar_t	gl_subdivide_size;
 extern	cvar_t	gl_cull;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
-extern	cvar_t	gl_fb_bmodels;
-extern	cvar_t	gl_fb_models;
+extern	cvar_t	gl_fullbrights;
 extern	cvar_t	gl_overbright;
 extern	cvar_t	gl_lightmode;
 
 extern	float	lightmode;		// set to gl_lightmode on mapchange
 
 void R_TranslatePlayerSkin (int playernum);
+void R_TranslateNewPlayerSkin (int playernum);
 
 void GL_MBind ( GLenum target, int texnum );
 void GL_Bind ( int texnum );
@@ -392,6 +392,9 @@ void GL_PixelStore (int rowalign, int rowlen);
 #define TEXPREF_UPSCALE			0x0008	// use hq2x upscale
 #define TEXPREF_OVERWRITE		0x0010	// overwrite existing same-name texture
 #define TEXPREF_NOPICMIP		0x0020	// always load full-sized
+#define TEXPREF_CONCHARS		0x0040	// use conchar palette
+#define TEXPREF_FULLBRIGHT		0x0080	// use fullbright palette
+#define TEXPREF_NOBRIGHT		0x0100	// use nobright mask palette
 
 enum srcformat {SRC_INDEXED, SRC_INDEXED_UPSCALE, SRC_LIGHTMAP, SRC_RGBA};
 
@@ -433,6 +436,8 @@ void TexMgr_FreeTexturesForOwner (model_t *owner);
 
 gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height, enum srcformat format,
 							   byte *data, char *source_file, unsigned source_offset, unsigned flags);
+
+void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants);
 
 //
 // gl_warp.c

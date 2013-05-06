@@ -32,26 +32,26 @@ qbool		sb_oldmanssbar2;	// cl_sbar 3: same as above but with ibar on side
 qbool		sb_hipnotic;
 
 #define STAT_MINUS		10	// num frame for '-' stats digit
-static mpic_t	*sb_nums[2][11];
-static mpic_t	*sb_colon, *sb_slash;
-static mpic_t	*sb_ibar;
-static mpic_t	*sb_sbar;
-static mpic_t	*sb_scorebar;
+static qpic_t	*sb_nums[2][11];
+static qpic_t	*sb_colon, *sb_slash;
+static qpic_t	*sb_ibar;
+static qpic_t	*sb_sbar;
+static qpic_t	*sb_scorebar;
 
-static mpic_t	*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
-static mpic_t	*sb_ammo[4];
-static mpic_t	*sb_sigil[4];
-static mpic_t	*sb_armor[3];
-static mpic_t	*sb_items[32];
+static qpic_t	*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
+static qpic_t	*sb_ammo[4];
+static qpic_t	*sb_sigil[4];
+static qpic_t	*sb_armor[3];
+static qpic_t	*sb_items[32];
 
-static mpic_t	*sb_faces[5][2];		// 0 is dead, 1-4 are alive
+static qpic_t	*sb_faces[5][2];		// 0 is dead, 1-4 are alive
 								// 0 is static, 1 is temporary animation
-static mpic_t	*sb_face_invis;
-static mpic_t	*sb_face_quad;
-static mpic_t	*sb_face_invuln;
-static mpic_t	*sb_face_invis_invuln;
+static qpic_t	*sb_face_invis;
+static qpic_t	*sb_face_quad;
+static qpic_t	*sb_face_invuln;
+static qpic_t	*sb_face_invis_invuln;
 
-static mpic_t	*sb_disc;			// invulnerability
+static qpic_t	*sb_disc;			// invulnerability
 
 //hipnotic defines
 #define HIT_PROXIMITY_GUN_BIT 16
@@ -63,8 +63,8 @@ static mpic_t	*sb_disc;			// invulnerability
 #define HIT_WETSUIT         (1<<25)
 #define HIT_EMPATHY_SHIELDS (1<<26)
 
-static mpic_t	*hsb_weapons[7][5];   // 0 is active, 1 is owned, 2-5 are flashes
-static mpic_t	*hsb_items[2];
+static qpic_t	*hsb_weapons[7][5];   // 0 is active, 1 is owned, 2-5 are flashes
+static qpic_t	*hsb_items[2];
 static int	hipweapons[4] = {HIT_LASER_CANNON_BIT,HIT_MJOLNIR_BIT,4,HIT_PROXIMITY_GUN_BIT};
 
 static qbool	sb_showscores;
@@ -320,23 +320,10 @@ void Sbar_Init (void)
 Sbar_DrawPic
 =============
 */
-static void Sbar_DrawPic (int x, int y, mpic_t *pic)
+static void Sbar_DrawPic (int x, int y, qpic_t *pic)
 {
 	R_DrawPic (x + sbar_xofs, y + (vid.height-SBAR_HEIGHT), pic);
 }
-
-/*
-=============
-Sbar_DrawSubPic
-
-Draws a portion of the picture in the status bar.
-=============
-*/
-static void Sbar_DrawSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height) 
-{
-	R_DrawSubPic (x, y+(vid.height-SBAR_HEIGHT), pic, srcx, srcy, width, height);
-}
-
 
 /*
 ================
@@ -634,13 +621,8 @@ static void Sbar_DrawInventory (void)
 			else
 				flashon = (flashon%5) + 2;
 
-			if (headsup) {
-				if (i || vid.height>200)
-					Sbar_DrawSubPic ((hudswap) ? 0 : (vid.width-24),-68-(7-i)*16 , sb_weapons[flashon][i],0,0,24,16);
-			
-			} else 
+			if (!headsup)
 				Sbar_DrawPic (i*24, -16, sb_weapons[flashon][i]);
-//			Sbar_DrawSubPic (0,0,20,20,i*24, -16, sb_weapons[flashon][i]);
 
 			if (flashon > 1)
 				sb_updates = 0;		// force update to remove flash
@@ -697,16 +679,7 @@ static void Sbar_DrawInventory (void)
 	for (i=0 ; i<4 ; i++)
 	{
 		sprintf (num, "%3i",cl.stats[STAT_SHELLS+i] );
-		if (headsup) {
-//			Sbar_DrawSubPic(3, -24, sb_ibar, 3, 0, 42,11);
-			Sbar_DrawSubPic((hudswap) ? 0 : (vid.width-42), -24 - (4-i)*11, sb_ibar, 3+(i*48), 0, 42, 11);
-			if (num[0] != ' ')
-				R_DrawChar ( (hudswap) ? 7: (vid.width - 35), vid.height-SBAR_HEIGHT-24 - (4-i)*11, 18 + num[0] - '0');
-			if (num[1] != ' ')
-				R_DrawChar ( (hudswap) ? 15: (vid.width - 27), vid.height-SBAR_HEIGHT-24 - (4-i)*11, 18 + num[1] - '0');
-			if (num[2] != ' ')
-				R_DrawChar ( (hudswap) ? 23: (vid.width - 19), vid.height-SBAR_HEIGHT-24 - (4-i)*11, 18 + num[2] - '0');
-		} else {
+		if (!headsup) {
 			if (num[0] != ' ')
 				Sbar_DrawChar ( (6*i+1)*8 - 2, -24, 18 + num[0] - '0');
 			if (num[1] != ' ')
@@ -814,8 +787,8 @@ static void Sbar_DrawFrags (void)
 		top = Sbar_ColorForMap (top);
 		bottom = Sbar_ColorForMap (bottom);
 	
-		R_DrawFilledRect (sbar_xofs + x*8 + 10, y, 28, 4, top);
-		R_DrawFilledRect (sbar_xofs + x*8 + 10, y+4, 28, 3, bottom);
+		R_DrawFilledRect (sbar_xofs + x*8 + 10, y, 28, 4, top, 1.0f);
+		R_DrawFilledRect (sbar_xofs + x*8 + 10, y+4, 28, 3, bottom, 1.0f);
 
 	// draw number
 		f = s->frags;
@@ -1092,7 +1065,7 @@ added by Zoid
 */
 static void Sbar_TeamOverlay (int start)
 {
-	mpic_t			*pic;
+	qpic_t			*pic;
 	int				i, k, l;
 	int				x, y;
 	int				xofs;
@@ -1187,7 +1160,7 @@ ping time frags name
 */
 static void Sbar_DeathmatchOverlay (int start)
 {
-	mpic_t			*pic;
+	qpic_t			*pic;
 	int				i, k, l;
 	int				top, bottom;
 	int				x, y, f;
@@ -1336,10 +1309,10 @@ static void Sbar_DeathmatchOverlay (int start)
 		bottom = Sbar_ColorForMap (bottom);
 	
 		if (largegame)
-			R_DrawFilledRect ( x+104, y+1, 40, 3, top);
+			R_DrawFilledRect ( x+104, y+1, 40, 3, top, 1.0f);
 		else
-			R_DrawFilledRect ( x+104, y, 40, 4, top);
-		R_DrawFilledRect ( x+104, y+4, 40, 4, bottom);
+			R_DrawFilledRect ( x+104, y, 40, 4, top, 1.0f);
+		R_DrawFilledRect ( x+104, y+4, 40, 4, bottom, 1.0f);
 
 	// draw number
 		f = s->frags;
@@ -1447,8 +1420,8 @@ static void Sbar_MiniDeathmatchOverlay (void)
 		top = Sbar_ColorForMap (top);
 		bottom = Sbar_ColorForMap (bottom);
 	
-		R_DrawFilledRect (x, y+1, 40, 3, top);
-		R_DrawFilledRect (x, y+4, 40, 4, bottom);
+		R_DrawFilledRect (x, y+1, 40, 3, top, 1.0f);
+		R_DrawFilledRect (x, y+4, 40, 4, bottom, 1.0f);
 
 	// draw number
 		f = s->frags;
@@ -1526,7 +1499,7 @@ Sbar_IntermissionOverlay
 */
 void Sbar_IntermissionOverlay (void)
 {
-	mpic_t	*pic;
+	qpic_t	*pic;
 	int		dig;
 	int		num;
 	int		xofs;
@@ -1589,7 +1562,7 @@ Sbar_FinaleOverlay
 */
 void Sbar_FinaleOverlay (void)
 {
-	mpic_t	*pic;
+	qpic_t	*pic;
 
 	pic = R_CachePic ("gfx/finale.lmp");
 	R_DrawPic ((vid.width - GetPicWidth(pic))/2, 16, R_CachePic ("gfx/finale.lmp"));
