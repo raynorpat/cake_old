@@ -28,7 +28,7 @@ float	wateralpha;		// 1 if watervis is disabled by server, otherwise equal to r_
 
 #define	MAX_LIGHTMAPS	64
 
-unsigned int	blocklights[BLOCK_WIDTH*BLOCK_HEIGHT*3];
+unsigned int blocklights[BLOCK_WIDTH*BLOCK_HEIGHT*3];
 
 typedef struct glRect_s {
 	unsigned char l,t,w,h;
@@ -239,7 +239,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 		memset (&blocklights[0], 255, size * 3 * sizeof (unsigned int));
 	}
 
-// bound, invert, and shift
+	// bound, invert, and shift
 	stride -= smax * 4;
 	bl = blocklights;
 	for (i=0 ; i<tmax ; i++, dest += stride)
@@ -1013,7 +1013,7 @@ void R_DrawBrushModel (entity_t *e)
 
 	psurf = &clmodel->surfaces[clmodel->firstmodelsurface];
 
-// calculate dynamic lighting for bmodel if it's not an instanced model
+	// calculate dynamic lighting for bmodel if it's not an instanced model
 	if (clmodel->firstmodelsurface != 0)
 	{
 		for (k = 0; k < r_refdef2.numDlights; k++)

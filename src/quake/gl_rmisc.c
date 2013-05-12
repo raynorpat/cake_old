@@ -102,7 +102,7 @@ void R_TranslateNewPlayerSkin (int playernum)
 
 	// upload new image
 	sprintf (name, "player_%i", playernum);
-	playertextures[playernum] = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, skin, 0, NULL, TEXPREF_OVERWRITE);
+	playertextures[playernum] = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, skin, "", 0, TEXPREF_OVERWRITE);
 
 	// now recolor it
 	R_TranslatePlayerSkin (playernum);
@@ -280,11 +280,11 @@ int MipColor(int r, int g, int b)
 
 void R_DrawCharToSnap (int num, byte *dest, int width)
 {
-/*
 	int		row, col;
 	byte	*source;
 	int		drawline;
 	int		x;
+	extern byte *draw_chars;
 
 	row = num>>4;
 	col = num&15;
@@ -302,7 +302,6 @@ void R_DrawCharToSnap (int num, byte *dest, int width)
 		source += 128;
 		dest -= width;
 	}
-*/
 }
 
 void R_DrawStringToSnap (const char *s, byte *buf, int x, int y, int width)
