@@ -72,6 +72,8 @@ int gl_maxtexturesize = 256;
 int gl_supportslockarrays = false;
 // GLX_SGI_video_sync or WGL_EXT_swap_control
 int gl_videosyncavailable = false;
+// GLX_EXT_swap_control_tear or WGL_EXT_swap_control_tear
+int gl_videosynccontroltearavailable = false;
 // GL_SGIS_texture_edge_clamp
 int gl_support_clamptoedge = false;
 // GL_ARB_texture_env_combine

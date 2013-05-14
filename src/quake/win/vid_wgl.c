@@ -291,12 +291,18 @@ void VID_Finish (void)
 {
 	static int old_vsync = -1;
 
-	if (old_vsync != vid_vsync.value)
-	{
-		old_vsync = bound(0, vid_vsync.value, 1);
+	if (old_vsync != vid_vsync.value) {
+		int interval = 0;
+		old_vsync = bound(-1, vid_vsync.value, 2);
 		Cvar_SetValue(&vid_vsync, old_vsync);
-		if(gl_videosyncavailable && qwglSwapIntervalEXT)
-			qwglSwapIntervalEXT (old_vsync);
+
+		if ( old_vsync == 1 )
+			interval = ( gl_videosynccontroltearavailable ) ? -1 : 1;
+		else if ( old_vsync == 2 )
+			interval = 1;
+
+		if( gl_videosyncavailable && qwglSwapIntervalEXT )
+			qwglSwapIntervalEXT ( interval );
 	}
 
 	// handle the mouse state when windowed if that's changed
@@ -875,6 +881,7 @@ int VID_InitMode (int fullscreen, int width, int height)
 		gl_platformextensions = "";
 
 	gl_videosyncavailable = GL_CheckExtension("WGL_EXT_swap_control", wglswapintervalfuncs, NULL, false);
+	gl_videosynccontroltearavailable = GL_CheckExtension("WGL_EXT_swap_control_tear", NULL, NULL, false);
 
 	VID_CheckExtensions();
 

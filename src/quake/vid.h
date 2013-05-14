@@ -91,6 +91,8 @@ extern char gl_driver[256];
 
 // GLX_SGI_video_sync and WGL_EXT_swap_control
 extern int gl_videosyncavailable;
+// GLX_EXT_swap_control_tear or WGL_EXT_swap_control_tear
+extern int gl_videosynccontroltearavailable;
 
 int		GL_OpenLibrary(const char *name);
 void	GL_CloseLibrary(void);
