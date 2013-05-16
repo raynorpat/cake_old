@@ -33,6 +33,14 @@ qbool	r_skyboxloaded;
 
 static msurface_t	*warpface;
 
+float turbsin[] =
+{
+	#include "gl_warp_sin.h"
+};
+
+#define WARPCALC(s,t) ((s + turbsin[(int)((t*2)+(cl.time*(128.0/M_PI))) & 255]) * (1.0/64))
+#define WARPCALC2(s,t) ((s + turbsin[(int)((t*0.125+cl.time)*(128.0/M_PI)) & 255]) * (1.0/64))
+
 static void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
 {
 	int		i, j;
@@ -121,8 +129,8 @@ static void SubdividePolygon (int numverts, float *verts)
 	}
 
 	poly = Hunk_Alloc (sizeof(glpoly_t) + (numverts-4) * VERTEXSIZE*sizeof(float));
-	poly->next = warpface->polys;
-	warpface->polys = poly;
+	poly->next = warpface->polys->next;
+	warpface->polys->next = poly;
 	poly->numverts = numverts;
 	for (i=0 ; i<numverts ; i++, verts+= 3)
 	{
@@ -137,118 +145,41 @@ static void SubdividePolygon (int numverts, float *verts)
 /*
 ================
 GL_SubdivideSurface
-
-Breaks a polygon up along axial 64 unit
-boundaries so that turbulent and sky warps
-can be done reasonably.
 ================
 */
 void GL_SubdivideSurface (msurface_t *fa)
 {
 	vec3_t		verts[64];
-	int			numverts;
 	int			i;
-	int			lindex;
-	float		*vec;
 
 	warpface = fa;
 
-	//
-	// convert edges back to a normal polygon
-	//
-	numverts = 0;
-	for (i=0 ; i<fa->numedges ; i++)
-	{
-		lindex = loadmodel->surfedges[fa->firstedge + i];
+	// the first poly in the chain is the undivided poly for newwater rendering.
+	// grab the verts from that.
+	for (i=0; i<fa->polys->numverts; i++)
+		VectorCopy (fa->polys->verts[i], verts[i]);
 
-		if (lindex > 0)
-			vec = loadmodel->vertexes[loadmodel->edges[lindex].v[0]].position;
-		else
-			vec = loadmodel->vertexes[loadmodel->edges[-lindex].v[1]].position;
-		VectorCopy (vec, verts[numverts]);
-		numverts++;
-	}
-
-	SubdividePolygon (numverts, verts[0]);
+	SubdividePolygon (fa->polys->numverts, verts[0]);
 }
 
 /*
-================
-GL_BuildSkySurfacePoly
-
-Just build the gl polys, don't subdivide
-================
-*/
-void GL_BuildSkySurfacePolys (msurface_t *fa)
-{
-	vec3_t		verts[64];
-	int			numverts;
-	int			i;
-	int			lindex;
-	float		*vec;
-	glpoly_t	*poly;
-	float		*vert;
-
-	//
-	// convert edges back to a normal polygon
-	//
-	numverts = 0;
-	for (i=0 ; i<fa->numedges ; i++)
-	{
-		lindex = loadmodel->surfedges[fa->firstedge + i];
-
-		if (lindex > 0)
-			vec = loadmodel->vertexes[loadmodel->edges[lindex].v[0]].position;
-		else
-			vec = loadmodel->vertexes[loadmodel->edges[-lindex].v[1]].position;
-		VectorCopy (vec, verts[numverts]);
-		numverts++;
-	}
-
-	poly = Hunk_Alloc (sizeof(glpoly_t) + (numverts-4) * VERTEXSIZE*sizeof(float));
-	poly->next = NULL;
-	fa->polys = poly;
-	poly->numverts = numverts;
-	vert = verts[0];
-	for (i=0 ; i<numverts ; i++, vert+= 3)
-		VectorCopy (vert, poly->verts[i]);
-}
-
-//=========================================================
-
-
-// speed up sin calculations - Ed
-float turbsin[] =
-{
-	#include "gl_warp_sin.h"
-};
-
-#define TURBWARP(s, t)	\
-	((s + turbsin[(int) ((t * 2) + r_refdef2.time * (128.0 / M_PI)) & 255]) * (1.0f / 64.0f))
-
-/*
 =============
-EmitWaterPolys
-
-Does a water warp on the pre-fragmented glpoly_t chain
+DrawWaterPoly
 =============
 */
-void EmitWaterPolys (msurface_t *fa)
+void DrawWaterPoly (glpoly_t *p)
 {
-	glpoly_t	*p;
-	float		*v;
-	int			i;
+	float	*v;
+	int		i;
 
-	for (p=fa->polys ; p ; p=p->next)
+	qglBegin (GL_POLYGON);
+	v = p->verts[0];
+	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
 	{
-		qglBegin (GL_POLYGON);
-		for (i=0,v=p->verts[0] ; i<p->numverts ; i++, v+=VERTEXSIZE)
-		{
-			qglTexCoord2f (TURBWARP(v[3], v[4]), TURBWARP(v[4], v[3]));
-			qglVertex3fv (v);
-		}
-		qglEnd ();
+		qglTexCoord2f (WARPCALC2(v[3],v[4]), WARPCALC2(v[4],v[3]));
+		qglVertex3fv (v);
 	}
+	qglEnd ();
 }
 
 //===============================================================

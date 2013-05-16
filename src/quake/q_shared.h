@@ -71,6 +71,8 @@ typedef enum {false, true} qbool;
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #endif
 
+#define clamp(min, x, max) ((x) < (min) ? (min) : (x) > (max) ? (max) : (x))
+
 //#define bound(a,b,c) (max((a), min((b), (c))))
 #define bound(a,b,c) ((a) >= (c) ? (a) : \
 					(b) < (a) ? (a) : (b) > (c) ? (c) : (b))

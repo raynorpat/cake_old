@@ -71,7 +71,6 @@ void RB_GL11_Set2DProjections (void)
 	qglDisable (GL_CULL_FACE);
 	qglDisable (GL_BLEND);
 	qglEnable (GL_ALPHA_TEST);
-//	qglDisable (GL_ALPHA_TEST);
 
 	qglColor4f (1, 1, 1, 1);
 }

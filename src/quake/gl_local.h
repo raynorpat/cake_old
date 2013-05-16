@@ -443,8 +443,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants);
 // gl_warp.c
 //
 void GL_SubdivideSurface (msurface_t *fa);
-void GL_BuildSkySurfacePolys (msurface_t *fa);
-void EmitWaterPolys (msurface_t *fa);
+void DrawWaterPoly (glpoly_t *p);
 void R_DrawSky (void);			// skybox or classic sky
 void R_InitSky (texture_t *mt);	// classic Quake sky
 extern qbool	r_skyboxloaded;

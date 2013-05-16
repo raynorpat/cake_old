@@ -1043,12 +1043,16 @@ static void TexMgr_InitParticleTexture (void)
 static void r_textures_start(void)
 {
 	static byte notexture_data[16] = {159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255}; // black and pink checker
+	extern texture_t *r_notexture_mip, *r_notexture_mip2;
 
 	// load palette
 	TexMgr_LoadPalette ();
 
 	// load notexture image
 	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST);
+
+	// have to assign these here becuase Mod_Init is called before TexMgr_Init
+	r_notexture_mip->gl_texture = r_notexture_mip2->gl_texture = notexture;
 
 	// generate particle images
 	TexMgr_InitParticleTexture ();

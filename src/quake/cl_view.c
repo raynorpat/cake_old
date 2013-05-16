@@ -881,9 +881,7 @@ cl.simangles[ROLL] = 0;	// FIXME @@@
 	{
 		V_CalcRefdef ();
 	}
-
-	R_PushDlights ();
-
+	
 	r_refdef2.time = cl.time;
 //	r_refdef2.allowCheats = false;
 	r_refdef2.viewplayernum = cl.viewplayernum;

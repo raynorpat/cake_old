@@ -232,7 +232,7 @@ loc0:
 		surf = r_worldmodel->surfaces + node->firstsurface;
 		for (i=0 ; i<node->numsurfaces ; i++, surf++)
 		{
-			if (surf->flags & SURF_UNLIT)
+			if (surf->flags & SURF_DRAWTILED)
 				continue;	// no lightmaps
 
 			ds = (int) ((float) DotProduct (mid, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3]);

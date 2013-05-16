@@ -138,7 +138,7 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	glRect_t    *theRect;
 	int			smax, tmax;
 
-	if (fa->flags & SURF_UNLIT) // not a lightmapped surface
+	if (fa->flags & SURF_DRAWTILED) // not a lightmapped surface
 		return;
 
 	// add to lightmap chain
@@ -381,6 +381,46 @@ void DrawGLPoly (glpoly_t *p)
 
 /*
 ================
+R_DrawTextureChains_NoTexture
+
+draws surfs whose textures were missing from the BSP
+================
+*/
+void R_DrawTextureChains_NoTexture (void)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	qbool		bound;
+
+	for (i=0 ; i<r_worldmodel->numtextures ; i++)
+	{
+		t = r_worldmodel->textures[i];
+
+		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_NOTEXTURE))
+			continue;
+
+		bound = false;
+
+		for (s = t->texturechain; s; s = s->texturechain)
+		{
+			if (!s->culled)
+			{
+				if (!bound) // only bind once we are sure we need this texture
+				{
+					GL_Bind (t->gl_texture->texnum);
+					bound = true;
+				}
+				DrawGLPoly (s->polys);
+				c_brush_passes++;
+			}
+		}
+	}
+}
+
+
+/*
+================
 R_DrawTextureChains_TextureOnly
 ================
 */
@@ -469,6 +509,7 @@ void R_DrawTextureChains_Water (void)
 	int			i;
 	msurface_t	*s;
 	texture_t	*t;
+	glpoly_t	*p;
 	qbool		bound;
 
 	if (r_lightmap.value || !r_drawworld.value)
@@ -497,9 +538,11 @@ void R_DrawTextureChains_Water (void)
 					GL_Bind (t->gl_texture->texnum);
 					bound = true;
 				}
-				EmitWaterPolys (s);
-
-				c_brush_passes++;
+				for (p = s->polys->next; p; p = p->next)
+				{
+					DrawWaterPoly (p);
+					c_brush_passes++;
+				}
 			}
 		}
 	}
@@ -530,7 +573,7 @@ static void R_DrawTextureChains_Multitexture (void)
 	{
 		t = r_worldmodel->textures[i];
 
-		if (!t || !t->texturechain || t->texturechain->flags & (SURF_UNLIT))
+		if (!t || !t->texturechain || t->texturechain->flags & (SURF_DRAWTILED))
 			continue;
 
 		bound = false;
@@ -581,8 +624,43 @@ void R_BuildLightmapChains (void)
 	// now rebuild them
 	s = &r_worldmodel->surfaces[r_worldmodel->firstmodelsurface];
 	for (i=0 ; i<r_worldmodel->nummodelsurfaces ; i++, s++)
+	{
 		if (s->visframe == r_visframecount && !R_CullBox(s->mins, s->maxs) && !R_BackFaceCull (s))
 			R_RenderDynamicLightmaps (s);
+	}
+}
+
+/*
+================
+R_DrawTextureChains_White
+
+draw sky and water as white polys when r_lightmap is 1
+================
+*/
+void R_DrawTextureChains_White (void)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+
+	qglDisable (GL_TEXTURE_2D);
+	for (i=0 ; i<r_worldmodel->numtextures ; i++)
+	{
+		t = r_worldmodel->textures[i];
+
+		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWTILED))
+			continue;
+
+		for (s = t->texturechain; s; s = s->texturechain)
+		{
+			if (!s->culled)
+			{
+				DrawGLPoly (s->polys);
+				c_brush_passes++;
+			}
+		}
+	}
+	qglEnable (GL_TEXTURE_2D);
 }
 
 /*
@@ -616,39 +694,6 @@ void R_DrawLightmapChains (void)
 			c_brush_passes++;
 		}
 	}
-}
-
-/*
-================
-R_DrawTextureChains_White
-
-draw sky and water as white polys when r_lightmap is 1
-================
-*/
-void R_DrawTextureChains_White (void)
-{
-	int			i;
-	msurface_t	*s;
-	texture_t	*t;
-
-	qglDisable (GL_TEXTURE_2D);
-	for (i=0 ; i<r_worldmodel->numtextures ; i++)
-	{
-		t = r_worldmodel->textures[i];
-
-		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_UNLIT))
-			continue;
-
-		for (s = t->texturechain; s; s = s->texturechain)
-		{
-			if (!s->culled)
-			{
-				DrawGLPoly (s->polys);
-				c_brush_passes++;
-			}
-		}
-	}
-	qglEnable (GL_TEXTURE_2D);
 }
 
 /*
@@ -701,6 +746,9 @@ void R_DrawWorld (void)
 		R_DrawTextureChains_White ();
 		return;
 	}
+
+// no texture
+	R_DrawTextureChains_NoTexture ();
 
 // diffuse * lightmap
 	if (gl_overbright.value)
@@ -766,11 +814,10 @@ fullbrights:
 	}
 }
 
-
 /*
 =============================================================
 
-	BRUSH MODEL
+	BRUSH MODELS
 
 =============================================================
 */
@@ -782,6 +829,7 @@ R_DrawSequentialPoly
 */
 void R_DrawSequentialPoly (msurface_t *s)
 {
+	glpoly_t	*p;
 	texture_t	*t;
 	float		*v;
 	int			i;
@@ -789,7 +837,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 	t = R_TextureAnimation (s->texinfo->texture);
 
 // fullbright
-	if ((r_fullbright.value) && !(s->flags & SURF_UNLIT))
+	if ((r_fullbright.value) && !(s->flags & SURF_DRAWTILED))
 	{
 		GL_Bind (t->gl_texture->texnum);
 		DrawGLPoly (s->polys);
@@ -800,7 +848,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 // r_lightmap
 	if (r_lightmap.value)
 	{
-		if (s->flags & SURF_UNLIT)
+		if (s->flags & SURF_DRAWTILED)
 		{
 			qglDisable (GL_TEXTURE_2D);
 			DrawGLPoly (s->polys);
@@ -849,7 +897,11 @@ void R_DrawSequentialPoly (msurface_t *s)
 		}
 
 		GL_Bind (s->texinfo->texture->gl_texture->texnum);
-		EmitWaterPolys (s);
+		for (p = s->polys->next; p; p = p->next)
+		{
+			DrawWaterPoly (p);
+			c_brush_passes++;
+		}
 		c_brush_passes++;
 
 		if (r_wateralpha.value < 1)
@@ -859,6 +911,15 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 			qglColor3f(1, 1, 1);
 		}
+		return;
+	}
+
+// missing texture
+	if (s->flags & SURF_NOTEXTURE)
+	{
+		GL_Bind (t->gl_texture->texnum);
+		DrawGLPoly (s->polys);
+		c_brush_passes++;
 		return;
 	}
 
@@ -1225,7 +1286,7 @@ void GL_BuildLightmaps (void)
 		currentmodel = m;
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
-			if ( m->surfaces[i].flags & SURF_UNLIT )
+			if ( m->surfaces[i].flags & SURF_DRAWTILED )
 				continue;
 			GL_CreateSurfaceLightmap (m->surfaces + i);
 			BuildSurfaceDisplayList (m->surfaces + i);

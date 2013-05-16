@@ -37,6 +37,10 @@ byte	mod_novis[MAX_MAP_LEAFS/8];
 model_t	mod_known[MAX_MOD_KNOWN];
 int		mod_numknown;
 
+texture_t	*r_notexture_mip; // moved here from r_main.c
+texture_t	*r_notexture_mip2; // used for non-lightmapped surfs with a missing texture
+
+
 void gl_models_start(void)
 {
 	memset (mod_novis, 0xff, sizeof(mod_novis));
@@ -57,6 +61,15 @@ Mod_Init
 */
 void Mod_Init (void)
 {
+	// create notexture miptex
+	r_notexture_mip = Hunk_AllocName (sizeof(texture_t), "r_notexture_mip");
+	strcpy (r_notexture_mip->name, "notexture");
+	r_notexture_mip->height = r_notexture_mip->width = 32;
+
+	r_notexture_mip2 = Hunk_AllocName (sizeof(texture_t), "r_notexture_mip2");
+	strcpy (r_notexture_mip2->name, "notexture2");
+	r_notexture_mip2->height = r_notexture_mip2->width = 32;
+
 	R_RegisterModule("GL_Models", gl_models_start, gl_models_shutdown, gl_models_newmap);
 }
 
@@ -372,21 +385,24 @@ void Mod_LoadTextures (lump_t *l)
 	texture_t	*altanims[10];
 	dmiptexlump_t *m;
 	char		texturename[64];
+	int			nummiptex;
 	unsigned	offset;
 
 	if (!l->filelen)
 	{
-		loadmodel->textures = NULL;
-		return;
+		nummiptex = 0;
 	}
-	m = (dmiptexlump_t *)(mod_base + l->fileofs);
+	else
+	{
+		m = (dmiptexlump_t *)(mod_base + l->fileofs);
+		m->nummiptex = LittleLong (m->nummiptex);
+		nummiptex = m->nummiptex;
+	}
 	
-	m->nummiptex = LittleLong (m->nummiptex);
-	
-	loadmodel->numtextures = m->nummiptex;
-	loadmodel->textures = Hunk_AllocName (m->nummiptex * sizeof(*loadmodel->textures) , loadname);
+	loadmodel->numtextures = nummiptex + 2; // need 2 dummy texture chains for missing textures
+	loadmodel->textures = Hunk_AllocName (loadmodel->numtextures * sizeof(*loadmodel->textures) , loadname);
 
-	for (i = 0; i < m->nummiptex; i++)
+	for (i = 0; i < nummiptex; i++)
 	{
 		m->dataofs[i] = LittleLong(m->dataofs[i]);
 		if (m->dataofs[i] == -1)
@@ -445,10 +461,14 @@ void Mod_LoadTextures (lump_t *l)
 		}
 	}
 
+	// last 2 slots in array should be filled with dummy textures
+	loadmodel->textures[loadmodel->numtextures-2] = r_notexture_mip; // for lightmapped surfs
+	loadmodel->textures[loadmodel->numtextures-1] = r_notexture_mip2; // for SURF_DRAWTILED surfs
+
 //
 // sequence the animations
 //
-	for (i = 0; i < m->nummiptex; i++)
+	for (i = 0; i < nummiptex; i++)
 	{
 		tx = loadmodel->textures[i];
 		if (!tx || tx->name[0] != '+')
@@ -705,6 +725,7 @@ void Mod_LoadTexinfo (lump_t *l)
 	mtexinfo_t *out;
 	int 	i, j, count;
 	int		miptex;
+	int 	missing = 0;
 
 	in = (texinfo_t *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -723,21 +744,18 @@ void Mod_LoadTexinfo (lump_t *l)
 		miptex = LittleLong (in->miptex);
 		out->flags = LittleLong (in->flags);
 	
-		if (!loadmodel->textures)
+		if (miptex >= loadmodel->numtextures-1 || !loadmodel->textures[miptex])
 		{
-			out->texture = r_notexture_mip;	// checkerboard texture
-			out->flags = 0;
+			if (out->flags & TEX_SPECIAL)
+				out->texture = loadmodel->textures[loadmodel->numtextures-1];
+			else
+				out->texture = loadmodel->textures[loadmodel->numtextures-2];
+			out->flags |= TEX_MISSING;
+			missing++;
 		}
 		else
 		{
-			if (miptex >= loadmodel->numtextures)
-				Host_Error ("miptex >= loadmodel->numtextures");
 			out->texture = loadmodel->textures[miptex];
-			if (!out->texture)
-			{
-				out->texture = r_notexture_mip; // texture not found
-				out->flags = 0;
-			}
 		}
 	}
 }
@@ -934,18 +952,28 @@ void Mod_LoadFaces (lump_t *l)
 		
 	// set the drawing flags flag
 
-		if (!strncmp(out->texinfo->texture->name,"sky", 3))	// sky
+		if (!strncmp(out->texinfo->texture->name,"sky", 3))		// sky surface
 		{
-			out->flags |= (SURF_DRAWSKY | SURF_UNLIT);
-			GL_BuildSkySurfacePolys (out);	// build gl polys
-			continue;
+			out->flags |= (SURF_DRAWSKY | SURF_DRAWTILED);
+			Mod_PolyForUnlitSurface (out);	// build gl polys
 		}
-		else if (out->texinfo->texture->name[0] == '*')		// turbulent
+		else if (out->texinfo->texture->name[0] == '*')			// warp surface
 		{
-			out->flags |= (SURF_DRAWTURB | SURF_UNLIT);
-			//Mod_PolyForUnlitSurface (out);
-			GL_SubdivideSurface (out);	// cut up polygon for warps
-			continue;
+			out->flags |= (SURF_DRAWTURB | SURF_DRAWTILED);
+			Mod_PolyForUnlitSurface (out);
+			GL_SubdivideSurface (out);
+		}
+		else if (out->texinfo->flags & TEX_MISSING) 			// texture is missing from bsp
+		{
+			if (out->samples) 	// lightmapped
+			{
+				out->flags |= SURF_NOTEXTURE;
+			}
+			else 				// not lightmapped
+			{
+				out->flags |= (SURF_NOTEXTURE | SURF_DRAWTILED);
+				Mod_PolyForUnlitSurface (out);
+			}
 		}
 	}
 }

@@ -47,6 +47,11 @@ vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
 
+float	r_world_matrix[16];
+float	r_base_world_matrix[16];
+
+float 	r_fovx, r_fovy; // rendering fov may be different becuase of r_waterwarp and r_stereo
+
 //
 // screen size info
 //
@@ -54,8 +59,6 @@ refdef2_t	r_refdef2;
 
 mleaf_t		*r_viewleaf, *r_oldviewleaf;
 mleaf_t		*r_viewleaf2, *r_oldviewleaf2;	// for watervis hack
-
-texture_t	*r_notexture_mip;
 
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
@@ -71,6 +74,9 @@ cvar_t	r_dynamic = {"r_dynamic","1"};
 cvar_t	r_novis = {"r_novis","0"};
 cvar_t	r_netgraph = {"r_netgraph","0"};
 cvar_t	r_fastsky = {"r_fastsky", "0"};
+cvar_t	r_stereo = {"r_stereo","0"};
+cvar_t	r_stereodepth = {"r_stereodepth","128"};
+cvar_t	r_waterwarp = {"r_waterwarp", "1"};
 
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
 cvar_t	gl_cull = {"gl_cull","1"};
@@ -78,6 +84,7 @@ cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fullbrights = {"gl_fullbrights","1"};
 cvar_t	gl_overbright = {"gl_overbright","1"};
+cvar_t	gl_farclip = {"gl_farclip", "16384", CVAR_ARCHIVE};
 void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel);
 cvar_t	gl_lightmode = {"gl_lightmode","1", 0, OnChange_lightmode_var};
 
@@ -406,7 +413,13 @@ void R_PolyBlend (void)
 	qglColor3f (1, 1, 1);
 }
 
-int SignbitsForPlane (mplane_t *out)
+//==============================================================================
+//
+// SETUP FRAME
+//
+//==============================================================================
+
+static int SignbitsForPlane (mplane_t *out)
 {
 	int	bits, j;
 
@@ -420,103 +433,68 @@ int SignbitsForPlane (mplane_t *out)
 	return bits;
 }
 
+/*
+===============
+TurnVector
 
-void R_SetFrustum (void)
+turn forward towards side on the plane defined by forward and side
+if angle = 90, the result will be equal to side
+assumes side and forward are perpendicular, and normalized
+to turn away from side, use a negative angle
+===============
+*/
+#define DEG2RAD( a ) ( (a) * M_PI/180 )
+void TurnVector (vec3_t out, const vec3_t forward, const vec3_t side, float angle)
+{
+	float scale_forward, scale_side;
+
+	scale_forward = cos( DEG2RAD( angle ) );
+	scale_side = sin( DEG2RAD( angle ) );
+
+	out[0] = scale_forward*forward[0] + scale_side*side[0];
+	out[1] = scale_forward*forward[1] + scale_side*side[1];
+	out[2] = scale_forward*forward[2] + scale_side*side[2];
+}
+
+/*
+===============
+R_SetFrustum
+===============
+*/
+void R_SetFrustum (float fovx, float fovy)
 {
 	int		i;
 
-	// rotate VPN right by FOV_X/2 degrees
-	RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-r_refdef2.fov_x / 2 ) );
+	if (r_stereo.value)
+		fovx += 10; // HACK: so polygons don't drop out becuase of stereo skew
 
-	// rotate VPN left by FOV_X/2 degrees
-	RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-r_refdef2.fov_x / 2 );
-
-	// rotate VPN up by FOV_X/2 degrees
-	RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-r_refdef2.fov_y / 2 );
-
-	// rotate VPN down by FOV_X/2 degrees
-	RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - r_refdef2.fov_y / 2 ) );
+	TurnVector(frustum[0].normal, vpn, vright, fovx / 2 - 90); // left plane
+	TurnVector(frustum[1].normal, vpn, vright, 90 - fovx / 2); // right plane
+	TurnVector(frustum[2].normal, vpn, vup, 90 - fovy / 2); // bottom plane
+	TurnVector(frustum[3].normal, vpn, vup, fovy / 2 - 90); // top plane
 
 	for (i=0 ; i<4 ; i++)
 	{
 		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (r_origin, frustum[i].normal);
+		frustum[i].dist = DotProduct (r_origin, frustum[i].normal); // FIXME: shouldn't this always be zero?
 		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
 	}
 }
 
-
-
 /*
-===============
-R_SetupFrame
-===============
+=============
+GL_SetFrustum
+=============
 */
-void R_SetupFrame (void)
+#define NEARCLIP 4
+float frustum_skew = 0.0; // used by r_stereo
+void GL_SetFrustum(float fovx, float fovy)
 {
-	vec3_t	testorigin;
-	mleaf_t	*leaf;
-	extern float	wateralpha;
-
-	// use wateralpha only if the server allows
-	wateralpha = r_refdef2.watervis ? r_wateralpha.value : 1;
-
-	R_AnimateLight ();
-
-	r_framecount++;
-
-	// build the transformation matrix for the given view angles
-	VectorCopy (r_refdef2.vieworg, r_origin);
-
-	AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
-
-	// current viewleaf
-	r_oldviewleaf = r_viewleaf;
-	r_oldviewleaf2 = r_viewleaf2;
-
-	r_viewleaf = Mod_PointInLeaf (r_origin, r_worldmodel);
-	r_viewleaf2 = NULL;
-
-	// check above and below so crossing solid water doesn't draw wrong
-	if (r_viewleaf->contents <= CONTENTS_WATER && r_viewleaf->contents >= CONTENTS_LAVA)
-	{
-		// look up a bit
-		VectorCopy (r_origin, testorigin);
-		testorigin[2] += 10;
-		leaf = Mod_PointInLeaf (testorigin, r_worldmodel);
-		if (leaf->contents == CONTENTS_EMPTY)
-			r_viewleaf2 = leaf;
-	}
-	else if (r_viewleaf->contents == CONTENTS_EMPTY)
-	{
-		// look down a bit
-		VectorCopy (r_origin, testorigin);
-		testorigin[2] -= 10;
-		leaf = Mod_PointInLeaf (testorigin, r_worldmodel);
-		if (leaf->contents <= CONTENTS_WATER &&	leaf->contents >= CONTENTS_LAVA)
-			r_viewleaf2 = leaf;
-	}
-
-	V_SetContentsColor (r_viewleaf->contents);
-	V_PrepBlend ();
-
-	r_cache_thrash = false;
+	float xmax, ymax;
+	xmax = NEARCLIP * tan( fovx * M_PI / 360.0 );
+	ymax = NEARCLIP * tan( fovy * M_PI / 360.0 );
+	qglFrustum(-xmax + frustum_skew, xmax + frustum_skew, -ymax, ymax, NEARCLIP, gl_farclip.value);
 }
-
-
-void MYgluPerspective( GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar )
-{
-	GLdouble xmin, xmax, ymin, ymax;
-	
-	ymax = zNear * tan( fovy * M_PI / 360.0 );
-	ymin = -ymax;
-	
-	xmin = ymin * aspect;
-	xmax = ymax * aspect;
-	
-	qglFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
-}
-
 
 /*
 =============
@@ -525,27 +503,14 @@ R_SetupGL
 */
 void R_SetupGL (void)
 {
-	float	screenaspect;
-	int		x, x2, y2, y, w, h;
-
-	//
-	// set up viewpoint
-	//
 	qglMatrixMode(GL_PROJECTION);
     qglLoadIdentity ();
-	x = (r_refdef2.vrect.x * vid.realwidth) / vid.width;
-	x2 = ((r_refdef2.vrect.x + r_refdef2.vrect.width) * vid.realwidth) / vid.width;
-	y = ((vid.height - r_refdef2.vrect.y) * vid.realheight) / vid.height;
-	y2 = ((vid.height - (r_refdef2.vrect.y + r_refdef2.vrect.height)) * vid.realheight) / vid.height;
+	qglViewport (r_refdef2.vrect.x,
+				vid.height - r_refdef2.vrect.y - r_refdef2.vrect.height,
+				r_refdef2.vrect.width,
+				r_refdef2.vrect.height);
 
-	w = x2 - x;
-	h = y - y2;
-
-	qglViewport (x, y2, w, h);
-	screenaspect = (float)r_refdef2.vrect.width/r_refdef2.vrect.height;
-	MYgluPerspective (r_refdef2.fov_y,  screenaspect,  4,  4096);
-
-	qglCullFace(GL_FRONT);
+	GL_SetFrustum (r_fovx, r_fovy);
 
 	qglMatrixMode(GL_MODELVIEW);
 	qglLoadIdentity ();
@@ -556,6 +521,8 @@ void R_SetupGL (void)
 	qglRotatef (-r_refdef2.viewangles[0],  0, 1, 0);
 	qglRotatef (-r_refdef2.viewangles[1],  0, 0, 1);
 	qglTranslatef (-r_refdef2.vieworg[0], -r_refdef2.vieworg[1], -r_refdef2.vieworg[2]);
+
+	//qglGetFloatv (GL_MODELVIEW_MATRIX, r_world_matrix);
 
 	//
 	// set drawing parms
@@ -580,7 +547,7 @@ void gl_main_shutdown(void)
 
 void gl_main_newmap(void)
 {
-	r_framecount = 1;
+	r_framecount = 1; // no dlightcache
 }
 
 void GL_Main_Init(void)
@@ -600,6 +567,9 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_speeds);
 	Cvar_Register (&r_netgraph);
 	Cvar_Register (&r_fastsky);
+	Cvar_Register (&r_stereo);
+	Cvar_Register (&r_stereodepth);
+	Cvar_Register (&r_waterwarp);
 
 	Cvar_Register (&gl_subdivide_size);
 	Cvar_Register (&gl_cull);
@@ -607,6 +577,7 @@ void GL_Main_Init(void)
 	Cvar_Register (&gl_finish);
 	Cvar_Register (&gl_fullbrights);
 	Cvar_Register (&gl_overbright);
+	Cvar_Register (&gl_farclip);
 	Cvar_Register (&gl_lightmode);
 
 	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
@@ -817,6 +788,94 @@ void R_Clear (void)
 }
 
 /*
+===============
+R_SetupScene
+
+this is the stuff that needs to be done once per eye in stereo mode
+===============
+*/
+void R_SetupScene (void)
+{
+	R_PushDlights ();
+	R_AnimateLight ();
+	r_framecount++;
+	R_SetupGL ();
+}
+
+/*
+===============
+R_SetupView
+
+this is the stuff that needs to be done once per frame, even in stereo mode
+===============
+*/
+void R_SetupView (void)
+{
+	vec3_t	testorigin;
+	mleaf_t	*leaf;
+	extern float	wateralpha;
+
+	// use wateralpha only if the server allows
+	wateralpha = r_refdef2.watervis ? r_wateralpha.value : 1;
+
+	// build the transformation matrix for the given view angles
+	VectorCopy (r_refdef2.vieworg, r_origin);
+	AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
+
+	// current viewleaf
+	r_oldviewleaf = r_viewleaf;
+	r_oldviewleaf2 = r_viewleaf2;
+	r_viewleaf = Mod_PointInLeaf (r_origin, r_worldmodel);
+	r_viewleaf2 = NULL;
+
+	// check above and below so crossing solid water doesn't draw wrong
+	if (r_viewleaf->contents <= CONTENTS_WATER && r_viewleaf->contents >= CONTENTS_LAVA)
+	{
+		// look up a bit
+		VectorCopy (r_origin, testorigin);
+		testorigin[2] += 10;
+		leaf = Mod_PointInLeaf (testorigin, r_worldmodel);
+		if (leaf->contents == CONTENTS_EMPTY)
+			r_viewleaf2 = leaf;
+	}
+	else if (r_viewleaf->contents == CONTENTS_EMPTY)
+	{
+		// look down a bit
+		VectorCopy (r_origin, testorigin);
+		testorigin[2] -= 10;
+		leaf = Mod_PointInLeaf (testorigin, r_worldmodel);
+		if (leaf->contents <= CONTENTS_WATER &&	leaf->contents >= CONTENTS_LAVA)
+			r_viewleaf2 = leaf;
+	}
+
+	V_SetContentsColor (r_viewleaf->contents);
+	V_PrepBlend ();
+
+	r_cache_thrash = false;
+
+	// calculate r_fovx and r_fovy here
+	r_fovx = r_refdef2.fov_x;
+	r_fovy = r_refdef2.fov_y;
+	if (r_waterwarp.value)
+	{
+		int contents = Mod_PointInLeaf (r_origin, r_worldmodel)->contents;
+		if (contents == CONTENTS_WATER || contents == CONTENTS_SLIME || contents == CONTENTS_LAVA)
+		{
+			// variance is a percentage of width, where width = 2 * tan(fov / 2) otherwise the effect is too dramatic at high FOV and too subtle at low FOV.  what a mess!
+			r_fovx = atan(tan(DEG2RAD(r_refdef2.fov_x) / 2) * (0.97 + sin(cl.time * 1.5) * 0.03)) * 2 / (M_PI/180);
+			r_fovy = atan(tan(DEG2RAD(r_refdef2.fov_y) / 2) * (1.03 - sin(cl.time * 1.5) * 0.03)) * 2 / (M_PI/180);
+		}
+	}
+
+	R_SetFrustum (r_fovx, r_fovy);
+
+	R_MarkSurfaces (); // create texture chains from PVS
+	R_CullSurfaces (); // do after R_SetFrustum and R_MarkSurfaces
+
+	R_Clear ();
+}
+
+/*
 ================
 R_RenderScene
 
@@ -825,18 +884,11 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
-	R_SetupFrame ();
-	R_SetFrustum ();
-	R_SetupGL ();
-
-	R_MarkSurfaces();	// create texture chains from PVS
-	R_CullSurfaces();
-
-	R_Clear ();
+	R_SetupScene (); 	// this does everything that should be done once per call to RenderScene
 
 	R_DrawSky ();
 
-	R_DrawWorld ();		// adds static entities to the list
+	R_DrawWorld ();
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
@@ -844,7 +896,7 @@ void R_RenderScene (void)
 
 	R_DrawEntitiesOnList ();
 
-	R_DrawTextureChains_Water ();
+	R_DrawTextureChains_Water (); // drawn here since they might have transparency
 
 	R_DrawParticles ();
 }
@@ -866,8 +918,43 @@ void R_RenderView (void)
 
 	RB_StartFrame ();
 
-	// render normal view
-	R_RenderScene ();
+	R_SetupView (); // this does everything that should be done once per frame
+
+	// stereo rendering -- full of hacky goodness
+	if (r_stereo.value)
+	{
+		float eyesep = clamp(-8.0f, r_stereo.value, 8.0f);
+		float fdepth = clamp(32.0f, r_stereodepth.value, 1024.0f);
+
+		AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
+
+		// render left eye (red)
+		qglColorMask(1, 0, 0, 1);
+		VectorMA (r_refdef2.vieworg, -0.5f * eyesep, vright, r_refdef2.vieworg);
+		frustum_skew = 0.5 * eyesep * NEARCLIP / fdepth;
+		srand((int) (cl.time * 1000)); // sync random stuff between eyes
+
+		R_RenderScene ();
+
+		// render right eye (cyan)
+		qglClear (GL_DEPTH_BUFFER_BIT);
+		qglColorMask(0, 1, 1, 1);
+		VectorMA (r_refdef2.vieworg, 1.0f * eyesep, vright, r_refdef2.vieworg);
+		frustum_skew = -frustum_skew;
+		srand((int) (cl.time * 1000)); // sync random stuff between eyes
+
+		R_RenderScene ();
+
+		// restore
+		qglColorMask(1, 1, 1, 1);
+		VectorMA (r_refdef2.vieworg, -0.5f * eyesep, vright, r_refdef2.vieworg);
+		frustum_skew = 0.0f;
+	}
+	else
+	{
+		// render normal view
+		R_RenderScene ();
+	}
 
 	RB_EndFrame ();
 }
