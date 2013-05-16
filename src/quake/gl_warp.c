@@ -69,8 +69,10 @@ static void SubdividePolygon (int numverts, float *verts)
 	int		f, b;
 	float	dist[64];
 	float	frac;
-	glpoly_t	*poly;
+	glpoly_t *poly;
 	float	s, t;
+	vec3_t total;
+	float total_s, total_t;
 
 	if (numverts > 60)
 		Sys_Error ("numverts = %i", numverts);
@@ -80,7 +82,7 @@ static void SubdividePolygon (int numverts, float *verts)
 	for (i=0 ; i<3 ; i++)
 	{
 		m = (mins[i] + maxs[i]) * 0.5;
-		m = gl_subdivide_size.value * floor (m/gl_subdivide_size.value + 0.5);
+		m = (gl_subdivide_size.value * 2) * floor (m / (gl_subdivide_size.value * 2) + 0.5);
 		if (maxs[i] - m < 8)
 			continue;
 		if (m - mins[i] < 8)
@@ -128,18 +130,33 @@ static void SubdividePolygon (int numverts, float *verts)
 		return;
 	}
 
-	poly = Hunk_Alloc (sizeof(glpoly_t) + (numverts-4) * VERTEXSIZE*sizeof(float));
+	// add a point in the center to keep warp valid (and allow us to use a subdivide size of 48 instead of 24)
+	poly = Hunk_Alloc (sizeof (glpoly_t) + (numverts - 4 + 2) * VERTEXSIZE * sizeof (float));
 	poly->next = warpface->polys->next;
 	warpface->polys->next = poly;
-	poly->numverts = numverts;
-	for (i=0 ; i<numverts ; i++, verts+= 3)
+	poly->numverts = numverts + 2;
+
+	total[0] = total[1] = total[2] = total_s = total_t = 0;
+
+	for (i = 0; i < numverts; i++, verts += 3)
 	{
-		VectorCopy (verts, poly->verts[i]);
+		VectorCopy (verts, poly->verts[i + 1]);
 		s = DotProduct (verts, warpface->texinfo->vecs[0]);
 		t = DotProduct (verts, warpface->texinfo->vecs[1]);
-		poly->verts[i][3] = s;
-		poly->verts[i][4] = t;
+		poly->verts[i + 1][3] = s;
+		poly->verts[i + 1][4] = t;
+
+		VectorAdd (total, verts, total);
+		total_s += s;
+		total_t += t;
 	}
+
+	VectorScale (total, (1.0f / numverts), poly->verts[0]);
+	poly->verts[0][3] = total_s / numverts;
+	poly->verts[0][4] = total_t / numverts;
+
+	// copy first vertex to last
+	memcpy (poly->verts[i + 1], poly->verts[1], sizeof (poly->verts[0]));
 }
 
 /*
@@ -172,14 +189,28 @@ void DrawWaterPoly (glpoly_t *p)
 	float	*v;
 	int		i;
 
-	qglBegin (GL_POLYGON);
-	v = p->verts[0];
-	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
+	if (gl_subdivide_size.value > 48)
 	{
-		qglTexCoord2f (WARPCALC2(v[3],v[4]), WARPCALC2(v[4],v[3]));
-		qglVertex3fv (v);
+		qglBegin (GL_POLYGON);
+		v = p->verts[0];
+		for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
+		{
+			qglTexCoord2f (WARPCALC2(v[3],v[4]), WARPCALC2(v[4],v[3]));
+			qglVertex3fv (v);
+		}
+		qglEnd ();
 	}
-	qglEnd ();
+	else
+	{
+		qglBegin (GL_POLYGON);
+		v = p->verts[0];
+		for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
+		{
+			qglTexCoord2f (WARPCALC(v[3],v[4]), WARPCALC(v[4],v[3]));
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+	}
 }
 
 //===============================================================

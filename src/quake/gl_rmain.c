@@ -78,7 +78,7 @@ cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
 cvar_t	r_waterwarp = {"r_waterwarp", "1"};
 
-cvar_t	gl_subdivide_size = {"gl_subdivide_size", "64", CVAR_ARCHIVE};
+cvar_t	gl_subdivide_size = {"gl_subdivide_size", "128", CVAR_ARCHIVE};
 cvar_t	gl_cull = {"gl_cull","1"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
