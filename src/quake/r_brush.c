@@ -166,6 +166,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 
 		R_RenderDynamicLightmaps (s);
 		GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
+		R_UploadLightmap(s->lightmaptexturenum);
 		if (!gl_overbright.value)
 		{
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -253,6 +254,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 			GL_EnableMultitexture(); // selects TEXTURE1
 			GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 			R_RenderDynamicLightmaps (s);
+			R_UploadLightmap(s->lightmaptexturenum);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
@@ -286,6 +288,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 			// second pass -- lightmap modulate blended
 			R_RenderDynamicLightmaps (s);
 			GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
+			R_UploadLightmap(s->lightmaptexturenum);
 			qglDepthMask (GL_FALSE);
 			qglEnable (GL_BLEND);
 			qglBlendFunc(GL_DST_COLOR, GL_SRC_COLOR); // 2x modulate
@@ -315,6 +318,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 		GL_EnableMultitexture(); // selects TEXTURE1
 		GL_Bind (lightmap_textures[s->lightmaptexturenum]->texnum);
 		R_RenderDynamicLightmaps (s);
+		R_UploadLightmap(s->lightmaptexturenum);
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	
 		qglBegin(GL_POLYGON);
