@@ -420,18 +420,6 @@ char *va (char *format, ...)
 }
 
 
-/// just for debugging
-int	memsearch (byte *start, int count, int search)
-{
-	int		i;
-
-	for (i=0 ; i<count ; i++)
-		if (start[i] == search)
-			return i;
-	return -1;
-}
-
-
 /*
 =============================================================================
 
