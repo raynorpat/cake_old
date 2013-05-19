@@ -85,6 +85,7 @@ float		scr_conlines;		// lines of console to display
 
 cvar_t		scr_drawall = {"scr_drawall", "0"};
 cvar_t		scr_viewsize = {"viewsize","100",CVAR_ARCHIVE};
+cvar_t		scr_fov_adapt = {"scr_fov_adapt","1",CVAR_ARCHIVE};
 cvar_t		scr_fov = {"fov","90",CVAR_ARCHIVE};	// 10 - 170
 cvar_t		scr_consize = {"scr_consize","0.5"};
 cvar_t		scr_conspeed = {"scr_conspeed","1000"};
@@ -226,10 +227,35 @@ void SCR_CheckDrawCenterString (void)
 
 /*
 ====================
+AdaptFovx
+
+Adapts a 4:3 horizontal FOV to the current screen size (Hor+).
+====================
+*/
+static float AdaptFovx (float fov43, float w, float h)
+{
+	static const float pi = M_PI; /* float instead of double. */
+
+	if (w <= 0 || h <= 0)
+		return fov43;
+
+	/*
+	 * Formula:
+	 *
+	 * fov = 2.0 * atan(width / height * 3.0 / 4.0 * tan(fov43 / 2.0))
+	 *
+	 * The code below is equivalent but precalculates a few values and
+	 * converts between degrees and radians when needed.
+	 */
+	return (atanf(tanf(fov43 / 360.0f * pi) * (w / h) * 0.75f) / pi * 360.0f);
+}
+
+/*
+====================
 CalcFov
 ====================
 */
-float CalcFov (float fov_x, float width, float height)
+static float CalcFov (float fov_x, float width, float height)
 {
 	float   a;
 	float   x;
@@ -330,7 +356,11 @@ void SCR_CalcRefdef (void)
 
 	r_refdef2.vrect = scr_vrect;
 
-	r_refdef2.fov_x = scr_fov.value;
+	if (scr_fov_adapt.value)
+		r_refdef2.fov_x = AdaptFovx(scr_fov.value, r_refdef2.vrect.width, r_refdef2.vrect.height);
+	else
+		r_refdef2.fov_x = scr_fov.value;
+	r_refdef2.fov_x = clamp(10, r_refdef2.fov_x, 170);
 	r_refdef2.fov_y = CalcFov (r_refdef2.fov_x, scr_vrect.width, scr_vrect.height);
 }
 
@@ -386,6 +416,7 @@ SCR_Init
 void SCR_Init (void)
 {
 	Cvar_Register (&scr_drawall);
+	Cvar_Register (&scr_fov_adapt);
 	Cvar_Register (&scr_fov);
 	Cvar_Register (&scr_viewsize);
 	Cvar_Register (&scr_consize);
