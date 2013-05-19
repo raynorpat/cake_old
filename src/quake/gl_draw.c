@@ -508,8 +508,8 @@ void R_LoadingScreen (void)
 
 	// draw the loading plaque
 	pic = R_CachePic("gfx/loading.lmp");
-	x = (vid.width - pic->width) / 2;
-	y = (vid.height - pic->height) / 2;
+	x = (320 - pic->width) / 2;
+	y = (200 - pic->height) / 2;
 	R_DrawPic ( x, y, pic );
 
 	// refresh
