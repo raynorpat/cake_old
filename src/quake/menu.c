@@ -1198,44 +1198,54 @@ void M_Quit_Key (int key)
 
 void M_Quit_Draw (void)
 {
-	static char *quitmsg[] = {
-		"0" PROGRAM " " PROGRAM_VERSION,
-		"1based on QuakeWorld by Id Software",
-		"1",
-		"0Programming",
-		"1Anton 'Tonik' Gavrilov",
-		"1",
-		"0Additional Programming",
-		"1QuakeForge team",
-		"1Victor Luchits",
-		"1",
-		"0Id Software is not responsible for",
-		"0providing technical support for",
-		"0" PROGRAM ".",
-		"1NOTICE: The copyright and trademark",
-		"1 notices appearing  in your copy of",
-		"1Quake(r) are not modified by the use",
-		"1of " PROGRAM " and remain in full force.",
-		"0QuakeWorld(tm) is a trademark of",
-		"0Id Software, Inc.",
-		"0NIN(r) is a registered trademark",
-		"0licensed to Nothing Interactive, Inc.",
-		"0All rights reserved. Press y to exit",
-		NULL
-	};
-	char **p;
-	int x, y;
+	static char *quitMessage [] = {
+	/* .........1.........2.... */
+	  "  Are you gonna quit    ",
+	  "  this game just like   ",
+	  "   everything else?     ",
+	  "                        ",
+ 
+	  " Milord, methinks that  ",
+	  "   thou art a lowly     ",
+	  " quitter. Is this true? ",
+	  "                        ",
 
-	M_DrawTextBox (0, 0, 38, 23);
-	y = 12;
-	for (p = quitmsg; *p; p++, y += 8)
-	{
-		x = 16 + (36 - (strlen(*p + 1))) * 4;
-		if (**p == '0')
-			M_PrintWhite (x, y, *p + 1);
-		else
-			M_Print (x, y,	*p + 1);
-	}
+	  " Do I need to bust your ",
+	  "  face open for trying  ",
+	  "        to quit?        ",
+	  "                        ",
+
+	  " Man, I oughta smack you",
+	  "   for trying to quit!  ",
+	  "     Press Y to get     ",
+	  "      smacked out.      ",
+ 
+	  " Press Y to quit like a ",
+	  "   big loser in life.   ",
+	  "  Press N to stay proud ",
+	  "    and successful!     ",
+ 
+	  "   If you press Y to    ",
+	  "  quit, I will summon   ",
+	  "  Satan all over your   ",
+	  "      hard drive!       ",
+ 
+	  "  Um, Asmodeus dislikes ",
+	  " his children trying to ",
+	  " quit. Press Y to return",
+	  "   to your Tinkertoys.  ",
+ 
+	  "  If you quit now, I'll ",
+	  "  throw a blanket-party ",
+	  "   for you next time!   ",
+	  "                        "
+	};
+
+	M_DrawTextBox (56, 76, 24, 4);
+	M_Print (64, 84,  quitMessage[msgNumber*4+0]);
+	M_Print (64, 92,  quitMessage[msgNumber*4+1]);
+	M_Print (64, 100, quitMessage[msgNumber*4+2]);
+	M_Print (64, 108, quitMessage[msgNumber*4+3]);
 }
 
 //=============================================================================
