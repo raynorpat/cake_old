@@ -296,7 +296,7 @@ void R_DrawTextureChains_Glow (void)
 	{
 		t = r_worldmodel->textures[i];
 
-		if (!t || !t->texturechain || !(glt = R_TextureAnimation(t)->fb_texture))
+		if (!t || !t->texturechain || !(glt = R_TextureAnimation(t,0)->fb_texture))
 			continue;
 
 		bound = false;
@@ -346,7 +346,7 @@ void R_DrawTextureChains_Multitexture (void)
 			{
 				if (!bound) // only bind once we are sure we need this texture
 				{
-					GL_Bind ((R_TextureAnimation(t))->gl_texture->texnum);
+					GL_Bind ((R_TextureAnimation(t,0))->gl_texture->texnum);
 					GL_EnableMultitexture(); // selects TEXTURE1
 					bound = true;
 				}
@@ -437,7 +437,7 @@ void R_DrawTextureChains_TextureOnly (void)
 			{
 				if (!bound) // only bind once we are sure we need this texture
 				{
-					GL_Bind ((R_TextureAnimation(t))->gl_texture->texnum);
+					GL_Bind ((R_TextureAnimation(t,0))->gl_texture->texnum);
 					bound = true;
 				}
 				R_RenderDynamicLightmaps (s); // adds to lightmap chain

@@ -309,7 +309,7 @@ extern void (GLAPIENTRY *qglGenerateMipmap)(GLenum target);
 #define ALIAS_BASE_SIZE_RATIO	(1.0 / 11.0) // normalizing factor so player model works out to about 1 pixel per triangle
 #define	MAX_LBM_HEIGHT			480
 
-texture_t *R_TextureAnimation (texture_t *base);
+texture_t *R_TextureAnimation (texture_t *base, int frame);
 
 //====================================================
 

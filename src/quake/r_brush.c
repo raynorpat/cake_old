@@ -51,12 +51,12 @@ R_TextureAnimation
 Returns the proper texture for a given time and base texture
 ===============
 */
-texture_t *R_TextureAnimation (texture_t *base)
+texture_t *R_TextureAnimation (texture_t *base, int frame)
 {
 	int		relative;
 	int		count;
 
-	if (currententity->frame)
+	if (frame)
 	{
 		if (base->alternate_anims)
 			base = base->alternate_anims;
@@ -141,7 +141,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 	float		*v;
 	int			i;
 
-	t = R_TextureAnimation (s->texinfo->texture);
+	t = R_TextureAnimation (s->texinfo->texture, currententity->frame);
 
 // fullbright
 	if ((r_fullbright.value) && !(s->flags & SURF_DRAWTILED))
@@ -399,6 +399,9 @@ void R_DrawBrushModel (entity_t *e)
 	{
 		for (k = 0; k < r_refdef2.numDlights; k++)
 		{
+			if (!r_refdef2.dlights[k].radius)
+				continue;
+
 			R_MarkLights (&r_refdef2.dlights[k], 1<<k, clmodel->nodes + clmodel->firstnode);
 		}
 	}
