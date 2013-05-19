@@ -94,9 +94,7 @@ cvar_t		scr_showram = {"showram","1"};
 cvar_t		scr_showturtle = {"showturtle","0"};
 cvar_t		scr_showpause = {"showpause","1"};
 cvar_t		scr_printspeed = {"scr_printspeed","8"};
-cvar_t		scr_clock = {"cl_clock","0"};
-cvar_t		scr_clock_x = {"cl_clock_x","0"};
-cvar_t		scr_clock_y = {"cl_clock_y","-1"};
+
 cvar_t		show_speed = {"show_speed","0"};
 cvar_t		show_fps = {"show_fps", "0"};
 
@@ -398,9 +396,7 @@ void SCR_Init (void)
 	Cvar_Register (&scr_showpause);
 	Cvar_Register (&scr_centertime);
 	Cvar_Register (&scr_printspeed);
-	Cvar_Register (&scr_clock_x);
-	Cvar_Register (&scr_clock_y);
-	Cvar_Register (&scr_clock);
+
 	Cvar_Register (&show_speed);
 	Cvar_Register (&show_fps);
 
@@ -486,7 +482,7 @@ void SCR_DrawFPS (void)
 	double t;
 	extern int fps_count;
 	static int lastfps;
-	int x;
+	int x, y;
 	char st[80];
 
 	if (!show_fps.value)
@@ -502,10 +498,10 @@ void SCR_DrawFPS (void)
 	}
 
 	sprintf(st, "%3d FPS", lastfps);
-	x = vid.width - strlen(st) * 8 - 8;
-	R_DrawString(x, 0, st);
+	x = 320 - (strlen(st)<<3);
+	y = 200 - 8;
+	R_DrawString(x, y, st);
 }
-
 
 void SCR_DrawSpeed (void)
 {
@@ -544,8 +540,8 @@ void SCR_DrawSpeed (void)
 	if (display_speed >= 0)
 	{
 		sprintf(st, "%3d", (int)display_speed);
-		x = vid.width - strlen(st) * 8 - 8;
-		y = 8;
+		x = 320 - (strlen(st)<<3);
+		y = 200 - 8;
 		R_DrawString(x, y, st);
 	}
 
@@ -557,56 +553,9 @@ void SCR_DrawSpeed (void)
 	}
 }
 
-void SCR_DrawClock (void)
-{
-	char	str[80] = "";
-	int		hours, minutes, seconds;
-	int		tens_hours, tens_minutes, tens_seconds;
-
-	if (!scr_clock.value)
-		return;
-
-	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
-
-	if (scr_clock.value == 2)
-	{
-		time_t		t;
-		struct tm	*ptm;
-
-		time (&t);
-		ptm = localtime (&t);
-		if (!ptm)
-			strcpy (str, "#bad date#");
-		else
-			strftime (str, sizeof(str)-1, "%H:%M:%S", ptm);
-	}
-	else
-	{
-		float	time;
-		if (cl.servertime_works)
-			time = cl.servertime;
-		else
-			time = cls.realtime;
-		tens_hours = fmod (time / 36000, 10);
-		hours = fmod (time / 3600, 10);
-		tens_minutes = fmod (time / 600, 6);
-		minutes = fmod (time / 60, 10);
-		tens_seconds = fmod (time / 10, 6);
-		seconds = fmod (time, 10);
-		sprintf (str, "%i%i:%i%i:%i%i", tens_hours, hours, tens_minutes, minutes,
-			tens_seconds, seconds);
-	}
-
-	if (scr_clock_y.value < 0)
-		R_DrawString (8 * scr_clock_x.value, vid.height - sb_lines + 8*scr_clock_y.value, str);
-	else
-		R_DrawString (8 * scr_clock_x.value, 8*scr_clock_y.value, str);
-}
-
-
 /*
 ==============
-DrawPause
+SCR_DrawPause
 ==============
 */
 void SCR_DrawPause (void)
@@ -628,7 +577,7 @@ void SCR_DrawPause (void)
 	GL_SetCanvas (CANVAS_MENU);
 
 	pic = R_CachePic ("gfx/pause.lmp");
-	R_DrawPic ( (vid.width - pic->width)/2, (vid.height - 48 - pic->height)/2, pic);
+	R_DrawPic ( (320 - pic->width)/2, (240 - 48 - pic->height)/2, pic);
 }
 
 extern void Host_StartVideo (void);
@@ -840,7 +789,6 @@ void SCR_UpdateScreen (void)
 				Draw_Crosshair ();
 			SCR_CheckDrawCenterString ();
 			SCR_DrawSpeed ();
-			SCR_DrawClock ();
 			SCR_DrawFPS ();
 			Sbar_Draw ();
 		}
