@@ -92,7 +92,7 @@ int		m_topmenu;			// set if a submenu was entered via a
 //=============================================================================
 /* Support Routines */
 
-cvar_t	scr_menuscale = {"scr_menuscale","1"};
+cvar_t	scr_menuscale = {"scr_menuscale", "2", CVAR_ARCHIVE};
 
 void M_DrawChar (int cx, int line, int num)
 {

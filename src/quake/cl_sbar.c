@@ -78,7 +78,7 @@ static void Sbar_MiniDeathmatchOverlay (void);
 #define R_DrawString(a, b, c)   Sys_Printf("%s\n", c)
 #endif
 
-cvar_t	scr_sbarscale = {"scr_sbarscale", "1", CVAR_ARCHIVE};
+cvar_t	scr_sbarscale = {"scr_sbarscale", "2", CVAR_ARCHIVE};
 
 /*
 ===============

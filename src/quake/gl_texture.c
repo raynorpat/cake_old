@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 
 cvar_t	gl_picmip = {"gl_picmip", "0"};
+cvar_t	r_upscale_textures = {"r_upscale_textures", "1"};
 
 #define MAX_STACK_PIXELS (256 * 256)
 
@@ -146,7 +147,7 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 	}
 	else
 	{
-		if (glt->flags & TEXPREF_UPSCALE)
+		if (r_upscale_textures.value && (glt->flags & TEXPREF_HQ2X))
 		{
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -762,7 +763,6 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	switch (format)
 	{
 		default:
-		case SRC_INDEXED_UPSCALE:
 		case SRC_INDEXED:
 			crc = CRC_Block(data, width * height);
 			break;
@@ -805,10 +805,10 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	switch (glt->source_format)
 	{
 		case SRC_INDEXED:
-			TexMgr_LoadImage8 (glt, data);
-			break;
-		case SRC_INDEXED_UPSCALE:
-			TexMgr_LoadUpscaledImage8 (glt, data);
+			if(r_upscale_textures.value && (flags & TEXPREF_HQ2X))
+				TexMgr_LoadUpscaledImage8 (glt, data);
+			else
+				TexMgr_LoadImage8 (glt, data);
 			break;
 		case SRC_LIGHTMAP:
 			TexMgr_LoadLightmap (glt, data);
@@ -928,10 +928,10 @@ invalid:
 	switch (glt->source_format)
 	{
 	case SRC_INDEXED:
-		TexMgr_LoadImage8 (glt, data);
-		break;
-	case SRC_INDEXED_UPSCALE:
-		TexMgr_LoadUpscaledImage8 (glt, data);
+		if(r_upscale_textures.value && (glt->flags & TEXPREF_HQ2X))
+			TexMgr_LoadUpscaledImage8 (glt, data);
+		else
+			TexMgr_LoadImage8 (glt, data);
 		break;
 	case SRC_LIGHTMAP:
 		TexMgr_LoadLightmap (glt, data);
@@ -1137,6 +1137,7 @@ void TexMgr_Init (void)
 	int i;
 
 	Cvar_Register (&gl_picmip);
+	Cvar_Register (&r_upscale_textures);
 
 	Cmd_AddCommand ("gl_texturemode", &TexMgr_TextureMode_f);
 	Cmd_AddCommand ("imagelist", &TexMgr_Imagelist_f);

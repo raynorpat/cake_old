@@ -309,11 +309,6 @@ extern void (GLAPIENTRY *qglGenerateMipmap)(GLenum target);
 #define ALIAS_BASE_SIZE_RATIO	(1.0 / 11.0) // normalizing factor so player model works out to about 1 pixel per triangle
 #define	MAX_LBM_HEIGHT			480
 
-texture_t *R_TextureAnimation (texture_t *base, int frame);
-
-//====================================================
-
-
 extern model_t		*r_worldmodel;
 extern entity_t		r_worldentity;
 extern qbool		r_cache_thrash;		// set if thrashing the surface cache
@@ -390,16 +385,16 @@ void GL_PolygonOffset (int);
 #define TEXPREF_MIPMAP			0x0001	// generate mipmaps
 #define TEXPREF_LINEAR			0x0002	// force linear
 #define TEXPREF_NEAREST			0x0004	// force nearest
-#define TEXPREF_UPSCALE			0x0008	// use hq2x upscale
+#define TEXPREF_REPEAT			0x0008	// force repeat instead of clamp
 #define TEXPREF_OVERWRITE		0x0010	// overwrite existing same-name texture
 #define TEXPREF_NOPICMIP		0x0020	// always load full-sized
 #define TEXPREF_CONCHARS		0x0040	// use conchar palette
 #define TEXPREF_FULLBRIGHT		0x0080	// use fullbright palette
 #define TEXPREF_NOBRIGHT		0x0100	// use nobright mask palette
 #define TEXPREF_WARPIMAGE		0x0200	// resize this texture when warpimagesize changes
-#define TEXPREF_REPEAT			0x0400	// repeat texture instead of clamp
+#define TEXPREF_HQ2X			0x0400	// use HQ2X upscaling
 
-enum srcformat {SRC_INDEXED, SRC_INDEXED_UPSCALE, SRC_LIGHTMAP, SRC_RGBA};
+enum srcformat {SRC_INDEXED, SRC_LIGHTMAP, SRC_RGBA};
 
 #define MAX_TEXTURE_SIZE		2048
 #define	MAX_GLTEXTURES			1024
@@ -446,6 +441,8 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants);
 
 #define MAX_LIGHTMAPS 256
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS];
+
+texture_t *R_TextureAnimation (texture_t *base, int frame);
 
 //
 // gl_warp.c
