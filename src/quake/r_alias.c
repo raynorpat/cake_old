@@ -250,7 +250,7 @@ void R_DrawAliasModel (entity_t *ent)
 	// transform it
 	//
 	qglPushMatrix ();
-	R_RotateForEntity (ent);
+	R_RotateForEntity (ent->origin, ent->angles);
 
 	if (clmodel->modhint == MOD_EYES) {
 		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2] - (22 + 8));
@@ -565,3 +565,30 @@ void R_DrawAliasShadow (entity_t *e)
 	// clean up
 	qglPopMatrix ();
 }
+
+/*
+=================
+R_DrawAliasModel_ShowTris
+=================
+*/
+void R_DrawAliasModel_ShowTris (entity_t *e)
+{
+	aliashdr_t	*paliashdr;
+
+	if (R_CullModelForEntity(e))
+		return;
+
+	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
+
+    qglPushMatrix ();
+	R_RotateForEntity (e->origin, e->angles);
+	qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
+	qglScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
+
+	shading = false;
+	qglColor3f(1,1,1);
+	R_SetupAliasFrame (e->frame, paliashdr);
+
+	qglPopMatrix ();
+}
+

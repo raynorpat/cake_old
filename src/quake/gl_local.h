@@ -286,6 +286,7 @@ extern void (GLAPIENTRY *qglCopyTexSubImage1D)(GLenum target, GLint level, GLint
 extern void (GLAPIENTRY *qglCopyTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
 
 extern void (GLAPIENTRY *qglPolygonOffset)(GLfloat factor, GLfloat units);
+extern void (GLAPIENTRY *qglPolygonMode)(GLenum face , GLenum mode);
 
 #ifdef WIN32
 extern int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
@@ -461,7 +462,7 @@ extern qbool	r_skyboxloaded;
 qbool R_CullBox (vec3_t mins, vec3_t maxs);
 qbool R_CullSphere (vec3_t centre, float radius);
 qbool R_CullModelForEntity (entity_t *e);
-void R_RotateForEntity (entity_t *e);
+void R_RotateForEntity (vec3_t origin, vec3_t angles);
 void R_PolyBlend (void);
 void R_MarkSurfaces (void);
 void R_CullSurfaces (void);
@@ -487,6 +488,7 @@ void R_StoreEfrags (efrag_t **ppefrag);
 //
 void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr);
 
+void R_DrawParticles (void);
 void R_DrawWorld (void);
 void R_DrawAliasModel (entity_t *e);
 void R_DrawBrushModel (entity_t *e);
@@ -506,7 +508,7 @@ void R_DrawBrushModel_ShowTris (entity_t *e);
 void R_DrawAliasModel_ShowTris (entity_t *e);
 void R_DrawParticles_ShowTris (void);
 
-void GL_DrawAliasShadow (entity_t *e);
+void R_DrawAliasShadow (entity_t *e);
 
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);

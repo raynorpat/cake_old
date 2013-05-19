@@ -76,6 +76,7 @@ cvar_t	r_netgraph = {"r_netgraph","0"};
 cvar_t	r_fastsky = {"r_fastsky", "0"};
 cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
+cvar_t	r_showtris = {"r_showtris","0"};
 
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "128", CVAR_ARCHIVE};
 cvar_t	gl_cull = {"gl_cull","1"};
@@ -220,13 +221,17 @@ qbool R_CullSphere (vec3_t centre, float radius)
 	return false;
 }
 
-void R_RotateForEntity (entity_t *e)
+/*
+===============
+R_RotateForEntity
+===============
+*/
+void R_RotateForEntity (vec3_t origin, vec3_t angles)
 {
-	qglTranslatef (e->origin[0],  e->origin[1],  e->origin[2]);
-
-	qglRotatef (e->angles[1], 0, 0, 1);
-	qglRotatef (-e->angles[0], 0, 1, 0);
-	qglRotatef (e->angles[2], 1, 0, 0);
+	qglTranslatef (origin[0],  origin[1],  origin[2]);
+	qglRotatef (angles[1],  0, 0, 1);
+	qglRotatef (-angles[0],  0, 1, 0);
+	qglRotatef (angles[2],  1, 0, 0);
 }
 
 /*
@@ -255,161 +260,6 @@ void GL_PolygonOffset (int offset)
 		qglDisable (GL_POLYGON_OFFSET_FILL);
 		qglDisable (GL_POLYGON_OFFSET_LINE);
 	}
-}
-
-//==================================================================================
-
-/*
-=============
-R_DrawEntitiesOnList
-=============
-*/
-void R_DrawEntitiesOnList (void)
-{
-	int		i;
-
-	if (!r_drawentities.value)
-		return;
-	
-	for (i = 0; i < cl_numvisedicts; i++)
-	{
-		currententity = &cl_visedicts[i];
-
-		switch (currententity->model->type)
-		{
-			case mod_alias:
-				R_DrawAliasModel (currententity);
-				break;
-
-			case mod_brush:
-				R_DrawBrushModel (currententity);
-				break;
-
-			case mod_sprite:
-				R_DrawSpriteModel (currententity);
-				break;
-
-			default:
-				break;
-		}
-	}
-}
-
-/*
-================
-R_DrawShadows
-================
-*/
-void R_DrawShadows (void)
-{
-	int i;
-
-	if (!r_shadows.value || !r_drawentities.value || r_lightmap.value)
-		return;
-
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		currententity = &cl_visedicts[i];
-
-		if (currententity->model->type != mod_alias)
-			continue;
-
-		R_DrawAliasShadow (currententity);
-	}
-}
-
-/*
-===============
-R_DrawParticles
-===============
-*/
-void R_DrawParticles (void)
-{
-	int				i;
-	byte			color[4];
-	vec3_t			up, right, p_up, p_right, p_upright;
-	float			scale;
-	particle_t		*p;
-
-	VectorScale (vup, 1.5, up);
-	VectorScale (vright, 1.5, right);
-
-	GL_Bind (particletexture->texnum);
-	
-	qglEnable (GL_BLEND);
-	qglDepthMask (GL_FALSE);
-	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	qglBegin (GL_QUADS);
-	for (i = 0, p = r_refdef2.particles; i < r_refdef2.numParticles; i++, p++)
-	{
-		// hack a scale up to keep particles from disapearing
-		scale = (p->org[0] - r_origin[0]) * vpn[0]
-				  + (p->org[1] - r_origin[1]) * vpn[1]
-				  + (p->org[2] - r_origin[2]) * vpn[2];
-		if (scale < 20)
-			scale = 1 + 0.08;
-		else
-			scale = 1 + scale * 0.004;
-
-		scale /= 2.0;
-
-		*(int *)color = d_8to24table[p->color];
-		color[3] = p->alpha * 255;
-
-		qglColor4ubv (color);
-
-		qglTexCoord2f (0, 0);
-		qglVertex3fv (p->org);
-
-		qglTexCoord2f (0.5, 0);
-		VectorMA (p->org, scale, up, p_up);
-		qglVertex3fv (p_up);
-
-		qglTexCoord2f (0.5,0.5);
-		VectorMA (p_up, scale, right, p_upright);
-		qglVertex3fv (p_upright);
-
-		qglTexCoord2f (0,0.5);
-		VectorMA (p->org, scale, right, p_right);
-		qglVertex3fv (p_right);
-	}
-	qglEnd ();
-
-	qglDisable (GL_BLEND);
-	qglDepthMask (GL_TRUE);
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	qglColor3f (1, 1, 1);
-}
-
-/*
-============
-R_PolyBlend
-============
-*/
-void R_PolyBlend (void)
-{
-	if (!v_blend[3])
-		return;
-
-	qglDisable (GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	qglDisable (GL_TEXTURE_2D);
-
-	qglColor4fv (v_blend);
-
-	qglBegin (GL_QUADS);
-	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y);
-	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y);
-	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y + r_refdef2.vrect.height);
-	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y + r_refdef2.vrect.height);
-	qglEnd ();
-
-	qglDisable (GL_BLEND);
-	qglEnable (GL_TEXTURE_2D);
-	qglEnable (GL_ALPHA_TEST);
-
-	qglColor3f (1, 1, 1);
 }
 
 //==============================================================================
@@ -534,71 +384,6 @@ void R_SetupGL (void)
 	qglEnable(GL_DEPTH_TEST);
 }
 
-void gl_main_start(void)
-{
-}
-
-void gl_main_shutdown(void)
-{
-}
-
-void gl_main_newmap(void)
-{
-	r_framecount = 1; // no dlightcache
-}
-
-void GL_Main_Init(void)
-{
-	Cmd_AddCommand ("screenshot", R_ScreenShot_f);
-	Cmd_AddCommand ("loadsky", R_LoadSky_f);
-
-	Cvar_Register (&r_norefresh);
-	Cvar_Register (&r_lightmap);
-	Cvar_Register (&r_fullbright);
-	Cvar_Register (&r_drawentities);
-	Cvar_Register (&r_drawworld);
-	Cvar_Register (&r_shadows);
-	Cvar_Register (&r_oldwater);
-	Cvar_Register (&r_waterquality);
-	Cvar_Register (&r_wateralpha);
-	Cvar_Register (&r_waterwarp);
-	Cvar_Register (&r_dynamic);
-	Cvar_Register (&r_novis);
-	Cvar_Register (&r_speeds);
-	Cvar_Register (&r_netgraph);
-	Cvar_Register (&r_fastsky);
-	Cvar_Register (&r_stereo);
-	Cvar_Register (&r_stereodepth);
-
-	Cvar_Register (&gl_subdivide_size);
-	Cvar_Register (&gl_cull);
-	Cvar_Register (&gl_nocolors);
-	Cvar_Register (&gl_finish);
-	Cvar_Register (&gl_fullbrights);
-	Cvar_Register (&gl_overbright);
-	Cvar_Register (&gl_farclip);
-	Cvar_Register (&gl_lightmode);
-
-	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
-}
-
-extern void R_Draw_Init (void);
-
-/*
-===============
-R_Init
-===============
-*/
-void R_Init (void)
-{
-	RB_InitBackend ();
-	GL_Main_Init ();
-	TexMgr_Init ();
-	R_Draw_Init ();
-	Mod_Init ();
-}
-
-
 /*
 =============
 R_Clear
@@ -699,6 +484,160 @@ void R_SetupView (void)
 	R_Clear ();
 }
 
+//==============================================================================
+//
+// RENDER VIEW
+//
+//==============================================================================
+
+/*
+=============
+R_DrawEntitiesOnList
+=============
+*/
+void R_DrawEntitiesOnList (void)
+{
+	int		i;
+
+	if (!r_drawentities.value)
+		return;
+	
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		currententity = &cl_visedicts[i];
+
+		switch (currententity->model->type)
+		{
+			case mod_alias:
+				R_DrawAliasModel (currententity);
+				break;
+
+			case mod_brush:
+				R_DrawBrushModel (currententity);
+				break;
+
+			case mod_sprite:
+				R_DrawSpriteModel (currententity);
+				break;
+
+			default:
+				break;
+		}
+	}
+}
+
+/*
+================
+R_ShowTris
+================
+*/
+void R_ShowTris (void)
+{
+	int i;
+
+	if (r_showtris.value < 1 || r_showtris.value > 2)
+		return;
+
+	if (r_showtris.value == 1)
+		qglDisable (GL_DEPTH_TEST);
+	qglPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
+	GL_PolygonOffset (OFFSET_SHOWTRIS);
+	qglDisable (GL_TEXTURE_2D);
+	qglColor3f (1,1,1);
+//	qglEnable (GL_BLEND);
+//	qglBlendFunc (GL_ONE, GL_ONE);
+
+	if (r_drawworld.value)
+		R_DrawTextureChains_ShowTris ();
+
+	if (r_drawentities.value)
+	{
+		for (i=0 ; i<cl_numvisedicts ; i++)
+		{
+			currententity = &cl_visedicts[i];
+
+			switch (currententity->model->type)
+			{
+			case mod_brush:
+				R_DrawBrushModel_ShowTris (currententity);
+				break;
+			case mod_alias:
+				R_DrawAliasModel_ShowTris (currententity);
+				break;
+			case mod_sprite:
+				R_DrawSpriteModel (currententity);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+	R_DrawParticles_ShowTris ();
+
+//	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//	qglDisable (GL_BLEND);
+	qglColor3f (1,1,1);
+	qglEnable (GL_TEXTURE_2D);
+	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
+	GL_PolygonOffset (OFFSET_NONE);
+	if (r_showtris.value == 1)
+		qglEnable (GL_DEPTH_TEST);
+}
+
+/*
+================
+R_DrawShadows
+================
+*/
+void R_DrawShadows (void)
+{
+	int i;
+
+	if (!r_shadows.value || !r_drawentities.value || r_lightmap.value)
+		return;
+
+	for (i=0 ; i<cl_numvisedicts ; i++)
+	{
+		currententity = &cl_visedicts[i];
+
+		if (currententity->model->type != mod_alias)
+			continue;
+
+		R_DrawAliasShadow (currententity);
+	}
+}
+
+/*
+============
+R_PolyBlend
+============
+*/
+void R_PolyBlend (void)
+{
+	if (!v_blend[3])
+		return;
+
+	qglDisable (GL_ALPHA_TEST);
+	qglEnable (GL_BLEND);
+	qglDisable (GL_TEXTURE_2D);
+
+	qglColor4fv (v_blend);
+
+	qglBegin (GL_QUADS);
+	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y);
+	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y);
+	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y + r_refdef2.vrect.height);
+	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y + r_refdef2.vrect.height);
+	qglEnd ();
+
+	qglDisable (GL_BLEND);
+	qglEnable (GL_TEXTURE_2D);
+	qglEnable (GL_ALPHA_TEST);
+
+	qglColor3f (1, 1, 1);
+}
+
 /*
 ================
 R_RenderScene
@@ -723,6 +662,8 @@ void R_RenderScene (void)
 	R_DrawTextureChains_Water (); // drawn here since they might have transparency
 
 	R_DrawParticles ();
+
+	R_ShowTris ();
 }
 
 /*
@@ -781,4 +722,70 @@ void R_RenderView (void)
 	}
 
 	RB_EndFrame ();
+}
+
+
+void gl_main_start(void)
+{
+}
+
+void gl_main_shutdown(void)
+{
+}
+
+void gl_main_newmap(void)
+{
+	r_framecount = 1; // no dlightcache
+}
+
+void GL_Main_Init(void)
+{
+	Cmd_AddCommand ("screenshot", R_ScreenShot_f);
+	Cmd_AddCommand ("loadsky", R_LoadSky_f);
+
+	Cvar_Register (&r_norefresh);
+	Cvar_Register (&r_lightmap);
+	Cvar_Register (&r_fullbright);
+	Cvar_Register (&r_drawentities);
+	Cvar_Register (&r_drawworld);
+	Cvar_Register (&r_shadows);
+	Cvar_Register (&r_oldwater);
+	Cvar_Register (&r_waterquality);
+	Cvar_Register (&r_wateralpha);
+	Cvar_Register (&r_waterwarp);
+	Cvar_Register (&r_dynamic);
+	Cvar_Register (&r_novis);
+	Cvar_Register (&r_speeds);
+	Cvar_Register (&r_netgraph);
+	Cvar_Register (&r_fastsky);
+	Cvar_Register (&r_stereo);
+	Cvar_Register (&r_stereodepth);
+	Cvar_Register (&r_showtris);
+
+	Cvar_Register (&gl_subdivide_size);
+	Cvar_Register (&gl_cull);
+	Cvar_Register (&gl_nocolors);
+	Cvar_Register (&gl_finish);
+	Cvar_Register (&gl_fullbrights);
+	Cvar_Register (&gl_overbright);
+	Cvar_Register (&gl_farclip);
+	Cvar_Register (&gl_lightmode);
+
+	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
+}
+
+extern void R_Draw_Init (void);
+
+/*
+===============
+R_Init
+===============
+*/
+void R_Init (void)
+{
+	RB_InitBackend ();
+	GL_Main_Init ();
+	TexMgr_Init ();
+	R_Draw_Init ();
+	Mod_Init ();
 }
