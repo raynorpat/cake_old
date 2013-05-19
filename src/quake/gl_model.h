@@ -57,8 +57,10 @@ typedef struct texture_s
 {
 	char		name[16];
 	unsigned	width, height;
-	struct gltexture_s *gl_texture;
-	struct gltexture_s *fb_texture;		// index of fullbright mask or 0
+	struct gltexture_s *gl_texture;		// pointer to gltexture
+	struct gltexture_s *fb_texture;		// fullbright mask texture
+	struct gltexture_s *warpimage;		// for water animation
+	qbool		update_warp;			// update warp this frame
 	struct msurface_s *texturechain;	// for texture chains
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -182,8 +184,7 @@ SPRITE MODELS
 // FIXME: shorten these?
 typedef struct mspriteframe_s
 {
-	int		width;
-	int		height;
+	int		width, height;
 	float	up, down, left, right;
 	struct gltexture_s *gl_texture;
 } mspriteframe_t;

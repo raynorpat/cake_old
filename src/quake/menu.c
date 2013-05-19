@@ -92,42 +92,36 @@ int		m_topmenu;			// set if a submenu was entered via a
 //=============================================================================
 /* Support Routines */
 
-cvar_t	scr_scaleMenu = {"scr_scaleMenu","1"};
-int		menuwidth = 320;
-int		menuheight = 240;
-
-cvar_t	scr_centerMenu = {"scr_centerMenu","1"};
-int		m_yofs = 0;
-
+cvar_t	scr_menuscale = {"scr_menuscale","1"};
 
 void M_DrawChar (int cx, int line, int num)
 {
-	R_DrawChar (cx + ((menuwidth - 320)>>1), line + m_yofs, num);
+	R_DrawChar (cx, line, num);
 }
 
 void M_Print (int cx, int cy, char *str)
 {
-	Draw_Alt_String (cx + ((menuwidth - 320)>>1), cy + m_yofs, str);
+	Draw_Alt_String (cx, cy, str);
 }
 
 void M_PrintWhite (int cx, int cy, char *str)
 {
-	R_DrawString (cx + ((menuwidth - 320)>>1), cy + m_yofs, str);
+	R_DrawString (cx, cy, str);
 }
 
 void M_DrawPic (int x, int y, qpic_t *pic)
 {
-	R_DrawPic (x + ((menuwidth - 320)>>1), y + m_yofs, pic);
+	R_DrawPic (x, y, pic);
 }
 
 void M_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom)
 {
-	R_DrawTransPicTranslate (x + ((menuwidth - 320)>>1), y + m_yofs, pic, top, bottom);
+	R_DrawTransPicTranslate (x, y, pic, top, bottom);
 }
 
 void M_DrawTextBox (int x, int y, int width, int lines)
 {
-	Draw_TextBox (x + ((menuwidth - 320)>>1), y + m_yofs, width, lines);
+	Draw_TextBox (x, y, width, lines);
 }
 
 //=============================================================================
@@ -2579,8 +2573,7 @@ void M_Setup_Key (int k)
 
 void M_Init (void)
 {
-	Cvar_Register (&scr_centerMenu);
-	Cvar_Register (&scr_scaleMenu);
+	Cvar_Register (&scr_menuscale);
 
 	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);
 
@@ -2614,21 +2607,7 @@ void M_Draw (void)
 	if (scr_con_current != vid.height)
 		R_FadeScreen ();
 
-	if (scr_scaleMenu.value) {
-		menuwidth = 320;
-		menuheight = min (vid.height, 240);
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadIdentity ();
-		qglOrtho  (0, menuwidth, menuheight, 0, -99999, 99999);
-	} else {
-		menuwidth = vid.width;
-		menuheight = vid.height;
-	}
-
-	if (scr_centerMenu.value)
-		m_yofs = (menuheight - 200) / 2;
-	else
-		m_yofs = 0;
+	GL_SetCanvas (CANVAS_MENU);
 
 	switch (m_state)
 	{
@@ -2692,13 +2671,7 @@ void M_Draw (void)
 	case m_demos:
 		M_Demos_Draw ();
 	}
-
-	if (scr_scaleMenu.value) {
-		qglMatrixMode (GL_PROJECTION);
-		qglLoadIdentity ();
-		qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
-	}
-
+	
 	if (m_entersound)
 	{
 		S_LocalSound ("misc/menu2.wav");

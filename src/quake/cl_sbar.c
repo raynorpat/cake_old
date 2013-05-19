@@ -78,9 +78,7 @@ static void Sbar_MiniDeathmatchOverlay (void);
 #define R_DrawString(a, b, c)   Sys_Printf("%s\n", c)
 #endif
 
-static int	sbar_xofs;
-
-cvar_t	scr_centerSbar = {"scr_centerSbar", "1", CVAR_ARCHIVE};
+cvar_t	scr_sbarscale = {"scr_sbarscale", "1", CVAR_ARCHIVE};
 
 /*
 ===============
@@ -300,7 +298,7 @@ Sbar_Init
 */
 void Sbar_Init (void)
 {
-	Cvar_Register (&scr_centerSbar);
+	Cvar_Register (&scr_sbarscale);
 
 	Cmd_AddCommand ("+showscores", Sbar_ShowScores);
 	Cmd_AddCommand ("-showscores", Sbar_DontShowScores);
@@ -322,7 +320,7 @@ Sbar_DrawPic
 */
 static void Sbar_DrawPic (int x, int y, qpic_t *pic)
 {
-	R_DrawPic (x + sbar_xofs, y + (vid.height-SBAR_HEIGHT), pic);
+	R_DrawPic (x, y + 24, pic);
 }
 
 /*
@@ -334,7 +332,7 @@ Draws one solid graphics character
 */
 static void Sbar_DrawChar (int x, int y, int num)
 {
-	R_DrawChar (x + 4 + sbar_xofs, y + vid.height-SBAR_HEIGHT, num);
+	R_DrawChar (x, y + 24, num);
 }
 
 /*
@@ -344,7 +342,7 @@ Sbar_DrawString
 */
 static void Sbar_DrawString (int x, int y, char *str)
 {
-	R_DrawString (x + sbar_xofs, y+ vid.height-SBAR_HEIGHT, str);
+	R_DrawString (x, y + 24, str);
 }
 
 /*
@@ -787,8 +785,8 @@ static void Sbar_DrawFrags (void)
 		top = Sbar_ColorForMap (top);
 		bottom = Sbar_ColorForMap (bottom);
 	
-		R_DrawFilledRect (sbar_xofs + x*8 + 10, y, 28, 4, top, 1.0f);
-		R_DrawFilledRect (sbar_xofs + x*8 + 10, y+4, 28, 3, bottom, 1.0f);
+		R_DrawFilledRect (x*8 + 10, y, 28, 4, top, 1.0f);
+		R_DrawFilledRect (x*8 + 10, y+4, 28, 3, bottom, 1.0f);
 
 	// draw number
 		f = s->frags;
@@ -973,11 +971,8 @@ void Sbar_Draw (void)
 	scr_copyeverything = 1;
 	sb_updates++;
 
-	if (scr_centerSbar.value)
-		sbar_xofs = (vid.width - 320)>>1;
-	else
-		sbar_xofs = 0;
-
+	GL_SetCanvas (CANVAS_SBAR);
+	
 // inventory
 	if (sb_drawinventory)
 	{
@@ -1012,8 +1007,8 @@ void Sbar_Draw (void)
 	else if (sb_showteamscores)
 		Sbar_TeamOverlay (0);
 
-	if (sb_drawmain && cl.gametype == GAME_DEATHMATCH && !scr_centerSbar.value)
-		Sbar_MiniDeathmatchOverlay ();
+//	if (sb_drawmain && cl.gametype == GAME_DEATHMATCH)
+//		Sbar_MiniDeathmatchOverlay ();
 
 #ifdef AGRIP
     Sbar_DontShowScores();
@@ -1081,6 +1076,8 @@ static void Sbar_TeamOverlay (int start)
 		Sbar_DeathmatchOverlay (start);
 		return;
 	}
+
+	GL_SetCanvas (CANVAS_MENU);
 
 	SCR_InvalidateScreen ();
 
@@ -1176,6 +1173,8 @@ static void Sbar_DeathmatchOverlay (int start)
 
 	if (cl.gametype == GAME_COOP && (cl.maxclients == 1 || cls.nqdemoplayback))
 		return;
+
+	GL_SetCanvas (CANVAS_MENU);
 
 // request new ping times every two second
 	if (cls.realtime - cl.last_ping_request > 2)
@@ -1346,6 +1345,8 @@ static void Sbar_DeathmatchOverlay (int start)
 		
 		y += skip;
 	}
+
+	GL_SetCanvas (CANVAS_SBAR);
 }
 
 /*
@@ -1502,7 +1503,6 @@ void Sbar_IntermissionOverlay (void)
 	qpic_t	*pic;
 	int		dig;
 	int		num;
-	int		xofs;
 	int		time;
 
 	if (cl.gametype == GAME_DEATHMATCH)
@@ -1513,10 +1513,11 @@ void Sbar_IntermissionOverlay (void)
 			Sbar_DeathmatchOverlay (0);
 		return;
 	}
-	xofs = (vid.width - 320)>>1;
+
+	GL_SetCanvas (CANVAS_MENU);
 
 	pic = R_CachePic ("gfx/complete.lmp");
-	R_DrawPic (xofs + 64, 24, pic);
+	R_DrawPic (64, 24, pic);
 
 	// in coop, pressing TAB shows player frags instead of totals
 	if ((sb_showscores || sb_showteamscores) && cl.maxclients > 1
@@ -1527,31 +1528,30 @@ void Sbar_IntermissionOverlay (void)
 	}
 
 	pic = R_CachePic ("gfx/inter.lmp");
-	R_DrawPic (xofs, 56, pic);
+	R_DrawPic (0, 56, pic);
 
 	// time
 	if (cl.servertime_works) {
 		// we know the exact time
 		time = cl.solo_completed_time;
-	}
-	else {
+	} else {
 		// use an estimate
 		time = cl.completed_time - cl.players[cl.playernum].entertime;
 	}
 	dig = time / 60;
-	Sbar_IntermissionNumber (xofs + 160, 64, dig, 3, 0);
+	Sbar_IntermissionNumber (152, 64, dig, 3, 0);
 	num = time - dig*60;
-	R_DrawPic (xofs + 234, 64, sb_colon);
-	R_DrawPic (xofs + 246, 64, sb_nums[0][num/10]);
-	R_DrawPic (xofs + 266, 64, sb_nums[0][num%10]);
+	R_DrawPic (224, 64, sb_colon);
+	R_DrawPic (240, 64, sb_nums[0][num/10]);
+	R_DrawPic (264, 64, sb_nums[0][num%10]);
 
-	Sbar_IntermissionNumber (xofs + 160, 104, cl.stats[STAT_SECRETS], 3, 0);
-	R_DrawPic (xofs + 232, 104, sb_slash);
-	Sbar_IntermissionNumber (xofs + 240, 104, cl.stats[STAT_TOTALSECRETS], 3, 0);
+	Sbar_IntermissionNumber (152, 104, cl.stats[STAT_SECRETS], 3, 0);
+	R_DrawPic (224, 104, sb_slash);
+	Sbar_IntermissionNumber (240, 104, cl.stats[STAT_TOTALSECRETS], 3, 0);
 
-	Sbar_IntermissionNumber (xofs + 160, 144, cl.stats[STAT_MONSTERS], 3, 0);
-	R_DrawPic (xofs + 232, 144, sb_slash);
-	Sbar_IntermissionNumber (xofs + 240, 144, cl.stats[STAT_TOTALMONSTERS], 3, 0);
+	Sbar_IntermissionNumber (152, 144, cl.stats[STAT_MONSTERS], 3, 0);
+	R_DrawPic (224, 144, sb_slash);
+	Sbar_IntermissionNumber (240, 144, cl.stats[STAT_TOTALMONSTERS], 3, 0);
 }
 
 
@@ -1564,7 +1564,9 @@ void Sbar_FinaleOverlay (void)
 {
 	qpic_t	*pic;
 
+	GL_SetCanvas (CANVAS_MENU);
+
 	pic = R_CachePic ("gfx/finale.lmp");
-	R_DrawPic ((vid.width - GetPicWidth(pic))/2, 16, R_CachePic ("gfx/finale.lmp"));
+	R_DrawPic ((320 - GetPicWidth(pic))/2, 16, R_CachePic ("gfx/finale.lmp"));
 }
 

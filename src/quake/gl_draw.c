@@ -95,6 +95,8 @@ typedef struct
 	float		sl, tl, sh, th;
 } glpic_t;
 
+canvastype currentcanvas = CANVAS_NONE; // for GL_SetCanvas
+
 //==============================================================================
 //
 //  PIC CACHING
@@ -159,9 +161,10 @@ qpic_t	*R_CachePic (char *path)
 	glpic_t		*gl;
 
 	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
+	{
 		if (!strcmp (path, pic->name))
 			return &pic->pic;
-
+	}
 	if (menu_numcachepics == MAX_CACHED_PICS)
 		Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
 	menu_numcachepics++;
@@ -373,13 +376,8 @@ void R_DrawString (int x, int y, const char *str)
 
 void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
 {
-	int		x, y;
-	extern vrect_t scr_vrect;
-
-	x = scr_vrect.x + scr_vrect.width/2 + crossx; 
-	y = scr_vrect.y + scr_vrect.height/2 + crossy;
-
-	R_DrawChar (x - 4, y - 4, '+');
+	GL_SetCanvas (CANVAS_CROSSHAIR);
+	R_DrawChar (-4, -4, '+');
 }
 
 void R_DrawPic (int x, int y, qpic_t *pic)
@@ -505,6 +503,8 @@ void R_LoadingScreen (void)
 
 	VID_GetWindowSize(&vid.realx, &vid.realy, &vid.realwidth, &vid.realheight);
 
+	GL_SetCanvas (CANVAS_MENU);
+
 	// draw the loading plaque
 	pic = R_CachePic("gfx/loading.lmp");
 	x = (vid.width - pic->width) / 2;
@@ -517,37 +517,95 @@ void R_LoadingScreen (void)
 
 void R_FadeScreen (void)
 {
-	float v[3];
+	GL_SetCanvas (CANVAS_DEFAULT);
 
 	qglEnable (GL_BLEND);
+	qglDisable (GL_ALPHA_TEST);
 	qglDisable (GL_TEXTURE_2D);
-	
-	R_PushElems ( quad_elems, 6 );
+	qglColor4f (0, 0, 0, 0.5);
 
-	qglColor4f ( 0, 0, 0, 0.8 );
+	qglBegin (GL_QUADS);
+	qglVertex2f (0,0);
+	qglVertex2f (vid.realwidth, 0);
+	qglVertex2f (vid.realwidth, vid.realheight);
+	qglVertex2f (0, vid.realheight);
+	qglEnd ();
 
-	VectorSet (v, 0, 0, 0);
-	R_PushVertex (v);
-
-	VectorSet (v, vid.width, 0, 0);
-	R_PushVertex (v);
-
-	VectorSet (v, vid.width, vid.height, 0);
-	R_PushVertex (v);
-
-	VectorSet (v, 0, vid.height, 0);
-	R_PushVertex (v);
-
-	R_VertexTCBase ( 0, false );
-	R_LockArrays ();
-	R_FlushArrays ();
-	R_UnlockArrays ();
-	R_ClearArrays ();
-	
 	qglColor4f (1,1,1,1);
-
 	qglEnable (GL_TEXTURE_2D);
+	qglEnable (GL_ALPHA_TEST);
 	qglDisable (GL_BLEND);
+
+	Sbar_Changed();
 }
 
-//=============================================================================
+/*
+================
+GL_SetCanvas
+================
+*/
+void GL_SetCanvas (canvastype newcanvas)
+{
+	extern vrect_t scr_vrect;
+	extern cvar_t scr_menuscale;
+	extern cvar_t scr_sbarscale;
+	extern cvar_t scr_crosshairscale;
+	float s;
+	int lines;
+
+	if (newcanvas == currentcanvas)
+		return;
+
+	currentcanvas = newcanvas;
+
+	qglMatrixMode(GL_PROJECTION);
+    qglLoadIdentity ();
+
+	switch(newcanvas)
+	{
+	case CANVAS_DEFAULT:
+		qglOrtho (0, vid.realwidth, vid.realheight, 0, -99999, 99999);
+		qglViewport (0, 0, vid.realwidth, vid.realheight);
+		break;
+	case CANVAS_CONSOLE:
+		lines = vid.height - (scr_con_current * vid.height / vid.realheight);
+		qglOrtho (0, vid.width, vid.height + lines, lines, -99999, 99999);
+		qglViewport (0, 0, vid.realwidth, vid.realheight);
+		break;
+	case CANVAS_MENU:
+		s = min ((float)vid.realwidth / 320.0, (float)vid.realheight / 200.0);
+		s = clamp (1.0, scr_menuscale.value, s);
+		qglOrtho (0, 320, 200, 0, -99999, 99999);
+		qglViewport ((vid.realwidth - 320*s) / 2, (vid.realheight - 200*s) / 2, 320*s, 200*s);
+		break;
+	case CANVAS_SBAR:
+		s = clamp (1.0, scr_sbarscale.value, (float)vid.realwidth / 320.0);
+		qglOrtho (0, 320, 48, 0, -99999, 99999);
+		qglViewport ((vid.realwidth - 320*s) / 2, 0, 320*s, 48*s);
+		break;
+	case CANVAS_WARPIMAGE:
+		qglOrtho (0, 128, 0, 128, -99999, 99999);
+		qglViewport (0, vid.realheight-gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
+		break;
+	case CANVAS_CROSSHAIR: //0,0 is center of viewport
+		s = clamp (1.0, scr_crosshairscale.value, 10.0);
+		qglOrtho (scr_vrect.width/-2/s, scr_vrect.width/2/s, scr_vrect.height/2/s, scr_vrect.height/-2/s, -99999, 99999);
+		qglViewport (scr_vrect.x, vid.realheight - scr_vrect.y - scr_vrect.height, scr_vrect.width & ~1, scr_vrect.height & ~1);
+		break;
+	case CANVAS_BOTTOMLEFT: //used by devstats
+		s = (float)vid.realwidth/vid.width;
+		qglOrtho (0, 320, 200, 0, -99999, 99999);
+		qglViewport (0, 0, 320*s, 200*s);
+		break;
+	case CANVAS_BOTTOMRIGHT: //used by fps
+		s = (float)vid.realwidth/vid.width;
+		qglOrtho (0, 320, 200, 0, -99999, 99999);
+		qglViewport (vid.realwidth-320*s, 0, 320*s, 200*s);
+		break;
+	default:
+		Sys_Error ("GL_SetCanvas: bad canvas type");
+	}
+
+	qglMatrixMode(GL_MODELVIEW);
+    qglLoadIdentity ();
+}

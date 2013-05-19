@@ -29,6 +29,7 @@ typedef struct
 	int		current;		// line where next message will be printed
 	int		display;		// bottom of console displays this line
 	int		numlines;		// number of non-blank text lines, used for backscroling
+	int 	backscroll;		// lines up from bottom to display
 } console_t;
 
 static console_t	con;
@@ -76,7 +77,10 @@ void Con_ToggleConsole_f (void)
 	if (key_dest == key_console)
 	{
 		if (cls.state == ca_active || cl.intermission)
+		{
 			key_dest = key_game;
+			con.backscroll = 0;
+		}
 	}
 	else
 		key_dest = key_console;
@@ -95,6 +99,7 @@ void Con_Clear_f (void)
 	con.numlines = 0;
 	memset (con.text, ' ', CON_TEXTSIZE);
 	con.display = con.current;
+	con.backscroll = 0;
 }
 
 
@@ -202,6 +207,7 @@ void Con_CheckResize (void)
 
 	con.current = con_totallines - 1;
 	con.display = con.current;
+	con.backscroll = 0;
 }
 
 
@@ -298,12 +304,13 @@ Con_Linefeed
 */
 void Con_Linefeed (void)
 {
+	if (con.backscroll)
+		con.backscroll++;
+	if (con.backscroll > con_totallines - (vid.realheight>>3) - 1)
+		con.backscroll = con_totallines - (vid.realheight>>3) - 1;
+
 	con_x = 0;
-	if (con.display == con.current)
-		con.display++;
 	con.current++;
-	if (con.numlines < con_totallines)
-		con.numlines++;
 	memset (&con.text[(con.current%con_totallines)*con_linewidth], ' ', con_linewidth);
 }
 
@@ -388,22 +395,37 @@ void Con_Print (char *txt)
 // scroll the (visible area of the) console up or down
 void Con_Scroll (int count)
 {
-	con.display += count;
-	if (con.display - con.current + con.numlines < 0)
-		con.display = con.current - con.numlines;
-	if (con.display - con.current > 0)
-		con.display = con.current;
+	con.backscroll += count;
+	if (con.backscroll > con_totallines - (vid.height>>3) - 1)
+		con.backscroll = con_totallines - (vid.height>>3) - 1;
+	if (con.backscroll < 0)
+		con.backscroll = 0;
 }
 
 void Con_ScrollToTop (void)
 {
-	con.display = con.current - con.numlines;
+	int i, x;
+	char *line;
+
+	for (i = con.current - con_totallines + 1; i <= con.current; i++)
+	{
+		line = con.text + (i % con_totallines) * con_linewidth;
+		for (x = 0; x < con_linewidth; x++)
+		{
+			// skip initial empty lines
+			if (line[x] != ' ')
+				break;
+		}
+		if (x != con_linewidth)
+			break;
+	}
+	con.backscroll = clamp(0, con.current-i%con_totallines-2, con_totallines-(vid.realheight>>3)-1);
 }
 
 
 void Con_ScrollToBottom (void)
 {
-	con.display = con.current;
+	con.backscroll = 0;
 }
 
 
@@ -446,7 +468,7 @@ void Con_DrawInput (void)
 	if (key_linepos >= con_linewidth)
 		text += 1 + key_linepos - con_linewidth;
 
-	R_DrawString (8, con_vislines-22, text);
+	R_DrawString (8, vid.height - 16, text);
 }
 
 
@@ -473,7 +495,9 @@ void Con_DrawNotify (void)
 	if (maxlines < 0)
 		maxlines = 0;
 
-	v = 0;
+	GL_SetCanvas (CANVAS_CONSOLE);
+	v = vid.height;
+
 	for (i = con.current-maxlines+1 ; i<=con.current ; i++)
 	{
 		if (i < 0)
@@ -490,11 +514,10 @@ void Con_DrawNotify (void)
 		scr_copytop = 1;
 
 		for (x = 0 ; x < con_linewidth ; x++)
-			R_DrawChar ( (x+1)<<3, v, text[x]);
+			R_DrawChar ((x+1)<<3, v, text[x]);
 
 		v += 8;
 	}
-
 
 	if (key_dest == key_message)
 	{
@@ -529,7 +552,7 @@ void Con_DrawNotify (void)
 		x = 0;
 		while (s[x] && x+skip < (vid.width>>3))
 		{
-			R_DrawChar ( (x+skip)<<3, v, s[x]);
+			R_DrawChar ((x+skip)<<3, v, s[x]);
 			x++;
 		}
 		v += 8;
@@ -548,47 +571,39 @@ Draws console text and download bar if needed
 */
 void Con_DrawConsole (int lines)
 {
-	int				i, j, x, y, n;
-	int				rows;
+	int				i, j, x, y, sb, n, rows;
 	char			*text;
-	int				row;
 	char			dlbar[1024];
 
 	if (lines <= 0)
 		return;
 
-	con_vislines = lines;
+	con_vislines = lines * vid.height / vid.realheight;
 
-// changed to line things up better
-	rows = (lines-22)>>3;		// rows of text to draw
+// draw the buffer text
+	rows = (con_vislines +7)/8;
+	y = vid.height - rows*8;
+	rows -= 2; //for input and version lines
+	sb = (con.backscroll) ? 2 : 0;
 
-	y = lines - 30;
-
-	row = con.display;
-
-// draw from the bottom up
-	if (con.display != con.current)
+	for (i = con.current - rows + 1; i <= con.current - sb; i++, y += 8)
 	{
-	// draw arrows to show the buffer is backscrolled
-		for (x=0 ; x<con_linewidth ; x+=4)
-			R_DrawChar ( (x+1)<<3, y, '^');
-
-		y -= 8;
-		rows--;
-		row--;
-	}
-
-	for (i=0 ; i<rows ; i++, y-=8, row--)
-	{
-		if (row < 0)
-			break;
-		if (con.current - row >= con_totallines)
-			break;		// past scrollback wrap point
-
-		text = con.text + (row % con_totallines)*con_linewidth;
+		j = i - con.backscroll;
+		if (j < 0)
+			j = 0;
+		text = con.text + (j % con_totallines)*con_linewidth;
 
 		for (x=0 ; x<con_linewidth ; x++)
-			R_DrawChar ( (x+1)<<3, y, text[x]);
+			R_DrawChar ((x+1)<<3, y, text[x]);
+	}
+
+// draw scrollback arrows
+	if (con.backscroll)
+	{
+		y += 8; // blank line
+		for (x=0 ; x<con_linewidth ; x += 4)
+			R_DrawChar ((x+1)<<3, y, '^');
+		y += 8;
 	}
 
 	// draw the download bar
@@ -629,11 +644,8 @@ void Con_DrawConsole (int lines)
 
 		// draw it
 		y = con_vislines-22 + 8;
-//		for (i = 0; i < strlen(dlbar); i++)
-//			R_DrawChar ( (i+1)<<3, y, dlbar[i]);
 		R_DrawString (8, y, dlbar);
 	}
-
 
 // draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();

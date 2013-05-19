@@ -648,17 +648,17 @@ void Key_Console (int key)
 		case K_PGUP:
 		case K_MWHEELUP:
 			if (keydown[K_CTRL] && key == K_PGUP)
-				Con_Scroll (-(((int)scr_conlines - 22) >> 3));
+				Con_Scroll ((((int)scr_conlines>>3) - 4));
 			else
-				Con_Scroll (-2);
+				Con_Scroll (2);
 			return;
 
 		case K_MWHEELDOWN:
 		case K_PGDN:
 			if (keydown[K_CTRL] && key == K_PGDN)
-				Con_Scroll (((int)scr_conlines - 22) >> 3);
+				Con_Scroll (-(((int)scr_conlines>>3) - 4));
 			else
-				Con_Scroll (2);
+				Con_Scroll (-2);
 			return;
 
 		case K_HOME:

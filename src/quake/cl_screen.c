@@ -165,6 +165,8 @@ void SCR_DrawCenterString (void)
 	int		x, y;
 	int		remaining;
 
+	GL_SetCanvas (CANVAS_MENU);
+
 // the finale prints the characters one at a time
 	if (cl.intermission)
 		remaining = scr_printspeed.value * (cl.time - scr_centertime_start);
@@ -175,7 +177,7 @@ void SCR_DrawCenterString (void)
 	start = scr_centerstring;
 
 	if (scr_center_lines <= 4)
-		y = vid.height*0.35;
+		y = 200*0.35;
 	else
 		y = 48;
 
@@ -185,7 +187,7 @@ void SCR_DrawCenterString (void)
 		for (l=0 ; l<40 ; l++)
 			if (start[l] == '\n' || !start[l])
 				break;
-		x = (vid.width - l*8)/2;
+		x = (320 - l*8)/2;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
 			R_DrawChar (x, y, start[j]);	
@@ -215,6 +217,8 @@ void SCR_CheckDrawCenterString (void)
 	if (scr_centertime_off <= 0 && !cl.intermission)
 		return;
 	if (key_dest != key_game)
+		return;
+	if (cl.paused)
 		return;
 
 	SCR_DrawCenterString ();
@@ -427,6 +431,8 @@ void SCR_DrawRam (void)
 	if (!r_cache_thrash)
 		return;
 
+	GL_SetCanvas (CANVAS_DEFAULT);
+
 	R_DrawPic (scr_vrect.x+32, scr_vrect.y, scr_ram);
 }
 
@@ -452,6 +458,8 @@ void SCR_DrawTurtle (void)
 	if (count < 3)
 		return;
 
+	GL_SetCanvas (CANVAS_DEFAULT);
+
 	R_DrawPic (scr_vrect.x, scr_vrect.y, scr_turtle);
 }
 
@@ -467,6 +475,8 @@ void SCR_DrawNet (void)
 	if (cls.demoplayback)
 		return;
 
+	GL_SetCanvas (CANVAS_DEFAULT);
+
 	R_DrawPic (scr_vrect.x+64, scr_vrect.y, scr_net);
 }
 
@@ -481,6 +491,8 @@ void SCR_DrawFPS (void)
 
 	if (!show_fps.value)
 		return;
+
+	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
 
 	t = Sys_DoubleTime();
 	if ((t - lastframetime) >= 1.0) {
@@ -507,6 +519,8 @@ void SCR_DrawSpeed (void)
 
 	if (!show_speed.value)
 		return;
+
+	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
 
 	if (lastrealtime > cls.realtime)
 	{
@@ -551,6 +565,8 @@ void SCR_DrawClock (void)
 
 	if (!scr_clock.value)
 		return;
+
+	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
 
 	if (scr_clock.value == 2)
 	{
@@ -608,6 +624,8 @@ void SCR_DrawPause (void)
 	if (sv_paused.value == 2)
 		return;		// auto-paused in single player
 #endif
+
+	GL_SetCanvas (CANVAS_MENU);
 
 	pic = R_CachePic ("gfx/pause.lmp");
 	R_DrawPic ( (vid.width - pic->width)/2, (vid.height - 48 - pic->height)/2, pic);
@@ -703,7 +721,6 @@ SCR_DrawConsole
 */
 void SCR_DrawConsole (void)
 {
-	const char *ver = PROGRAM " " PROGRAM_VERSION;
 	float	alpha;
 	qpic_t	*conback;
 
@@ -726,12 +743,11 @@ void SCR_DrawConsole (void)
 	else
 		alpha = bound (0.0f, scr_conalpha.value, 1.0f);
 
+	GL_SetCanvas (CANVAS_CONSOLE);
+
 	conback = R_CachePic ("gfx/conback.lmp");
-	R_DrawStretchPic (0, scr_con_current - vid.height, vid.width, vid.height, conback, alpha);
-
-	// draw version string
-	Draw_Alt_String (vid.width - strlen(ver)*8 - 8, scr_con_current - 10, ver);
-
+	R_DrawStretchPic (0, 0, vid.width, vid.height, conback, alpha);
+	
 	// draw console text
 	if (key_dest != key_menu)
 		Con_DrawConsole (scr_con_current);

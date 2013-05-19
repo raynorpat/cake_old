@@ -49,7 +49,8 @@ void R_TranslatePlayerSkin (int playernum)
 	if (player->skin && Q_stricmp(s, player->skin->name))
 		player->skin = NULL;
 
-	if (player->_topcolor != player->topcolor || player->_bottomcolor != player->bottomcolor || !player->skin) {
+	if (player->_topcolor != player->topcolor || player->_bottomcolor != player->bottomcolor || !player->skin)
+	{
 		player->_topcolor = player->topcolor;
 		player->_bottomcolor = player->bottomcolor;
 
@@ -62,8 +63,10 @@ void R_TranslatePlayerSkin (int playernum)
 
 		// FIXME: if gl_nocolors is on, then turned off, the textures may be out of sync with the scoreboard colors.
 		if (!gl_nocolors.value)
+		{
 			if (playertextures[playernum])
 				TexMgr_ReloadImage (playertextures[playernum], top, bottom);
+		}
 	}
 }
 

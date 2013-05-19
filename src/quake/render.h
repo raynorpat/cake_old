@@ -162,6 +162,21 @@ void R_DrawCrosshair (int num, byte color, int crossx, int crossy);
 #define GetPicWidth(pic) (pic->width)
 #define GetPicHeight(pic) (pic->height)
 
+typedef enum {
+	CANVAS_INVALID = -1,
+	CANVAS_NONE,
+	CANVAS_DEFAULT,
+	CANVAS_CONSOLE,
+	CANVAS_MENU,
+	CANVAS_SBAR,
+	CANVAS_WARPIMAGE,
+	CANVAS_CROSSHAIR,
+	CANVAS_BOTTOMLEFT,
+	CANVAS_BOTTOMRIGHT,
+} canvastype;
+
+void GL_SetCanvas (int canvastype);
+
 // model flags
 #define	MF_ROCKET	1			// leave a trail
 #define	MF_GRENADE	2			// leave a trail

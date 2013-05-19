@@ -348,7 +348,10 @@ extern	cvar_t	r_speeds;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_shadows;
+extern	cvar_t	r_oldwater;
+extern	cvar_t	r_waterquality;
 extern	cvar_t	r_wateralpha;
+extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
@@ -380,8 +383,6 @@ void GL_DisableMultitexture(void);
 #define OFFSET_SHOWTRIS -3
 void GL_PolygonOffset (int);
 
-void GL_PixelStore (int rowalign, int rowlen);
-
 //
 // gl_texture.c
 //
@@ -395,6 +396,8 @@ void GL_PixelStore (int rowalign, int rowlen);
 #define TEXPREF_CONCHARS		0x0040	// use conchar palette
 #define TEXPREF_FULLBRIGHT		0x0080	// use fullbright palette
 #define TEXPREF_NOBRIGHT		0x0100	// use nobright mask palette
+#define TEXPREF_WARPIMAGE		0x0200	// resize this texture when warpimagesize changes
+#define TEXPREF_REPEAT			0x0400	// repeat texture instead of clamp
 
 enum srcformat {SRC_INDEXED, SRC_INDEXED_UPSCALE, SRC_LIGHTMAP, SRC_RGBA};
 
@@ -426,6 +429,8 @@ typedef struct gltexture_s
 
 gltexture_t *notexture, *particletexture;
 
+extern int	gl_warpimagesize;
+
 void TexMgr_Init (void);
 
 gltexture_t *TexMgr_FindTexture (model_t *owner, char *name);
@@ -439,11 +444,13 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 
 void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants);
 
+#define MAX_LIGHTMAPS 256
+extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS];
+
 //
 // gl_warp.c
 //
-void GL_SubdivideSurface (msurface_t *fa);
-void DrawWaterPoly (glpoly_t *p);
+void R_UpdateWarpTextures (void);
 void R_DrawSky (void);			// skybox or classic sky
 void R_InitSky (texture_t *mt);	// classic Quake sky
 extern qbool	r_skyboxloaded;
@@ -456,6 +463,8 @@ qbool R_CullSphere (vec3_t centre, float radius);
 qbool R_CullModelForEntity (entity_t *e);
 void R_RotateForEntity (entity_t *e);
 void R_PolyBlend (void);
+void R_MarkSurfaces (void);
+void R_CullSurfaces (void);
 
 // gl_rmisc.c
 void R_ScreenShot_f (void);
@@ -478,29 +487,32 @@ void R_StoreEfrags (efrag_t **ppefrag);
 //
 void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr);
 
-//
-// gl_rsurf.c
-//
-void R_DrawBrushModel (entity_t *e);
 void R_DrawWorld (void);
+void R_DrawAliasModel (entity_t *e);
+void R_DrawBrushModel (entity_t *e);
+void R_DrawSpriteModel (entity_t *e);
+
 void R_DrawTextureChains_Water (void);
 void GL_BuildLightmaps (void);
+void R_RebuildAllLightmaps (void);
 
-//
-// gl_ngraph.c
-//
+void GL_SubdivideSurface (msurface_t *fa);
+void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
+void R_RenderDynamicLightmaps (msurface_t *fa);
+void R_UploadLightmap (int lmap);
+
+void R_DrawTextureChains_ShowTris (void);
+void R_DrawBrushModel_ShowTris (entity_t *e);
+void R_DrawAliasModel_ShowTris (entity_t *e);
+void R_DrawParticles_ShowTris (void);
+
+void GL_DrawAliasShadow (entity_t *e);
+
+void DrawGLTriangleFan (glpoly_t *p);
+void DrawGLPoly (glpoly_t *p);
+void DrawWaterPoly (glpoly_t *p);
+
 void R_NetGraph (void);
-
-//
-// gl_ralias.c
-//
-void R_DrawAliasModel (entity_t *ent);
-void R_DrawAliasShadow (entity_t *e);
-
-//
-// gl_rsprite.c
-//
-void R_DrawSpriteModel (entity_t *ent);
 
 #endif /* _GL_LOCAL_H_ */
 

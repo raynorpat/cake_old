@@ -296,11 +296,11 @@ void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr)
 	// save the data out
 	paliashdr->poseverts = numorder;
 
-	cmds = Hunk_Alloc (numcommands * 4);
+	cmds = (int *) Hunk_Alloc (numcommands * 4);
 	paliashdr->commands = (byte *)cmds - (byte *)paliashdr;
 	memcpy (cmds, commands, numcommands * 4);
 
-	verts = Hunk_Alloc (paliashdr->numposes * paliashdr->poseverts * sizeof(trivertx_t) );
+	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->poseverts * sizeof(trivertx_t) );
 	paliashdr->posedata = (byte *)verts - (byte *)paliashdr;
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<numorder ; j++)

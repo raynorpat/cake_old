@@ -66,14 +66,16 @@ cvar_t	r_speeds = {"r_speeds","0"};
 cvar_t	r_fullbright = {"r_fullbright","0"};
 cvar_t	r_lightmap = {"r_lightmap","0"};
 cvar_t	r_shadows = {"r_shadows","0"};
+cvar_t	r_oldwater = {"r_oldwater", "1"};
+cvar_t	r_waterquality = {"r_waterquality", "8"};
 cvar_t	r_wateralpha = {"r_wateralpha","1"};
+cvar_t	r_waterwarp = {"r_waterwarp", "1"};
 cvar_t	r_dynamic = {"r_dynamic","1"};
 cvar_t	r_novis = {"r_novis","0"};
 cvar_t	r_netgraph = {"r_netgraph","0"};
 cvar_t	r_fastsky = {"r_fastsky", "0"};
 cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
-cvar_t	r_waterwarp = {"r_waterwarp", "1"};
 
 cvar_t	gl_subdivide_size = {"gl_subdivide_size", "128", CVAR_ARCHIVE};
 cvar_t	gl_cull = {"gl_cull","1"};
@@ -556,7 +558,10 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_drawentities);
 	Cvar_Register (&r_drawworld);
 	Cvar_Register (&r_shadows);
+	Cvar_Register (&r_oldwater);
+	Cvar_Register (&r_waterquality);
 	Cvar_Register (&r_wateralpha);
+	Cvar_Register (&r_waterwarp);
 	Cvar_Register (&r_dynamic);
 	Cvar_Register (&r_novis);
 	Cvar_Register (&r_speeds);
@@ -564,7 +569,6 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_fastsky);
 	Cvar_Register (&r_stereo);
 	Cvar_Register (&r_stereodepth);
-	Cvar_Register (&r_waterwarp);
 
 	Cvar_Register (&gl_subdivide_size);
 	Cvar_Register (&gl_cull);
@@ -594,183 +598,6 @@ void R_Init (void)
 	Mod_Init ();
 }
 
-
-/*
-===============
-R_MarkSurfaces
-
-mark surfaces based on PVS and rebuild texture chains
-===============
-*/
-extern glpoly_t	*lightmap_polys[64];
-void R_MarkSurfaces (void)
-{
-	byte		*vis;
-	mleaf_t		*leaf;
-	mnode_t		*node;
-	msurface_t	*surf, **mark;
-	int			i, j;
-	byte		solid[MAX_MAP_LEAFS/8];
-
-	// clear lightmap chains
-	memset (lightmap_polys, 0, sizeof(lightmap_polys));
-
-	// choose vis data
-	if (r_novis.value || r_viewleaf->contents == CONTENTS_SOLID || r_viewleaf->contents == CONTENTS_SKY)
-	{
-		vis = solid;
-		memset (solid, 0xff, (r_worldmodel->numleafs+7)>>3);
-	}
-	else
-	{
-		vis = Mod_LeafPVS (r_viewleaf, r_worldmodel);
-		if (r_viewleaf2)
-		{
-			int			i, count;
-			unsigned	*src, *dest;
-
-			// merge visibility data for two leafs
-			count = (r_worldmodel->numleafs+7)>>3;
-			memcpy (solid, vis, count);
-			src = (unsigned *) Mod_LeafPVS (r_viewleaf2, r_worldmodel);
-			dest = (unsigned *) solid;
-			count = (count + 3)>>2;
-			for (i=0 ; i<count ; i++)
-				*dest++ |= *src++;
-			vis = solid;
-		}
-	}
-
-	// if surface chains don't need regenerating, just add static entities and return
-	if (r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
-	{
-		leaf = &r_worldmodel->leafs[1];
-		for (i=0 ; i<r_worldmodel->numleafs ; i++, leaf++)
-			if (vis[i>>3] & (1<<(i&7)))
-				if (leaf->efrags)
-					R_StoreEfrags (&leaf->efrags);
-		return;
-	}
-
-	r_visframecount++;
-	r_oldviewleaf = r_viewleaf;
-
-	// iterate through leaves, marking surfaces
-	leaf = &r_worldmodel->leafs[1];
-	for (i=0 ; i<r_worldmodel->numleafs ; i++, leaf++)
-	{
-		if (vis[i>>3] & (1<<(i&7)))
-		{
-			if (leaf->contents != CONTENTS_SKY)
-				for (j=0, mark = leaf->firstmarksurface; j<leaf->nummarksurfaces; j++, mark++)
-					(*mark)->visframe = r_visframecount;
-
-			// add static models
-			if (leaf->efrags)
-				R_StoreEfrags (&leaf->efrags);
-		}
-	}
-
-	// set all chains to null
-	for (i=0 ; i<r_worldmodel->numtextures ; i++)
-		if (r_worldmodel->textures[i])
- 			r_worldmodel->textures[i]->texturechain = NULL;
-
-	// rebuild chains
-
-#if 1
-	// iterate through surfaces one node at a time to rebuild chains
-	// need to do it this way if we want to work with tyrann's skip removal tool
-	// becuase his tool doesn't actually remove the surfaces from the bsp surfaces lump
-	// nor does it remove references to them in each leaf's marksurfaces list
-	for (i=0, node = r_worldmodel->nodes ; i<r_worldmodel->numnodes ; i++, node++)
-	{
-		for (j=0, surf=&r_worldmodel->surfaces[node->firstsurface] ; j<node->numsurfaces ; j++, surf++)
-		{
-			if (surf->visframe == r_visframecount)
-			{
-				surf->texturechain = surf->texinfo->texture->texturechain;
-				surf->texinfo->texture->texturechain = surf;
-			}
-		}
-	}
-#else
-	// the old way
-	surf = &r_worldmodel->surfaces[r_worldmodel->firstmodelsurface];
-	for (i=0 ; i<r_worldmodel->nummodelsurfaces ; i++, surf++)
-	{
-		if (surf->visframe == r_visframecount)
-		{
-			surf->texturechain = surf->texinfo->texture->texturechain;
-			surf->texinfo->texture->texturechain = surf;
-		}
-	}
-#endif
-}
-
-/*
-================
-R_BackFaceCull
-
-returns true if the surface is facing away from vieworg
-================
-*/
-qbool R_BackFaceCull (msurface_t *surf)
-{
-	double dot;
-
-	switch (surf->plane->type)
-	{
-	case PLANE_X:
-		dot = r_refdef2.vieworg[0] - surf->plane->dist;
-		break;
-	case PLANE_Y:
-		dot = r_refdef2.vieworg[1] - surf->plane->dist;
-		break;
-	case PLANE_Z:
-		dot = r_refdef2.vieworg[2] - surf->plane->dist;
-		break;
-	default:
-		dot = DotProduct (r_refdef2.vieworg, surf->plane->normal) - surf->plane->dist;
-		break;
-	}
-
-	if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
-		return true;
-
-	return false;
-}
-
-/*
-================
-R_CullSurfaces
-================
-*/
-void R_CullSurfaces (void)
-{
-	msurface_t *s;
-	int i;
-
-	if (!r_drawworld.value)
-		return;
-
-	s = &r_worldmodel->surfaces[r_worldmodel->firstmodelsurface];
-	for (i=0 ; i<r_worldmodel->nummodelsurfaces ; i++, s++)
-	{
-		if (s->visframe == r_visframecount)
-		{
-			if (R_CullBox(s->mins, s->maxs) || R_BackFaceCull (s))
-			{
-				s->culled = true;
-			}
-			else
-			{
-				s->culled = false;
-				c_brush_polys++; // count wpolys here
-			}
-		}
-	}
-}
 
 /*
 =============
@@ -866,6 +693,8 @@ void R_SetupView (void)
 
 	R_MarkSurfaces (); // create texture chains from PVS
 	R_CullSurfaces (); // do after R_SetFrustum and R_MarkSurfaces
+
+	R_UpdateWarpTextures (); // do this before R_Clear
 
 	R_Clear ();
 }

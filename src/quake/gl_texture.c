@@ -29,9 +29,11 @@ cvar_t	gl_picmip = {"gl_picmip", "0"};
 #define MAX_STACK_PIXELS (256 * 256)
 
 gltexture_t	*active_gltextures, *free_gltextures;
-int		numgltextures;
+int			numgltextures;
 
 gltexture_t *particletexture;
+
+int			gl_warpimagesize = 0;
 
 unsigned int d_8to24table[256];
 unsigned int d_8to24table_fbright[256];
@@ -166,7 +168,7 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 		}
 	}
 
-	if (glt->flags & TEXPREF_MIPMAP)
+	if (glt->flags & TEXPREF_MIPMAP || glt->flags & TEXPREF_REPEAT)
 	{
         qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -1040,6 +1042,46 @@ static void TexMgr_InitParticleTexture (void)
 	particletexture = TexMgr_LoadImage (NULL, "particle", 2, 2, SRC_RGBA, data, "", (unsigned)data, TEXPREF_NEAREST);
 }
 
+/*
+=============
+TexMgr_RecalcWarpImageSize 
+
+called during init, and after a vid_restart
+choose safe warpimage size and resize existing warpimage textures
+=============
+*/
+static void TexMgr_RecalcWarpImageSize (void)
+{
+	int	maxwarp;
+	gltexture_t *glt;
+	byte *dummy;
+
+	// figure the size to create the texture at
+	qglGetIntegerv (GL_MAX_TEXTURE_SIZE, &maxwarp);
+
+	// never create larger than this
+	if (maxwarp > 1024)
+		maxwarp = 1024;
+
+	// scale and clamp to max
+	gl_warpimagesize = npot32(maxwarp);
+
+	// resize the textures in opengl
+	dummy = malloc (gl_warpimagesize*gl_warpimagesize*4);
+
+	for (glt=active_gltextures; glt; glt=glt->next)
+	{
+		if (glt->flags & TEXPREF_WARPIMAGE)
+		{
+			GL_Bind (glt->texnum);
+			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, gl_warpimagesize, gl_warpimagesize, 0, GL_RGBA, GL_UNSIGNED_BYTE, dummy);
+			glt->width = glt->height = gl_warpimagesize;
+		}
+	}
+
+	free (dummy);
+}
+
 static void r_textures_start(void)
 {
 	static byte notexture_data[16] = {159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255}; // black and pink checker
@@ -1056,6 +1098,9 @@ static void r_textures_start(void)
 
 	// generate particle images
 	TexMgr_InitParticleTexture ();
+
+	// set safe size for warpimages
+	TexMgr_RecalcWarpImageSize ();
 }
 
 static void r_textures_shutdown(void)

@@ -58,14 +58,10 @@ Setup as if the screen was 320*200
 */
 void RB_GL11_Set2DProjections (void)
 {
-	qglViewport (0, 0, vid.realwidth, vid.realheight);
+	extern canvastype currentcanvas;
 
-	qglMatrixMode(GL_PROJECTION);
-    qglLoadIdentity ();
-	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
-
-	qglMatrixMode(GL_MODELVIEW);
-    qglLoadIdentity ();
+	currentcanvas = CANVAS_INVALID;
+	GL_SetCanvas (CANVAS_DEFAULT);
 
 	qglDisable (GL_DEPTH_TEST);
 	qglDisable (GL_CULL_FACE);
