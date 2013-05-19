@@ -78,7 +78,6 @@ cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
 cvar_t	r_showtris = {"r_showtris","0"};
 
-cvar_t	gl_subdivide_size = {"gl_subdivide_size", "128", CVAR_ARCHIVE};
 cvar_t	gl_cull = {"gl_cull","1"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
@@ -762,7 +761,6 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
 
-	Cvar_Register (&gl_subdivide_size);
 	Cvar_Register (&gl_cull);
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);
