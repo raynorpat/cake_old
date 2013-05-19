@@ -85,7 +85,7 @@ void R_DrawSpriteModel (entity_t *e)
 	msprite_t		*psprite;
 	mspriteframe_t	*frame;
 	float			*s_up, *s_right;
-	float			angle, sr, cr, len;
+	float			angle, sr, cr;
 
 	//TODO: frustum cull it?
 
