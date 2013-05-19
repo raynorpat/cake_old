@@ -536,8 +536,6 @@ void R_FadeScreen (void)
 	qglEnable (GL_TEXTURE_2D);
 	qglEnable (GL_ALPHA_TEST);
 	qglDisable (GL_BLEND);
-
-	Sbar_Changed();
 }
 
 /*
