@@ -157,7 +157,7 @@ void R_FadeScreen (void);
 qpic_t *R_CachePic (char *path);
 qpic_t *R_CacheWadPic (char *name);
 void R_DrawStretchPic (int x, int y, int width, int height, qpic_t *pic, float alpha);
-void R_DrawCrosshair (int num, byte color, int crossx, int crossy);
+void R_DrawCrosshair (int num, int crossx, int crossy);
 
 #define GetPicWidth(pic) (pic->width)
 #define GetPicHeight(pic) (pic->height)

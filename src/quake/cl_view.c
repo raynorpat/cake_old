@@ -43,8 +43,7 @@ cvar_t	v_kickback = {"v_kickback", "0"};	// recoil effect
 cvar_t	cl_drawgun = {"r_drawviewmodel", "1"};
 
 cvar_t	scr_crosshairscale = {"scr_crosshairscale", "1", CVAR_ARCHIVE};
-cvar_t	crosshair = {"crosshair", "2", CVAR_ARCHIVE};
-cvar_t	crosshaircolor = {"crosshaircolor", "79", CVAR_ARCHIVE};
+cvar_t	crosshair = {"crosshair", "1", CVAR_ARCHIVE};
 cvar_t  cl_crossx = {"cl_crossx", "0", CVAR_ARCHIVE};
 cvar_t  cl_crossy = {"cl_crossy", "0", CVAR_ARCHIVE};
 
@@ -914,9 +913,8 @@ void V_Init (void)
 	Cvar_Register (&v_centermove);
 	Cvar_Register (&v_centerspeed);
 
-	Cvar_Register (&crosshaircolor);
-	Cvar_Register (&scr_crosshairscale);
 	Cvar_Register (&crosshair);
+	Cvar_Register (&scr_crosshairscale);
 	Cvar_Register (&cl_crossx);
 	Cvar_Register (&cl_crossy);
 

@@ -374,10 +374,11 @@ void R_DrawString (int x, int y, const char *str)
 	}
 }
 
-void R_DrawCrosshair (int num, byte color, int crossx, int crossy)
+void R_DrawCrosshair (int num, int crossx, int crossy)
 {
 	GL_SetCanvas (CANVAS_CROSSHAIR);
-	R_DrawChar (-4, -4, '+');
+
+	R_DrawChar (-4 + crossx, -4 + crossy, '+');
 }
 
 void R_DrawPic (int x, int y, qpic_t *pic)
