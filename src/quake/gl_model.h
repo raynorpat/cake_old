@@ -118,7 +118,7 @@ typedef struct msurface_s
 	short		texturemins[2];
 	short		extents[2];
 
-	int			light_s, light_t;	// gl lightmap coordinates
+	int			light_s, light_t;	// lightmap texture coordinates
 
 	glpoly_t	*polys;				// multiple if warped
 	struct	msurface_s	*texturechain;
