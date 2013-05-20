@@ -662,7 +662,7 @@ void R_DrawWorld (void)
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_TEXTURE);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, r_lightscale);
 
 			GL_DisableMultitexture ();
 

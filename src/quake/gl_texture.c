@@ -738,7 +738,8 @@ void TexMgr_LoadLightmap (gltexture_t *glt, byte *data)
 
 	// internal format can't be bgra but format can be
 //	GL_PixelStore (4, 0);
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
+//	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB10_A2, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_2_10_10_10_REV, data);
 
 	// set filter modes
 	TexMgr_SetFilterModes (glt);

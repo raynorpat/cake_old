@@ -357,7 +357,7 @@ void R_DrawAliasModel (entity_t *ent)
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PRIMARY_COLOR_ARB);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, r_lightscale);
 
 			GL_EnableMultitexture(); // selects TEXTURE1
 			GL_Bind (fb_texture->texnum);
@@ -379,7 +379,7 @@ void R_DrawAliasModel (entity_t *ent)
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PRIMARY_COLOR_ARB);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, r_lightscale);
 
 			R_SetupAliasFrame (ent->frame, paliashdr);
 

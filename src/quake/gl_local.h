@@ -358,9 +358,8 @@ extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
 extern	cvar_t	gl_fullbrights;
 extern	cvar_t	gl_overbright;
-extern	cvar_t	gl_lightmode;
 
-extern	float	lightmode;		// set to gl_lightmode on mapchange
+extern	float	r_lightscale;	// overbright light scale
 
 void R_TranslatePlayerSkin (int playernum);
 void R_TranslateNewPlayerSkin (int playernum);

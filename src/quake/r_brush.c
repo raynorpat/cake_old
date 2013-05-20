@@ -259,7 +259,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PREVIOUS_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_TEXTURE);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, lightmode);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, r_lightscale);
 
 			qglBegin(GL_POLYGON);
 			v = s->polys->verts[0];
@@ -890,6 +890,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 	// bound, invert, and shift
 	stride -= smax * 4;
 	bl = blocklights;
+	/*
 	for (i=0 ; i<tmax ; i++, dest += stride)
 	{
 		for (j=0 ; j<smax ; j++, dest += 4)
@@ -907,6 +908,29 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				t = *bl++ >> 7;if (t > 255) t = 255;dest[0] = t;
 			}
 			dest[3] = 255;
+		}
+	}
+	*/
+	{
+		unsigned color;
+		unsigned *rgb10a2 = (unsigned *) dest;
+		int clamp = gl_overbright.value ? 1023 : 255;
+
+		for (i = 0; i < tmax; i++)
+		{
+			for (j = 0; j < smax; j++)
+			{
+				color = 0xC0000000;
+				
+				t = bl[0] >>= 7; color |= ((t > clamp) ? clamp : t) << 20;
+				t = bl[1] >>= 7; color |= ((t > clamp) ? clamp : t) << 10;
+				t = bl[2] >>= 7; color |= ((t > clamp) ? clamp : t);
+
+				rgb10a2[j] = color;
+				bl += 3;
+			}
+
+			rgb10a2 += BLOCK_WIDTH;
 		}
 	}
 }
@@ -928,8 +952,10 @@ void R_UploadLightmap (int lmap)
 	lightmap_modified[lmap] = false;
 
 	theRect = &lightmap_rectchange[lmap];
-	qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, BLOCK_WIDTH, theRect->h, GL_BGRA,
-		  GL_UNSIGNED_INT_8_8_8_8_REV, lightmaps+(lmap* BLOCK_HEIGHT + theRect->t) *BLOCK_WIDTH*4);
+	//qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, BLOCK_WIDTH, theRect->h, GL_BGRA,
+	//	  GL_UNSIGNED_INT_8_8_8_8_REV, lightmaps+(lmap* BLOCK_HEIGHT + theRect->t) * BLOCK_WIDTH * 4);
+	qglTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, GL_BGRA,
+             GL_UNSIGNED_INT_2_10_10_10_REV, lightmaps + lmap * BLOCK_WIDTH * BLOCK_HEIGHT * 4);
 	theRect->l = BLOCK_WIDTH;
 	theRect->t = BLOCK_HEIGHT;
 	theRect->h = 0;

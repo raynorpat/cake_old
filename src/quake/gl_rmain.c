@@ -84,34 +84,8 @@ cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fullbrights = {"gl_fullbrights","1"};
 cvar_t	gl_overbright = {"gl_overbright","1"};
 cvar_t	gl_farclip = {"gl_farclip", "16384", CVAR_ARCHIVE};
-void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel);
-cvar_t	gl_lightmode = {"gl_lightmode","1", 0, OnChange_lightmode_var};
 
-float	lightmode = 2.0f;
-void OnChange_lightmode_var (cvar_t *var, char *string, qbool *cancel)
-{
-	float num = Q_atof(string);
-	num = bound(0, num, 4);
-
-	// set lightmode to gl_lightmode
-	if(num == 1.0f)
-	{
-		Cvar_SetValue (&gl_overbright, 1);
-		lightmode = 2.0f;
-	}
-	else if(num == 2.0f)
-	{
-		Cvar_SetValue (&gl_overbright, 1);
-		lightmode = 4.0f;
-	}
-	else
-	{
-		// disable overbrights
-		Cvar_SetValue (&gl_overbright, 0);
-	}
-
-	Cvar_SetValue (var, num);
-}
+float	r_lightscale = 4.0f; // overbright light scale
 
 /*
 =================
@@ -419,7 +393,7 @@ void R_SetupView (void)
 {
 	vec3_t	testorigin;
 	mleaf_t	*leaf;
-	extern float	wateralpha;
+	extern float wateralpha;
 
 	// use wateralpha only if the server allows
 	wateralpha = r_refdef2.watervis ? r_wateralpha.value : 1;
@@ -458,6 +432,15 @@ void R_SetupView (void)
 	V_PrepBlend ();
 
 	r_cache_thrash = false;
+
+	// the overbright scale needs to retain 1 in the alpha channel
+	if (gl_overbright.value >= 1)
+		r_lightscale = 4;
+	else if (gl_overbright.value < 1)
+		r_lightscale = 2;
+
+	if (r_lightmap.value)
+		r_lightscale *= 0.5f;
 
 	// calculate r_fovx and r_fovy here
 	r_fovx = r_refdef2.fov_x;
@@ -767,7 +750,6 @@ void GL_Main_Init(void)
 	Cvar_Register (&gl_fullbrights);
 	Cvar_Register (&gl_overbright);
 	Cvar_Register (&gl_farclip);
-	Cvar_Register (&gl_lightmode);
 
 	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
 }
