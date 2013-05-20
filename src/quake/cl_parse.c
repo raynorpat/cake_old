@@ -1132,9 +1132,7 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 		cl.spectator = player->spectator;
 	}
 
-	Sbar_Changed ();
-	if (slot == cl.playernum && (cl_teamtopcolor >= 0 || cl_enemytopcolor >= 0) &&
-		strcmp(player->team, old_team))
+	if (slot == cl.playernum && (cl_teamtopcolor >= 0 || cl_enemytopcolor >= 0) && strcmp(player->team, old_team))
 	{
 		int i;
 		for (i=0 ; i < MAX_CLIENTS ; i++)
@@ -1531,10 +1529,9 @@ void CL_SetStat (int stat, int value)
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		Host_Error ("CL_SetStat: %i is invalid", stat);
 
-	Sbar_Changed ();
-	
 	if (stat == STAT_ITEMS)
-	{	// set flash times
+	{
+		// set flash times
 		if (cl.stats[STAT_ITEMS] || cls.state == ca_active) {
 			for (j=0 ; j<32 ; j++)
 				if ( (value & (1<<j)) && !(cl.stats[STAT_ITEMS] & (1<<j)))
@@ -1845,7 +1842,6 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_updatefrags:
-			Sbar_Changed ();
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
 				Host_Error ("CL_ParseServerMessage: svc_updatefrags > MAX_CLIENTS");

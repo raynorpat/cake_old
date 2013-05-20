@@ -39,7 +39,6 @@ cvar_t	cl_timeout = {"cl_timeout", "60"};
 cvar_t	cl_shownet = {"cl_shownet", "0"};	// can be 0, 1, or 2
 
 cvar_t	cl_sbar		= {"cl_sbar", "0", CVAR_ARCHIVE};
-cvar_t	cl_hudswap	= {"cl_hudswap", "0", CVAR_ARCHIVE};
 cvar_t	cl_maxfps	= {"cl_maxfps", "0", CVAR_ARCHIVE};
 
 cvar_t	cl_writecfg = {"cl_writecfg", "1"};
@@ -720,7 +719,6 @@ void CL_InitLocal (void)
 	Cvar_Register (&cl_warncmd);
 	Cvar_Register (&cl_shownet);
 	Cvar_Register (&cl_sbar);
-	Cvar_Register (&cl_hudswap);
 	Cvar_Register (&cl_maxfps);
 	Cvar_Register (&cl_timeout);
 	Cvar_Register (&cl_writecfg);

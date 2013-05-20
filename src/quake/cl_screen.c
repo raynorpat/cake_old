@@ -99,8 +99,6 @@ cvar_t		scr_printspeed = {"scr_printspeed","8"};
 cvar_t		show_speed = {"show_speed","0"};
 cvar_t		show_fps = {"show_fps", "0"};
 
-cvar_t		gl_triplebuffer = {"gl_triplebuffer", "1", CVAR_ARCHIVE};
-
 qbool		scr_initialized;		// ready to draw
 
 qpic_t		*scr_ram;
@@ -291,8 +289,8 @@ void SCR_CalcRefdef (void)
 	float		size;
 
 // bound viewsize
-	if (scr_viewsize.value < 30)
-		Cvar_Set (&scr_viewsize, "30");
+	if (scr_viewsize.value < 100)
+		Cvar_Set (&scr_viewsize, "100");
 	if (scr_viewsize.value > 120)
 		Cvar_Set (&scr_viewsize, "120");
 
@@ -305,33 +303,22 @@ void SCR_CalcRefdef (void)
 // intermission is always full screen	
 	if (cl.intermission) {
 		size = 100.0;
-		sb_lines = 0;
 		sb_drawinventory = sb_drawmain = false;
-	}
-	else
-	{
+	} else {
 		size = scr_viewsize.value;
 
 		// decide how much of the status bar to draw
 		if (size >= 120) {
-			sb_lines = 0;		// no status bar at all
+			// no status bar at all
 			sb_drawinventory = sb_drawmain = false;
-		}
-		else if (size >= 110) {
-			sb_lines = 24;		// no inventory
+		} else if (size >= 110) {
+			// no inventory
 			sb_drawinventory = false;
 			sb_drawmain = true;
-		}
-		else {
-			sb_lines = 24+16+8;	// full status bar
+		} else {
+			// full status bar
 			sb_drawinventory = sb_drawmain = true;
 		}
-
-		sb_oldmanssbar = (cl_sbar.value >= 2 && vid.width > 320);
-		sb_oldmanssbar2 = (cl_sbar.value == 3);
-
-		if (!cl_sbar.value || sb_oldmanssbar)
-			sb_lines = 0;
 
 		if (size > 100.0)
 			size = 100.0;
@@ -344,15 +331,13 @@ void SCR_CalcRefdef (void)
 	scr_vrect.width = (int)(vid.width * size + 1.0) & ~1;
 	if (scr_vrect.width < 96) {
 		size = 96.0 / scr_vrect.width;
-		scr_vrect.width = 96;      // min for icons
+		scr_vrect.width = 96; // min for icons
 	}
 
 	scr_vrect.height = (int)(vid.height * size + 1.0) & ~1;
-	if (scr_vrect.height > vid.height - sb_lines)
-		scr_vrect.height = vid.height - sb_lines;
 
 	scr_vrect.x = (vid.width - scr_vrect.width)/2;
-	scr_vrect.y = (vid.height - sb_lines - scr_vrect.height)/2;
+	scr_vrect.y = (vid.height - scr_vrect.height)/2;
 
 	r_refdef2.vrect = scr_vrect;
 
@@ -430,8 +415,6 @@ void SCR_Init (void)
 
 	Cvar_Register (&show_speed);
 	Cvar_Register (&show_fps);
-
-	Cvar_Register (&gl_triplebuffer);
 
 //
 // register our commands
@@ -683,15 +666,7 @@ SCR_SetUpToDrawConsole
 */
 void SCR_SetUpToDrawConsole (void)
 {
-	if (clearconsole++ < vid.numpages)
-	{
-		Sbar_Changed ();
-	}
-	else if (clearnotify++ < vid.numpages)
-	{
-	}
-	else
-		con_notifylines = 0;
+	con_notifylines = 0;
 }
 
 /*
@@ -771,8 +746,6 @@ void SCR_UpdateScreen (void)
 	if (vid_hidden)
 		return;
 
-	vid.numpages = 2 + gl_triplebuffer.value;
-
 	scr_copytop = 0;
 	scr_copyeverything = 0;
 
@@ -789,10 +762,7 @@ void SCR_UpdateScreen (void)
 	RB_Set2DProjections ();
 
 	R_PolyBlend ();
-
-	if (scr_fullupdate++ < vid.numpages || scr_drawall.value)
-		Sbar_Changed ();
-
+	
 	if (r_netgraph.value)
 		R_NetGraph ();
 

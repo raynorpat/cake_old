@@ -405,7 +405,6 @@ extern client_state_t	cl;
 extern cvar_t	cl_warncmd;
 extern cvar_t	cl_shownet;
 extern cvar_t	cl_sbar;
-extern cvar_t	cl_hudswap;
 
 
 // ZQuake cvars

@@ -109,7 +109,6 @@ ok:
 	cam_track = true;
 	cam_target = num;
 	cam_locked = false;		// not yet
-	Sbar_Changed ();
 	Cam_SendPTrackCommand (num);
 }
 
@@ -132,7 +131,6 @@ static void Cam_FindNextTarget (void)
 ok:
 	cam_target = num;
 	cam_locked = false;		// not yet
-	Sbar_Changed ();
 	Cam_SendPTrackCommand (num);
 }
 
@@ -154,7 +152,6 @@ void Cam_FinishMove (usercmd_t *cmd)
 			cam_track = false;
 			cam_locked = false;
 			cam_curtarget = NOTARGET;
-			Sbar_Changed ();
 			Cam_SendUnlockCommand ();
 		}
 		else {
@@ -274,9 +271,6 @@ void Cam_TryLock (void)
 		cam_locked = false;
 		cam_curtarget = NOTARGET;
 	}
-
-	if (cam_target != old_target || cam_locked != old_locked)
-		Sbar_Changed ();
 }
 
 void CL_InitCam(void)

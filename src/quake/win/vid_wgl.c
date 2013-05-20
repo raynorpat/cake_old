@@ -817,7 +817,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 	vid.width = width;
 	vid.height = height;
-	vid.numpages = 2;
 	
 	baseDC = GetDC(mainwindow);
 

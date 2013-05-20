@@ -163,8 +163,8 @@ static void NQD_ParseClientdata (int bits)
 	i = MSG_ReadLong ();			// FIXME, check SU_ITEMS anyway? -- Tonik
 
 	if (cl.stats[STAT_ITEMS] != i)
-	{	// set flash times
-		Sbar_Changed ();
+	{
+		// set flash times
 		for (j=0 ; j<32 ; j++)
 			if ( (i & (1<<j)) && !(cl.stats[STAT_ITEMS] & (1<<j)))
 				cl.item_gettime[j] = cl.time;
@@ -184,43 +184,28 @@ static void NQD_ParseClientdata (int bits)
 	else
 		i = 0;
 	if (cl.stats[STAT_ARMOR] != i)
-	{
 		cl.stats[STAT_ARMOR] = i;
-		Sbar_Changed ();
-	}
 
 	if (bits & SU_WEAPON)
 		i = MSG_ReadByte ();
 	else
 		i = 0;
 	if (cl.stats[STAT_WEAPON] != i)
-	{
 		cl.stats[STAT_WEAPON] = i;
-		Sbar_Changed ();
-	}
 	
 	i = MSG_ReadShort ();
 	if (cl.stats[STAT_HEALTH] != i)
-	{
 		cl.stats[STAT_HEALTH] = i;
-		Sbar_Changed ();
-	}
 
 	i = MSG_ReadByte ();
 	if (cl.stats[STAT_AMMO] != i)
-	{
 		cl.stats[STAT_AMMO] = i;
-		Sbar_Changed ();
-	}
 
 	for (i=0 ; i<4 ; i++)
 	{
 		j = MSG_ReadByte ();
 		if (cl.stats[STAT_SHELLS+i] != j)
-		{
 			cl.stats[STAT_SHELLS+i] = j;
-			Sbar_Changed ();
-		}
 	}
 
 	i = MSG_ReadByte ();
@@ -228,18 +213,12 @@ static void NQD_ParseClientdata (int bits)
 	if (standard_quake)
 	{
 		if (cl.stats[STAT_ACTIVEWEAPON] != i)
-		{
 			cl.stats[STAT_ACTIVEWEAPON] = i;
-			Sbar_Changed ();
-		}
 	}
 	else
 	{
 		if (cl.stats[STAT_ACTIVEWEAPON] != (1<<i))
-		{
 			cl.stats[STAT_ACTIVEWEAPON] = (1<<i);
-			Sbar_Changed ();
-		}
 	}
 }
 
@@ -259,7 +238,6 @@ static void NQD_ParseUpdatecolors (void)
 	cl.players[i].bottomcolor = cl.players[i].real_bottomcolor = min(colors & 15, 13);
 	cl.players[i].topcolor = cl.players[i].real_topcolor = min((colors >> 4) & 15, 13);
 	CL_NewTranslation (i);
-	Sbar_Changed ();
 }
 
 			
@@ -1085,7 +1063,6 @@ static void NQD_ParseServerMessage (void)
 			break;
 
 		case nq_svc_updatename:
-			Sbar_Changed ();
 			i = MSG_ReadByte ();
 			if (i >= nq_maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatename > NQ_MAX_CLIENTS");
@@ -1093,7 +1070,6 @@ static void NQD_ParseServerMessage (void)
 			break;
 
 		case svc_updatefrags:
-			Sbar_Changed ();
 			i = MSG_ReadByte ();
 			if (i >= nq_maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatefrags > NQ_MAX_CLIENTS");

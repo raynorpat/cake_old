@@ -20,21 +20,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CL_SBAR_H_
 #define _CL_SBAR_H_
 
-// the status bar is only redrawn if something has changed, but if anything
-// does, the entire thing will be redrawn for the next vid.numpages frames.
+#define	SBAR_HEIGHT 24
 
-#define	SBAR_HEIGHT		24
-
-extern int		sb_lines;			// scan lines to draw
 extern qbool	sb_drawinventory;
 extern qbool	sb_drawmain;
-extern qbool	sb_oldmanssbar;
-extern qbool	sb_oldmanssbar2;
 
 void Sbar_Init (void);
-
-// call whenever any of the client stats represented on the sbar changes
-void Sbar_Changed (void);
 
 // called every frame by screen
 void Sbar_Draw (void);

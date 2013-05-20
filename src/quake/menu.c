@@ -283,7 +283,7 @@ void M_Main_Key (int key)
 //=============================================================================
 /* OPTIONS MENU */
 
-#define	OPTIONS_ITEMS	18
+#define	OPTIONS_ITEMS	17
 
 #define	SLIDER_RANGE	10
 
@@ -378,10 +378,6 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValue (&cl_sbar, !cl_sbar.value);
 		break;
 
-	case 14:
-		Cvar_SetValue (&cl_hudswap, !cl_hudswap.value);
-		break;
-
 	case 17:	// vid_mouse
 		Cvar_SetValue (&vid_mouse, !vid_mouse.value);
 		break;
@@ -470,15 +466,12 @@ void M_Options_Draw (void)
 	M_Print (16, 136, "    Use old status bar");
 	M_DrawCheckbox (220, 136, cl_sbar.value);
 
-	M_Print (16, 144, "      HUD on left side");
-	M_DrawCheckbox (220, 144, cl_hudswap.value);
+	M_PrintWhite (16, 144, "          FPS settings");
 
-	M_PrintWhite (16, 152, "          FPS settings");
+	M_PrintWhite (16, 152, "         Video Options");
 
-	M_PrintWhite (16, 160, "         Video Options");
-
-	M_Print (16, 168, "             Use Mouse");
-	M_DrawCheckbox (220, 168, vid_mouse.value);
+	M_Print (16, 160, "             Use Mouse");
+	M_DrawCheckbox (220, 160, vid_mouse.value);
 
 // cursor
 	M_DrawChar (200, 32 + options_cursor*8, 12+((int)(curtime*4)&1));
@@ -510,10 +503,10 @@ void M_Options_Key (int k)
 		case 2:
 			Cbuf_AddText ("exec default.cfg\n");
 			break;
-		case 15:
+		case 14:
 			M_Menu_Fps_f ();
 			break;
-		case 16:
+		case 15:
 			M_Menu_Video_f ();
 			break;
 		default:
