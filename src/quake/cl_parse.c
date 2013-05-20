@@ -1468,7 +1468,6 @@ void CL_ParsePrint (void)
 		}
 	}
 
-#ifndef AGRIP
 	if (cl.sprint_buf[0] && (level != cl.sprint_level
 		|| s[0] == 1 || s[0] == 2)) {
 		FlushString (cl.sprint_buf, cl.sprint_level, false, 0);
@@ -1479,7 +1478,6 @@ void CL_ParsePrint (void)
 		FlushString (s, level, (flags==2), offset);
 		return;
 	}
-#endif
 
 	strlcat (cl.sprint_buf, s, sizeof(cl.sprint_buf));
 	cl.sprint_level = level;
@@ -1800,11 +1798,9 @@ void CL_ParseServerMessage (void)
 			break;
 			
 		case svc_centerprint:
-			{	char *s = MSG_ReadString();
+			{
+				char *s = MSG_ReadString();
 				SCR_CenterPrint (s);
-#ifdef AGRIP
-				Sys_Printf ("%s\n", s);
-#endif
 			}
 			break;
 			

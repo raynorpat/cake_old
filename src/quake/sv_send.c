@@ -163,9 +163,7 @@ void SV_BroadcastPrintf (int level, char *fmt, ...)
 #endif // _WIN32
 	va_end (argptr);
 
-#ifndef AGRIP
 	Sys_Printf ("%s", string);	// print to the console
-#endif
 
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
 	{
