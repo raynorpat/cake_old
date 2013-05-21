@@ -79,26 +79,6 @@ void Fog_Update (float density, float red, float green, float blue, float time)
 
 /*
 =============
-Fog_ParseServerMessage
-
-handle an SVC_FOG message from server
-=============
-*/
-void Fog_ParseServerMessage (void)
-{
-	float density, red, green, blue, time;
-
-	density = MSG_ReadByte() / 255.0;
-	red = MSG_ReadByte() / 255.0;
-	green = MSG_ReadByte() / 255.0;
-	blue = MSG_ReadByte() / 255.0;
-	time = max(0.0, MSG_ReadShort() / 100.0);
-
-	Fog_Update (density, red, green, blue, time);
-}
-
-/*
-=============
 Fog_FogCommand_f
 
 handle the 'fog' console command
@@ -352,7 +332,7 @@ called when quake initializes
 */
 void Fog_Init (void)
 {
-	Cmd_AddCommand ("fog",Fog_FogCommand_f);
+	Cmd_AddCommand ("fog", Fog_FogCommand_f);
 
 	// set up global fog
 	fog_density = 0.0;
