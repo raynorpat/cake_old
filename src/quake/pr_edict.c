@@ -848,8 +848,7 @@ if (!strcmp(com_token, "light"))
 		key = ED_FindField (keyname);
 		if (!key)
 		{
-			if (!skyhack)
-				Com_Printf ("%s is not a field\n", keyname);
+			Com_Printf ("%s is not a field\n", keyname);
 			continue;
 		}
 
