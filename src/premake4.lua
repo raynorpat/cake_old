@@ -1,4 +1,4 @@
-solution "Quake"
+solution "Cake"
 
 -- common project settings
 	configurations { "Debug", "Release" }
@@ -33,8 +33,8 @@ solution "Quake"
 		includedirs { "qcc" }
 		files { "qcc/*.h", "qcc/*.cpp" }
 	
--- Quake project
-	project "Quake"
+-- Cake project
+	project "Cake"
 		kind "WindowedApp"
 		language "C"
 		includedirs { "quake" }
