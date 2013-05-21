@@ -347,7 +347,9 @@ fullbrights:
 
 		GL_Bind (t->fb_texture->texnum);
 
+		Fog_StartAdditive ();
 		DrawGLPoly (s->polys);
+		Fog_StopAdditive ();
 
 		qglColor3f(1, 1, 1);
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);

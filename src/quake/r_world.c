@@ -677,14 +677,27 @@ void R_DrawWorld (void)
 		}
 		else // case 2: texture in one pass, lightmap in second pass using 2x modulation blend func
 		{
+			// to make fog work with multipass lightmapping, need to do one pass
+			// with no fog, one modulate pass with black fog, and one additive
+			// pass with black geometry and normal fog
+			Fog_DisableGFog ();
 			R_DrawTextureChains_TextureOnly ();
-
+			Fog_EnableGFog ();
 			qglDepthMask (GL_FALSE);
 			qglEnable (GL_BLEND);
 			qglBlendFunc (GL_DST_COLOR, GL_SRC_COLOR); // 2x modulate
-
+			Fog_StartAdditive ();
 			R_DrawLightmapChains ();
-
+			Fog_StopAdditive ();
+			if (Fog_GetDensity() > 0)
+			{
+				qglBlendFunc(GL_ONE, GL_ONE); //add
+				qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				qglColor3f(0,0,0);
+				R_DrawTextureChains_TextureOnly ();
+				qglColor3f(1,1,1);
+				qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			}
 			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			qglDisable (GL_BLEND);
 			qglDepthMask (GL_TRUE);
@@ -707,9 +720,9 @@ fullbrights:
 		qglDepthMask (GL_FALSE);
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_ONE, GL_ONE);
-
+		Fog_StartAdditive ();
 		R_DrawTextureChains_Glow ();
-
+		Fog_StopAdditive ();
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		qglDisable (GL_BLEND);
 		qglDepthMask (GL_TRUE);

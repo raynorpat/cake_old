@@ -74,6 +74,9 @@ cvar_t	r_dynamic = {"r_dynamic","1"};
 cvar_t	r_novis = {"r_novis","0"};
 cvar_t	r_netgraph = {"r_netgraph","0"};
 cvar_t	r_fastsky = {"r_fastsky", "0"};
+cvar_t	r_sky_quality = {"r_sky_quality", "12"};
+cvar_t	r_skyalpha = {"r_skyalpha", "1"};
+cvar_t	r_skyfog = {"r_skyfog","0.5"};
 cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
 cvar_t	r_showtris = {"r_showtris","0"};
@@ -398,6 +401,8 @@ void R_SetupView (void)
 	// use wateralpha only if the server allows
 	wateralpha = r_refdef2.watervis ? r_wateralpha.value : 1;
 
+	Fog_SetupFrame ();
+
 	// build the transformation matrix for the given view angles
 	VectorCopy (r_refdef2.vieworg, r_origin);
 	AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
@@ -631,7 +636,9 @@ void R_RenderScene (void)
 {
 	R_SetupScene (); 	// this does everything that should be done once per call to RenderScene
 
-	R_DrawSky ();
+	Fog_EnableGFog ();
+
+	Sky_DrawSky ();
 
 	R_DrawWorld ();
 
@@ -644,6 +651,8 @@ void R_RenderScene (void)
 	R_DrawTextureChains_Water (); // drawn here since they might have transparency
 
 	R_DrawParticles ();
+
+	Fog_DisableGFog ();
 
 	R_ShowTris ();
 }
@@ -718,6 +727,9 @@ void gl_main_shutdown(void)
 void gl_main_newmap(void)
 {
 	r_framecount = 1; // no dlightcache
+
+	Sky_NewMap ();
+	Fog_NewMap ();
 }
 
 void GL_Main_Init(void)
@@ -740,6 +752,9 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_speeds);
 	Cvar_Register (&r_netgraph);
 	Cvar_Register (&r_fastsky);
+	Cvar_Register (&r_sky_quality);
+	Cvar_Register (&r_skyalpha);
+	Cvar_Register (&r_skyfog);
 	Cvar_Register (&r_stereo);
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
@@ -768,4 +783,5 @@ void R_Init (void)
 	TexMgr_Init ();
 	R_Draw_Init ();
 	Mod_Init ();
+	Fog_Init ();
 }

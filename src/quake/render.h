@@ -125,7 +125,7 @@ void R_Init (void);
 void R_InitTextures (void);
 void R_InitEfrags (void);
 void R_RenderView (void);		// must set r_refdef first
-void R_SetSky (char *name);				// Quake2 skybox
+void Sky_LoadSkyBox (char *name); // Quake2 skybox
 // called whenever r_refdef or vid change
 
 void R_AddEfrags (entity_t *ent);

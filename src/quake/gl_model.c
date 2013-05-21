@@ -435,7 +435,7 @@ void Mod_LoadTextures (lump_t *l)
 
 		if (!strncmp(mt->name,"sky",3)) // sky texture
 		{
-			R_InitSky (tx);
+			Sky_LoadTexture (tx);
 		}
 		else if (tx->name[0] == '*') // warping texture
 		{

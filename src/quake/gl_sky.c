@@ -17,28 +17,70 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-// gl_warp.c -- sky and water polygons
+// gl_sky.c -- sky polygons
 
 #include "gl_local.h"
 #include "rc_image.h"
 
-gltexture_t	*skyboxtextures[6];
-gltexture_t	*solidskytexture, *alphaskytexture;
-float	speedscale;		// for top sky and bottom sky
-float	skyflatcolor[4];
+#define	MAX_CLIP_VERTS 64
 
-qbool	r_skyboxloaded;
+float Fog_GetDensity(void);
+float *Fog_GetColor(void);
 
 extern	model_t	*loadmodel;
+float	skyflatcolor[4];
+float	skymins[2][6], skymaxs[2][6];
+
+char	skybox_name[32] = ""; // name of current skybox, or "" if no skybox
+
+gltexture_t	*skybox_textures[6];
+gltexture_t	*solidskytexture, *alphaskytexture;
+
+int		skytexorder[6] = {0,2,1,3,4,5}; // for skybox
+
+vec3_t	skyclip[6] = {
+	{1,1,0},
+	{1,-1,0},
+	{0,-1,1},
+	{0,1,1},
+	{1,0,1},
+	{-1,0,1}
+};
+
+int	st_to_vec[6][3] =
+{
+	{3,-1,2},
+	{-3,1,2},
+	{1,3,2},
+	{-1,-3,2},
+ 	{-2,-1,3},		// straight up
+ 	{2,-1,-3}		// straight down
+};
+
+int	vec_to_st[6][3] =
+{
+	{-2,3,1},
+	{2,3,-1},
+	{1,3,2},
+	{-1,3,-2},
+	{-2,-1,3},
+	{-2,1,-3}
+};
+
+//==============================================================================
+//
+//  INIT
+//
+//==============================================================================
 
 /*
 =============
-R_InitSky
+Sky_LoadTexture
 
 A sky texture is 256*128, with the right side being a masked overlay
 ==============
 */
-void R_InitSky (texture_t *mt)
+void Sky_LoadTexture (texture_t *mt)
 {
 	char		texturename[64];
 	int			i, j, p, r, g, b, count;
@@ -96,117 +138,141 @@ void R_InitSky (texture_t *mt)
 	skyflatcolor[3] = 1.0f;
 }
 
-
-/*
-=================================================================
-
-  Quake 2 environment sky
-
-=================================================================
-*/
-
-
 /*
 ==================
-R_SetSky
+Sky_LoadSkyBox
 ==================
 */
 static char	*suf[6] = {"rt", "bk", "lf", "ft", "up", "dn"};
-void R_SetSky (char *name)
+void Sky_LoadSkyBox (char *name)
 {
-	int		i;
-	byte	*pic;
-	int		width, height;
-	char	pathname[MAX_OSPATH];
+	int		i, mark, width, height;
+	char	filename[MAX_OSPATH];
+	byte	*data;
+	qbool	nonefound = true;
 
-	if (!name[0])
-	{
-		// disable skybox
-		r_skyboxloaded = false;
-		return;
-	}
+	if (strcmp(skybox_name, name) == 0)
+		return; //no change
 
 	// purge old textures
 	for (i=0; i<6; i++)
 	{
-		if (skyboxtextures[i] && skyboxtextures[i] != notexture)
-			TexMgr_FreeTexture (skyboxtextures[i]);
-		skyboxtextures[i] = NULL;
+		if (skybox_textures[i] && skybox_textures[i] != notexture)
+			TexMgr_FreeTexture (skybox_textures[i]);
+		skybox_textures[i] = NULL;
 	}
 
+	// turn off skybox if sky is set to ""
+	if (name[0] == 0)
+	{
+		skybox_name[0] = 0;
+		return;
+	}
+
+	// load textures
 	for (i=0 ; i<6 ; i++)
 	{
-		Q_snprintfz (pathname, sizeof(pathname), "env/%s%s.tga", name, suf[i]);
-		pic = Image_LoadImage (pathname, &width, &height);
-		if (!pic)
+		mark = Hunk_LowMark ();
+		Q_snprintfz (filename, sizeof(filename), "gfx/env/%s%s", name, suf[i]);
+		data = Image_LoadImage (filename, &width, &height);
+		if (data)
 		{
-			Com_Printf ("Couldn't load %s\n", pathname);
-			r_skyboxloaded = false;
-			return;
+			skybox_textures[i] = TexMgr_LoadImage (r_worldmodel, filename, width, height, SRC_RGBA, data, filename, 0, TEXPREF_NONE);
+			nonefound = false;
 		}
-		if (width > 512 || height > 512)	// just a sanity check
+		else
 		{
-			Com_Printf ("Bad image dimensions in %s\n", pathname);
-			Q_free (pic);
-			r_skyboxloaded = false;
-			return;
+			Com_Printf ("Couldn't load %s\n", filename);
+			skybox_textures[i] = notexture;
 		}
-
-		skyboxtextures[i] = TexMgr_LoadImage (NULL, pathname, width, height, SRC_RGBA, pic, pathname, 0, 0);
-
-		Q_free (pic);
+		Hunk_FreeToLowMark (mark);
 	}
 
-	r_skyboxloaded = true;
+	if (nonefound) // go back to scrolling sky if skybox is totally missing
+	{
+		for (i=0; i<6; i++)
+		{
+			if (skybox_textures[i] && skybox_textures[i] != notexture)
+				TexMgr_FreeTexture (skybox_textures[i]);
+			skybox_textures[i] = NULL;
+		}
+		skybox_name[0] = 0;
+		return;
+	}
+
+	strcpy(skybox_name, name);
 }
 
-
-static vec3_t	skyclip[6] = {
-	{1,1,0},
-	{1,-1,0},
-	{0,-1,1},
-	{0,1,1},
-	{1,0,1},
-	{-1,0,1} 
-};
-
-#define skybox_range	2400.0
-
-// 1 = s, 2 = t, 3 = 2048
-static int	st_to_vec[6][3] =
+/*
+=================
+Sky_NewMap
+=================
+*/
+void Sky_NewMap (void)
 {
-	{3,-1,2},
-	{-3,1,2},
+	char	key[128], value[4096];
+	char	*data;
+	int		i;
 
-	{1,3,2},
-	{-1,-3,2},
+	// initially no sky
+	skybox_name[0] = 0;
+	for (i=0; i<6; i++)
+		skybox_textures[i] = NULL;
 
-	{-2,-1,3},		// 0 degrees yaw, look straight up
-	{2,-1,-3}		// look straight down
+	// read worldspawn
+	data = r_worldmodel->entities;
+	if (!data)
+		return;
 
-//	{-1,2,3},
-//	{1,2,-3}
-};
+	data = COM_Parse(data);
+	if (!data) // should never happen
+		return; // error
+	if (com_token[0] != '{') // should never happen
+		return; // error
+	while (1)
+	{
+		data = COM_Parse(data);
+		if (!data)
+			return; // error
+		if (com_token[0] == '}')
+			break; // end of worldspawn
+		if (com_token[0] == '_')
+			strcpy(key, com_token + 1);
+		else
+			strcpy(key, com_token);
+		while (key[strlen(key)-1] == ' ') // remove trailing spaces
+			key[strlen(key)-1] = 0;
+		data = COM_Parse(data);
+		if (!data)
+			return; // error
+		strcpy(value, com_token);
 
-// s = [0]/[2], t = [1]/[2]
-static int	vec_to_st[6][3] =
-{
-	{-2,3,1},
-	{2,3,-1},
+		if (!strcmp("sky", key))
+			Sky_LoadSkyBox(value);
 
-	{1,3,2},
-	{-1,3,-2},
+#if 1 // also accept non-standard keys
+		else if (!strcmp("skyname", key)) // half-life
+			Sky_LoadSkyBox(value);
+		else if (!strcmp("qlsky", key)) // quake lives
+			Sky_LoadSkyBox(value);
+#endif
+	}
+}
 
-	{-2,-1,3},
-	{-2,1,-3}
+//==============================================================================
+//
+//  PROCESS SKY SURFS
+//
+//==============================================================================
 
-//	{-1,2,3},
-//	{1,2,-3}
-};
+/*
+=================
+Sky_ProjectPoly
 
-static float	skymins[2][6], skymaxs[2][6];
-
-static void DrawSkyPolygon (int nump, vec3_t vecs)
+update sky bounds
+=================
+*/
+static void Sky_ProjectPoly (int nump, vec3_t vecs)
 {
 	int		i,j;
 	vec3_t	v, av;
@@ -276,8 +342,12 @@ static void DrawSkyPolygon (int nump, vec3_t vecs)
 	}
 }
 
-#define	MAX_CLIP_VERTS	64
-static void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
+/*
+=================
+Sky_ClipPoly
+=================
+*/
+static void Sky_ClipPoly (int nump, vec3_t vecs, int stage)
 {
 	float	*norm;
 	float	*v;
@@ -290,10 +360,12 @@ static void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
 	int		i, j;
 
 	if (nump > MAX_CLIP_VERTS-2)
-		Sys_Error ("ClipSkyPolygon: MAX_CLIP_VERTS");
+		Sys_Error ("Sky_ClipPoly: MAX_CLIP_VERTS");
+
 	if (stage == 6)
-	{	// fully clipped, so draw it
-		DrawSkyPolygon (nump, vecs);
+	{
+		// fully clipped
+		Sky_ProjectPoly (nump, vecs);
 		return;
 	}
 
@@ -318,8 +390,9 @@ static void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
 	}
 
 	if (!front || !back)
-	{	// not clipped
-		ClipSkyPolygon (nump, vecs, stage+1);
+	{
+		// not clipped
+		Sky_ClipPoly (nump, vecs, stage+1);
 		return;
 	}
 
@@ -364,8 +437,8 @@ static void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
 	}
 
 	// continue
-	ClipSkyPolygon (newc[0], newv[0][0], stage+1);
-	ClipSkyPolygon (newc[1], newv[1][0], stage+1);
+	Sky_ClipPoly (newc[0], newv[0][0], stage+1);
+	Sky_ClipPoly (newc[1], newv[1][0], stage+1);
 }
 
 /*
@@ -373,8 +446,7 @@ static void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
 Sky_ProcessPoly
 ================
 */
-extern void DrawGLPoly (glpoly_t *p);
-void Sky_ProcessPoly (glpoly_t	*p)
+static void Sky_ProcessPoly (glpoly_t	*p)
 {
 	int			i;
 	vec3_t		verts[MAX_CLIP_VERTS];
@@ -388,7 +460,7 @@ void Sky_ProcessPoly (glpoly_t	*p)
 	{
 		for (i=0 ; i<p->numverts ; i++)
 			VectorSubtract (p->verts[i], r_origin, verts[i]);
-		ClipSkyPolygon (p->numverts, verts[0], 0);
+		Sky_ClipPoly (p->numverts, verts[0], 0);
 	}
 }
 
@@ -399,7 +471,7 @@ Sky_ProcessTextureChains
 handles sky polys in world model
 ================
 */
-void Sky_ProcessTextureChains (void)
+static void Sky_ProcessTextureChains (void)
 {
 	int			i;
 	msurface_t	*s;
@@ -428,7 +500,7 @@ Sky_ProcessEntities
 handles sky polys on brush models
 ================
 */
-void Sky_ProcessEntities (void)
+static void Sky_ProcessEntities (void)
 {
 	entity_t	*e;
 	msurface_t	*s;
@@ -509,14 +581,20 @@ void Sky_ProcessEntities (void)
 //
 //==============================================================================
 
-static void MakeSkyVec (float s, float t, int axis)
+/*
+==============
+Sky_EmitSkyBoxVertex
+==============
+*/
+static void Sky_EmitSkyBoxVertex (float s, float t, int axis)
 {
 	vec3_t		v, b;
 	int			j, k;
+	float		w, h;
 
-	b[0] = s*skybox_range;
-	b[1] = t*skybox_range;
-	b[2] = skybox_range;
+	b[0] = s * gl_farclip.value / sqrt(3.0);
+	b[1] = t * gl_farclip.value / sqrt(3.0);
+	b[2] = gl_farclip.value / sqrt(3.0);
 
 	for (j=0 ; j<3 ; j++)
 	{
@@ -528,18 +606,15 @@ static void MakeSkyVec (float s, float t, int axis)
 		v[j] += r_origin[j];
 	}
 
-	// avoid bilerp seam
+	// convert from range [-1,1] to [0,1]
 	s = (s+1)*0.5;
 	t = (t+1)*0.5;
 
-	if (s < 1.0/512)
-		s = 1.0/512;
-	else if (s > 511.0/512)
-		s = 511.0/512;
-	if (t < 1.0/512)
-		t = 1.0/512;
-	else if (t > 511.0/512)
-		t = 511.0/512;
+	// avoid bilerp seam
+	w = skybox_textures[skytexorder[axis]]->width;
+	h = skybox_textures[skytexorder[axis]]->height;
+	s = s * (w-1)/w + 0.5/w;
+	t = t * (h-1)/h + 0.5/h;
 
 	t = 1.0 - t;
 	qglTexCoord2f (s, t);
@@ -548,11 +623,12 @@ static void MakeSkyVec (float s, float t, int axis)
 
 /*
 ==============
-R_DrawSkyBox
+Sky_DrawSkyBox
+
+FIXME: eliminate cracks by adding an extra vert on tjuncs
 ==============
 */
-static int	skytexorder[6] = {0,2,1,3,4,5};
-static void R_DrawSkyBox (void)
+static void Sky_DrawSkyBox (void)
 {
 	int		i;
 
@@ -561,57 +637,41 @@ static void R_DrawSkyBox (void)
 		if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
 			continue;
 
-		GL_Bind (skyboxtextures[skytexorder[i]]->texnum);
+		GL_Bind (skybox_textures[skytexorder[i]]->texnum);
+
+#if 1 // FIXME: this is to avoid tjunctions until i can do it the right way
+		skymins[0][i] = -1;
+		skymins[1][i] = -1;
+		skymaxs[0][i] = 1;
+		skymaxs[1][i] = 1;
+#endif
 
 		qglBegin (GL_QUADS);
-		MakeSkyVec (skymins[0][i], skymins[1][i], i);
-		MakeSkyVec (skymins[0][i], skymaxs[1][i], i);
-		MakeSkyVec (skymaxs[0][i], skymaxs[1][i], i);
-		MakeSkyVec (skymaxs[0][i], skymins[1][i], i);
+		Sky_EmitSkyBoxVertex (skymins[0][i], skymins[1][i], i);
+		Sky_EmitSkyBoxVertex (skymins[0][i], skymaxs[1][i], i);
+		Sky_EmitSkyBoxVertex (skymaxs[0][i], skymaxs[1][i], i);
+		Sky_EmitSkyBoxVertex (skymaxs[0][i], skymins[1][i], i);
 		qglEnd ();
-	}
-}
 
-static void EmitSkyVert (vec3_t v)
-{
-	vec3_t dir;
-	float	s, t;
-	float	length;
+		if (Fog_GetDensity() > 0 && r_skyfog.value > 0) {
+			float *c;
 
-	VectorSubtract (v, r_origin, dir);
-	dir[2] *= 3;	// flatten the sphere
+			c = Fog_GetColor();
+			qglEnable (GL_BLEND);
+			qglDisable (GL_TEXTURE_2D);
+			qglColor4f (c[0],c[1],c[2], clamp(0.0,r_skyfog.value,1.0));
 
-	length = VectorLength (dir);
-	length = 6*63/length;
+			qglBegin (GL_QUADS);
+			Sky_EmitSkyBoxVertex (skymins[0][i], skymins[1][i], i);
+			Sky_EmitSkyBoxVertex (skymins[0][i], skymaxs[1][i], i);
+			Sky_EmitSkyBoxVertex (skymaxs[0][i], skymaxs[1][i], i);
+			Sky_EmitSkyBoxVertex (skymaxs[0][i], skymins[1][i], i);
+			qglEnd ();
 
-	dir[0] *= length;
-	dir[1] *= length;
-
-	s = (speedscale + dir[0]) * (1.0/128);
-	t = (speedscale + dir[1]) * (1.0/128);
-
-	qglTexCoord2f (s, t);
-	qglVertex3fv (v);
-}
-
-// s and t range from -1 to 1
-static void MakeSkyVec2 (float s, float t, int axis, vec3_t v)
-{
-	vec3_t		b;
-	int			j, k;
-
-	b[0] = s*skybox_range;
-	b[1] = t*skybox_range;
-	b[2] = skybox_range;
-
-	for (j=0 ; j<3 ; j++)
-	{
-		k = st_to_vec[axis][j];
-		if (k < 0)
-			v[j] = -b[-k - 1];
-		else
-			v[j] = b[k - 1];
-		v[j] += r_origin[j];
+			qglColor3f (1, 1, 1);
+			qglEnable (GL_TEXTURE_2D);
+			qglDisable (GL_BLEND);
+		}
 	}
 }
 
@@ -621,84 +681,225 @@ static void MakeSkyVec2 (float s, float t, int axis, vec3_t v)
 //
 //==============================================================================
 
-#define SUBDIVISIONS	10
-
-static void DrawSkyFace (int axis)
+/*
+==============
+Sky_SetBoxVert
+==============
+*/
+static void Sky_SetBoxVert (float s, float t, int axis, vec3_t v)
 {
-	int i, j;
-	vec3_t	vecs[4];
-	float s, t;
+	vec3_t		b;
+	int			j, k;
 
-	float fstep = 2.0 / SUBDIVISIONS;
+	b[0] = s * gl_farclip.value / sqrt(3.0);
+	b[1] = t * gl_farclip.value / sqrt(3.0);
+	b[2] = gl_farclip.value / sqrt(3.0);
 
-	qglBegin (GL_QUADS);
-
-	for (i = 0; i < SUBDIVISIONS; i++)
+	for (j=0 ; j<3 ; j++)
 	{
-		s = (float)(i*2 - SUBDIVISIONS) / SUBDIVISIONS;
-
-		if (s + fstep < skymins[0][axis] || s > skymaxs[0][axis])
-			continue;
-
-		for (j = 0; j < SUBDIVISIONS; j++) {
-			t = (float)(j*2 - SUBDIVISIONS) / SUBDIVISIONS;
-
-			if (t + fstep < skymins[1][axis] || t > skymaxs[1][axis])
-				continue;
-
-			MakeSkyVec2 (s, t, axis, vecs[0]);
-			MakeSkyVec2 (s, t + fstep, axis, vecs[1]);
-			MakeSkyVec2 (s + fstep, t + fstep, axis, vecs[2]);
-			MakeSkyVec2 (s + fstep, t, axis, vecs[3]);
-
-			EmitSkyVert (vecs[0]);
-			EmitSkyVert (vecs[1]);
-			EmitSkyVert (vecs[2]);
-			EmitSkyVert (vecs[3]);
-		}
+		k = st_to_vec[axis][j];
+		if (k < 0)
+			v[j] = -b[-k - 1];
+		else
+			v[j] = b[k - 1];
+		v[j] += r_origin[j];
 	}
-
-	qglEnd ();
 }
 
-static void R_DrawSkyDome (void)
+/*
+=============
+Sky_GetTexCoord
+=============
+*/
+static void Sky_GetTexCoord (vec3_t v, float speed, float *s, float *t)
 {
-	int i;
+	vec3_t	dir;
+	float	length, scroll;
 
-	GL_SelectTexture (GL_TEXTURE0_ARB);
-	GL_Bind (solidskytexture->texnum);
+	VectorSubtract (v, r_origin, dir);
+	dir[2] *= 3;	// flatten the sphere
 
-	speedscale = r_refdef2.time*8;
-	speedscale -= (int)speedscale & ~127;
+	length = dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2];
+	length = sqrt (length);
+	length = 6*63/length;
 
-	for (i = 0; i < 6; i++) {
-		if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
-			continue;
-		DrawSkyFace (i);
+	scroll = cl.time*speed;
+	scroll -= (int)scroll & ~127;
+
+	*s = (scroll + dir[0] * length) * (1.0/128);
+	*t = (scroll + dir[1] * length) * (1.0/128);
+}
+
+/*
+===============
+Sky_DrawFaceQuad
+===============
+*/
+static void Sky_DrawFaceQuad (glpoly_t *p)
+{
+	float	s, t;
+	float	*v;
+	int		i;
+
+	if (r_skyalpha.value >= 1.0)
+	{
+		GL_Bind (solidskytexture->texnum);
+		GL_EnableMultitexture();
+		GL_Bind (alphaskytexture->texnum);
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+
+		qglBegin (GL_QUADS);
+		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
+		{
+			Sky_GetTexCoord (v, 8, &s, &t);
+			qglMultiTexCoord2f (GL_TEXTURE0_ARB, s, t);
+			Sky_GetTexCoord (v, 16, &s, &t);
+			qglMultiTexCoord2f (GL_TEXTURE1_ARB, s, t);
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+
+		GL_DisableMultitexture();
+	}
+	else
+	{
+		GL_Bind (solidskytexture->texnum);
+
+		if (r_skyalpha.value < 1.0)
+			qglColor3f (1, 1, 1);
+
+		qglBegin (GL_QUADS);
+		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
+		{
+			Sky_GetTexCoord (v, 8, &s, &t);
+			qglTexCoord2f (s, t);
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+
+		GL_Bind (alphaskytexture->texnum);
+		qglEnable (GL_BLEND);
+
+		if (r_skyalpha.value < 1.0)
+			qglColor4f (1, 1, 1, r_skyalpha.value);
+
+		qglBegin (GL_QUADS);
+		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
+		{
+			Sky_GetTexCoord (v, 16, &s, &t);
+			qglTexCoord2f (s, t);
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+
+		qglDisable (GL_BLEND);
 	}
 
-	qglEnable (GL_BLEND);
-	GL_Bind (alphaskytexture->texnum);
+	if (Fog_GetDensity() > 0 && r_skyfog.value > 0)	{
+		float *c;
 
-	speedscale = r_refdef2.time*16;
-	speedscale -= (int)speedscale & ~127;
+		c = Fog_GetColor();
+		qglEnable (GL_BLEND);
+		qglDisable (GL_TEXTURE_2D);
+		qglColor4f (c[0],c[1],c[2], clamp(0.0,r_skyfog.value,1.0));
 
-	for (i = 0; i < 6; i++)
-	{
-		if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
-			continue;
-		DrawSkyFace (i);
+		qglBegin (GL_QUADS);
+		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
+			qglVertex3fv (v);
+		qglEnd ();
+
+		qglColor3f (1, 1, 1);
+		qglEnable (GL_TEXTURE_2D);
+		qglDisable (GL_BLEND);
 	}
 }
 
 /*
 ==============
-R_DrawSky
-
-Draw either the classic cloudy quake sky or a skybox
+Sky_DrawFace
 ==============
 */
-void R_DrawSky (void)
+static void Sky_DrawFace (int axis)
+{
+	glpoly_t	*p;
+	vec3_t		verts[4];
+	int			i, j, start;
+	float		di,qi,dj,qj;
+	vec3_t		vup, vright, temp, temp2;
+
+	Sky_SetBoxVert(-1.0, -1.0, axis, verts[0]);
+	Sky_SetBoxVert(-1.0,  1.0, axis, verts[1]);
+	Sky_SetBoxVert(1.0,   1.0, axis, verts[2]);
+	Sky_SetBoxVert(1.0,  -1.0, axis, verts[3]);
+
+	start = Hunk_LowMark ();
+	p = (glpoly_t *) Hunk_Alloc(sizeof(glpoly_t));
+
+	VectorSubtract(verts[2],verts[3],vup);
+	VectorSubtract(verts[2],verts[1],vright);
+
+	di = max((int)r_sky_quality.value, 1);
+	qi = 1.0 / di;
+	dj = (axis < 4) ? di*2 : di; // subdivide vertically more than horizontally on skybox sides
+	qj = 1.0 / dj;
+
+	for (i=0; i<di; i++)
+	{
+		for (j=0; j<dj; j++)
+		{
+			if (i*qi < skymins[0][axis]/2+0.5 - qi || i*qi > skymaxs[0][axis]/2+0.5 ||
+				j*qj < skymins[1][axis]/2+0.5 - qj || j*qj > skymaxs[1][axis]/2+0.5)
+				continue;
+
+			VectorScale (vright, qi*i, temp);
+			VectorScale (vup, qj*j, temp2);
+			VectorAdd(temp,temp2,temp);
+			VectorAdd(verts[0],temp,p->verts[0]);
+
+			VectorScale (vup, qj, temp);
+			VectorAdd (p->verts[0],temp,p->verts[1]);
+
+			VectorScale (vright, qi, temp);
+			VectorAdd (p->verts[1],temp,p->verts[2]);
+
+			VectorAdd (p->verts[0],temp,p->verts[3]);
+
+			Sky_DrawFaceQuad (p);
+		}
+	}
+	Hunk_FreeToLowMark (start);
+}
+
+/*
+==============
+Sky_DrawSkyLayers
+
+draws the old-style scrolling cloud layers
+==============
+*/
+static void Sky_DrawSkyLayers (void)
+{
+	int i;
+
+	if (r_skyalpha.value < 1.0)
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	for (i=0 ; i<6 ; i++)
+		if (skymins[0][i] < skymaxs[0][i] && skymins[1][i] < skymaxs[1][i])
+			Sky_DrawFace (i);
+
+	if (r_skyalpha.value < 1.0)
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+}
+
+/*
+==============
+Sky_DrawSky
+
+called once per frame before drawing anything else
+==============
+*/
+void Sky_DrawSky (void)
 {
 	int			i;
 
@@ -714,26 +915,31 @@ void R_DrawSky (void)
 	}
 
 	// process world and bmodels: draw flat-shaded sky surfs, and update skybounds
+	Fog_DisableGFog ();
 	qglDisable (GL_TEXTURE_2D);
-	qglColor4fv (skyflatcolor);
+	if (Fog_GetDensity() > 0)
+		qglColor4fv (Fog_GetColor());
+	else
+		qglColor4fv (skyflatcolor);
 	Sky_ProcessTextureChains ();
 	Sky_ProcessEntities ();
 	qglColor3f (1, 1, 1);
 	qglEnable (GL_TEXTURE_2D);
 
 	// render slow sky: cloud layers or skybox
-	if (!r_fastsky.value)
+	if (!r_fastsky.value && !(Fog_GetDensity() > 0 && r_skyfog.value >= 1))
 	{
 		qglDepthFunc(GL_GEQUAL);
 		qglDepthMask(0);
 
-		// draw a skybox or cloud layers
-		if (r_skyboxloaded)
-			R_DrawSkyBox ();
+		if (skybox_name[0])
+			Sky_DrawSkyBox ();
 		else
-			R_DrawSkyDome ();
+			Sky_DrawSkyLayers ();
 
 		qglDepthMask(1);
 		qglDepthFunc(GL_LEQUAL);
 	}
+
+	Fog_EnableGFog ();
 }

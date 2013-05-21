@@ -322,7 +322,6 @@ extern int			r_visframecount;
 extern int			r_framecount;
 extern mplane_t		frustum[4];
 
-
 //
 // view origin
 //
@@ -339,8 +338,6 @@ extern	mleaf_t		*r_viewleaf2, *r_oldviewleaf2;	// for watervis hack
 extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
-extern	int	skytexturenum;		// index in cl.loadmodel, not gl texture object
-
 extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;
 extern	cvar_t	r_drawworld;
@@ -356,12 +353,16 @@ extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 extern	cvar_t	r_fastsky;
+extern	cvar_t	r_sky_quality;
+extern	cvar_t	r_skyalpha;
+extern	cvar_t	r_skyfog;
 
 extern	cvar_t	gl_cull;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
 extern	cvar_t	gl_fullbrights;
 extern	cvar_t	gl_overbright;
+extern	cvar_t	gl_farclip;
 
 extern	float	r_lightscale;	// overbright light scale
 
@@ -381,9 +382,6 @@ void GL_DisableMultitexture(void);
 #define OFFSET_SHOWTRIS -3
 void GL_PolygonOffset (int);
 
-//
-// gl_texture.c
-//
 #define TEXPREF_NONE			0x0000
 #define TEXPREF_MIPMAP			0x0001	// generate mipmaps
 #define TEXPREF_LINEAR			0x0002	// force linear
@@ -447,17 +445,22 @@ extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS];
 
 texture_t *R_TextureAnimation (texture_t *base, int frame);
 
-//
-// gl_warp.c
-//
 void R_UpdateWarpTextures (void);
-void R_DrawSky (void);			// skybox or classic sky
-void R_InitSky (texture_t *mt);	// classic Quake sky
-extern qbool	r_skyboxloaded;
+void Sky_DrawSky (void);			// skybox or classic sky
+void Sky_LoadTexture (texture_t *mt);	// classic Quake sky
+void Sky_NewMap (void);
 
-//
-// gl_rmain.c
-//
+float *Fog_GetColor (void);
+float Fog_GetDensity (void);
+void Fog_SetupFrame (void);
+void Fog_EnableGFog (void);
+void Fog_DisableGFog (void);
+void Fog_StartAdditive (void);
+void Fog_StopAdditive (void);
+
+void Fog_Init (void);
+void Fog_NewMap (void);
+
 qbool R_CullBox (vec3_t mins, vec3_t maxs);
 qbool R_CullSphere (vec3_t centre, float radius);
 qbool R_CullModelForEntity (entity_t *e);
@@ -466,25 +469,15 @@ void R_PolyBlend (void);
 void R_MarkSurfaces (void);
 void R_CullSurfaces (void);
 
-// gl_rmisc.c
 void R_ScreenShot_f (void);
 void R_LoadSky_f (void);
 
-//
-// gl_rlight.c
-//
 void R_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void R_AnimateLight (void);
 int R_LightPoint (vec3_t p);
 
-//
-// gl_refrag.c
-//
 void R_StoreEfrags (efrag_t **ppefrag);
 
-//
-// gl_mesh.c
-//
 void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr);
 
 void R_DrawParticles (void);

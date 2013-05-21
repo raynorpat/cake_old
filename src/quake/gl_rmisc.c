@@ -25,7 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <time.h>
 
 extern gltexture_t *playertextures[MAX_CLIENTS];
-int	skytexturenum = -1;
 
 /*
 ===============
@@ -120,12 +119,12 @@ void R_NewMap (struct model_s *worldmodel)
 {
 	int		i;
 
-	R_Modules_NewMap();
-
 	r_worldmodel = worldmodel;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
 	r_worldentity.model = r_worldmodel;
+
+	R_Modules_NewMap();
 
 // clear out efrags in case the level hasn't been reloaded
 // FIXME: is this one short?
@@ -135,18 +134,6 @@ void R_NewMap (struct model_s *worldmodel)
 	r_viewleaf = NULL;
 
 	GL_BuildLightmaps ();
-
-	// identify sky texture
-	for (i = 0; i < r_worldmodel->numtextures; i++)
-	{
-		if (!r_worldmodel->textures[i])
-			continue;
-		if (!strncmp(r_worldmodel->textures[i]->name,"sky",3) )
-			skytexturenum = i;
- 		r_worldmodel->textures[i]->texturechain = NULL;
-	}
-
-	r_skyboxloaded = false;
 }
 
 
@@ -157,7 +144,7 @@ void R_LoadSky_f ()
 		return;
 	}
 
-	R_SetSky (Cmd_Argv(1));
+	Sky_LoadSkyBox (Cmd_Argv(1));
 }
 
 
