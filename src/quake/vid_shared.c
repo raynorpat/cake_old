@@ -144,6 +144,10 @@ void (GLAPIENTRY *qglVertex3fv)(const GLfloat* v);
 void (GLAPIENTRY *qglBegin)(GLenum mode);
 void (GLAPIENTRY *qglEnd)(void);
 
+void (GLAPIENTRY *qglFogf)(GLenum pname, GLfloat param);
+void (GLAPIENTRY *qglFogfv)(GLenum pname, const GLfloat *params);
+void (GLAPIENTRY *qglFogi)(GLenum pname, GLint param);
+
 void (GLAPIENTRY *qglMatrixMode)(GLenum mode);
 void (GLAPIENTRY *qglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near_val, GLdouble far_val);
 void (GLAPIENTRY *qglFrustum)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near_val, GLdouble far_val);
@@ -320,6 +324,9 @@ static dllfunction_t opengl110funcs[] =
 	{"glVertex3fv", (void **) &qglVertex3fv},
 	{"glBegin", (void **) &qglBegin},
 	{"glEnd", (void **) &qglEnd},
+	{"glFogf", (void **) &qglFogf},
+	{"glFogfv", (void **) &qglFogfv},
+	{"glFogi", (void **) &qglFogi},
 	{"glMatrixMode", (void **) &qglMatrixMode},
 	{"glOrtho", (void **) &qglOrtho},
 	{"glFrustum", (void **) &qglFrustum},

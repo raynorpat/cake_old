@@ -236,6 +236,10 @@ extern void (GLAPIENTRY *qglVertex3fv)(const GLfloat* v);
 extern void (GLAPIENTRY *qglBegin)(GLenum mode);
 extern void (GLAPIENTRY *qglEnd)(void);
 
+extern void (GLAPIENTRY *qglFogf)(GLenum pname, GLfloat param);
+extern void (GLAPIENTRY *qglFogfv)(GLenum pname, const GLfloat *params);
+extern void (GLAPIENTRY *qglFogi)(GLenum pname, GLint param);
+
 extern void (GLAPIENTRY *qglMatrixMode)(GLenum mode);
 extern void (GLAPIENTRY *qglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near_val, GLdouble far_val);
 extern void (GLAPIENTRY *qglFrustum)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near_val, GLdouble far_val);
