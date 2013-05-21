@@ -42,10 +42,16 @@ typedef struct mplane_s
 	byte	pad[2];
 } mplane_t;
 
+typedef struct mclipnode_s
+{
+	int			planenum;
+	int			children[2]; // negative numbers are contents
+} mclipnode_t;
+
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
 typedef struct
 {
-	dclipnode_t	*clipnodes;
+	mclipnode_t	*clipnodes;
 	mplane_t	*planes;
 	int			firstclipnode;
 	int			lastclipnode;

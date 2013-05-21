@@ -69,7 +69,7 @@ static int			numplanes;
 static cnode_t		*map_nodes;
 static int			numnodes;
 
-static dclipnode_t	*map_clipnodes;
+static mclipnode_t	*map_clipnodes;
 static int			numclipnodes;
 
 static cleaf_t		*map_leafs;
@@ -98,7 +98,7 @@ HULL BOXES
 */
 
 static hull_t		box_hull;
-static dclipnode_t	box_clipnodes[6];
+static mclipnode_t	box_clipnodes[6];
 static mplane_t		box_planes[6];
 
 /*
@@ -158,7 +158,7 @@ hull_t *CM_HullForBox (vec3_t mins, vec3_t maxs)
 int CM_HullPointContents (hull_t *hull, int num, vec3_t p)
 {
 	float		d;
-	dclipnode_t	*node;
+	mclipnode_t	*node;
 	mplane_t	*plane;
 
 	while (num >= 0)
@@ -199,7 +199,7 @@ static trace_t	trace_trace;
 
 static qbool RecursiveHullTrace (int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
 {
-	dclipnode_t	*node;
+	mclipnode_t	*node;
 	mplane_t	*plane;
 	float		t1, t2;
 	float		frac;
@@ -673,11 +673,20 @@ static void CM_LoadNodes (lump_t *l)
 
 		for (j=0 ; j<2 ; j++)
 		{
-			p = LittleShort (in->children[j]);
-			if (p >= 0)
+			p = (unsigned short)LittleShort (in->children[j]);
+			if (p < count)
 				out->children[j] = map_nodes + p;
 			else
-				out->children[j] = (cnode_t *)(map_leafs + (-1 - p));
+			{
+				p = 65535 - p; // note this uses 65535 intentionally, -1 is leaf 0
+				if (p < numleafs)
+					out->children[j] = (cnode_t *)(map_leafs + p);
+				else
+				{
+					Com_Printf("CM_LoadNodes: invalid leaf index %i (file has only %i leafs)\n", p, numleafs);
+					out->children[j] = (cnode_t *)(map_leafs); // map it to the solid leaf
+				}
+			}
 		}
 	}
 	
@@ -697,7 +706,7 @@ static void CM_LoadLeafs (lump_t *l)
 	if (l->filelen % sizeof(*in))
 		Host_Error ("CM_LoadMap: funny lump size");
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
 	map_leafs = out;
 	numleafs = count;
@@ -718,14 +727,15 @@ CM_LoadClipnodes
 */
 static void CM_LoadClipnodes (lump_t *l)
 {
-	dclipnode_t *in, *out;
+	dclipnode_t *in;
+	mclipnode_t *out;
 	int			i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (dclipnode_t *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 		Host_Error ("CM_LoadMap: funny lump size");
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = (mclipnode_t *) Hunk_AllocName ( count*sizeof(*out), loadname);
 
 	map_clipnodes = out;
 	numclipnodes = count;
@@ -733,8 +743,12 @@ static void CM_LoadClipnodes (lump_t *l)
 	for (i = 0; i < count; i++, out++, in++)
 	{
 		out->planenum = LittleLong(in->planenum);
-		out->children[0] = LittleShort(in->children[0]);
-		out->children[1] = LittleShort(in->children[1]);
+		out->children[0] = (unsigned short)LittleShort(in->children[0]);
+		out->children[1] = (unsigned short)LittleShort(in->children[1]);
+		if (out->children[0] >= count)
+			out->children[0] -= 65536;
+		if (out->children[1] >= count)
+			out->children[1] -= 65536;
 	}
 }
 
@@ -748,12 +762,12 @@ Deplicate the drawing hull structure as a clipping hull
 static void CM_MakeHull0 (void)
 {
 	cnode_t		*in, *child;
-	dclipnode_t *out;
+	mclipnode_t *out;
 	int			i, j, count;
 
 	in = map_nodes;
 	count = numnodes;
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = (mclipnode_t *) Hunk_AllocName ( count*sizeof(*out), loadname);	
 
 	// fix up hull 0 in all cmodels
 	for (i = 0; i < numcmodels; i++) {
