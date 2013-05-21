@@ -22,26 +22,32 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_local.h"
 
 // if window is hidden, don't update screen
-int vid_hidden = true;
+qbool vid_hidden = true;
 // if window is not the active window, don't hog as much CPU time,
 // let go of the mouse, turn off sound, and restore system gamma ramps...
-int vid_activewindow = true;
+qbool vid_activewindow = true;
 // whether to allow use of hwgamma (disabled when window is inactive)
-int vid_allowhwgamma = false;
+qbool vid_allowhwgamma = false;
 
 // we don't know until we try it!
-int vid_hardwaregammasupported = true;
+qbool vid_hardwaregammasupported = true;
 // whether hardware gamma ramps are currently in effect
-int vid_usinghwgamma = false;
+qbool vid_usinghwgamma = false;
 
 unsigned short vid_gammaramps[768];
 unsigned short vid_systemgammaramps[768];
 
 cvar_t vid_fullscreen = {"vid_fullscreen", "0", CVAR_ARCHIVE};
-cvar_t vid_width = {"vid_width", "1024", CVAR_ARCHIVE};
-cvar_t vid_height = {"vid_height", "768", CVAR_ARCHIVE};
+cvar_t vid_width = {"vid_width", "1280", CVAR_ARCHIVE};
+cvar_t vid_height = {"vid_height", "720", CVAR_ARCHIVE};
+cvar_t vid_refreshrate = {"vid_refreshrate", "60", CVAR_ARCHIVE};
+cvar_t vid_userefreshrate = {"vid_userefreshrate", "0", CVAR_ARCHIVE};
+cvar_t vid_samples = {"vid_samples", "1", CVAR_ARCHIVE};
+
+cvar_t vid_vsync = {"vid_vsync", "0", CVAR_ARCHIVE};
 cvar_t vid_mouse = {"vid_mouse", "1", CVAR_ARCHIVE};
-cvar_t vid_vsync = {"vid_vsync", "1", CVAR_ARCHIVE};
+cvar_t vid_minwidth = {"vid_minwidth", "0"};
+cvar_t vid_minheight = {"vid_minheight", "0"};
 
 cvar_t v_gamma = {"v_gamma", "1", CVAR_ARCHIVE};
 cvar_t v_contrast = {"v_contrast", "1", CVAR_ARCHIVE};
@@ -524,25 +530,22 @@ void VID_RestoreSystemGamma(void)
 	}
 }
 
-int current_vid_fullscreen;
-int current_vid_width;
-int current_vid_height;
-extern int VID_InitMode (int fullscreen, int width, int height);
-int VID_Mode(int fullscreen, int width, int height)
+extern int VID_InitMode (int fullscreen, int width, int height, int refreshrate);
+int VID_Mode(int fullscreen, int width, int height, int refreshrate)
 {
-	if (fullscreen)
-		Com_Printf("Video: %dx%d fullscreen\n", width, height);
-	else
-		Com_Printf("Video: %dx%d windowed\n", width, height);
-
-	if (VID_InitMode(fullscreen, width, height))
+	Com_Printf("Video: %s %dx%dx%dhz\n", fullscreen ? "fullscreen" : "window", width, height, refreshrate);
+	if (VID_InitMode(fullscreen, width, height, vid_userefreshrate.value ? max(1, refreshrate) : 0))
 	{
-		current_vid_fullscreen = fullscreen;
-		current_vid_width = width;
-		current_vid_height = height;
+		vid.fullscreen = fullscreen;
+		vid.width = width;
+		vid.height = height;
+		vid.refreshrate = refreshrate;
+		vid.userefreshrate = vid_userefreshrate.value;
 		Cvar_SetValue(&vid_fullscreen, fullscreen);
 		Cvar_SetValue(&vid_width, width);
 		Cvar_SetValue(&vid_height, height);
+		if(vid_userefreshrate.value)
+			Cvar_SetValue(&vid_refreshrate, refreshrate);
 		return true;
 	}
 	else
@@ -564,8 +567,13 @@ void VID_Shared_Init(void)
 	Cvar_Register(&vid_fullscreen);
 	Cvar_Register(&vid_width);
 	Cvar_Register(&vid_height);
-	Cvar_Register(&vid_mouse);
+	Cvar_Register(&vid_refreshrate);
+	Cvar_Register(&vid_userefreshrate);
 	Cvar_Register(&vid_vsync);
+	Cvar_Register(&vid_samples);
+	Cvar_Register(&vid_mouse);
+	Cvar_Register(&vid_minwidth);
+	Cvar_Register(&vid_minheight);
 
 	Cmd_AddCommand("vid_restart", VID_Restart_f);
 	
@@ -595,14 +603,14 @@ void VID_Restart_f(void)
 	Cmd_ExecuteString("disconnect");
 
 	Com_Printf("VID_Restart: changing from %s %dx%d, to %s %dx%d.\n",
-		current_vid_fullscreen ? "fullscreen" : "window", current_vid_width, current_vid_height, 
-		vid_fullscreen.value ? "fullscreen" : "window", vid_width.value, vid_height.value);
+		vid.fullscreen ? "fullscreen" : "window", vid.width, vid.height, 
+		vid_fullscreen.value ? "fullscreen" : "window", (int)vid_width.value, (int)vid_height.value);
 	VID_CloseSystems();
 	VID_Shutdown();
-	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
+	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value, vid_refreshrate.value))
 	{
 		Com_Printf("Video mode change failed\n");
-		if (!VID_Mode(current_vid_fullscreen, current_vid_width, current_vid_height))
+		if (!VID_Mode(vid.fullscreen, vid.width, vid.height, vid.refreshrate))
 			Sys_Error("Unable to restore to last working video mode\n");
 	}
 	Cache_Flush ();
@@ -613,13 +621,13 @@ void VID_Restart_f(void)
 void VID_Start(void)
 {
 	Com_Printf("Starting video system\n");
-	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value))
+	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value, vid_refreshrate.value))
 	{
 		Com_Printf("Desired video mode failed, trying fallbacks...\n");
 		if (vid_fullscreen.value)
 		{
-			if (!VID_Mode(true, 640, 480))
-				if (!VID_Mode(false, 640, 480))
+			if (!VID_Mode(true, 640, 480, 60))
+				if (!VID_Mode(false, 640, 480, 60))
 					Sys_Error("Video modes failed\n");
 		}
 		else
@@ -629,4 +637,68 @@ void VID_Start(void)
 	}
 
 	VID_OpenSystems();
+}
+
+int VID_SortModes_Compare(const void *a_, const void *b_)
+{
+	vid_mode_t *a = (vid_mode_t *) a_;
+	vid_mode_t *b = (vid_mode_t *) b_;
+	if(a->width > b->width)
+		return +1;
+	if(a->width < b->width)
+		return -1;
+	if(a->height > b->height)
+		return +1;
+	if(a->height < b->height)
+		return -1;
+	if(a->refreshrate > b->refreshrate)
+		return +1;
+	if(a->refreshrate < b->refreshrate)
+		return -1;
+	if(a->bpp > b->bpp)
+		return +1;
+	if(a->bpp < b->bpp)
+		return -1;
+	if(a->pixelheight_num * b->pixelheight_denom > a->pixelheight_denom * b->pixelheight_num)
+		return +1;
+	if(a->pixelheight_num * b->pixelheight_denom < a->pixelheight_denom * b->pixelheight_num)
+		return -1;
+	return 0;
+}
+
+size_t VID_SortModes(vid_mode_t *modes, size_t count, qbool usebpp, qbool userefreshrate, qbool useaspect)
+{
+	size_t i;
+	if(count == 0)
+		return 0;
+	// 1. sort them
+	qsort(modes, count, sizeof(*modes), VID_SortModes_Compare);
+	// 2. remove duplicates
+	for(i = 0; i < count; ++i)
+	{
+		if(modes[i].width && modes[i].height)
+		{
+			if(i == 0)
+				continue;
+			if(modes[i].width != modes[i-1].width)
+				continue;
+			if(modes[i].height != modes[i-1].height)
+				continue;
+			if(userefreshrate)
+				if(modes[i].refreshrate != modes[i-1].refreshrate)
+					continue;
+			if(usebpp)
+				if(modes[i].bpp != modes[i-1].bpp)
+					continue;
+			if(useaspect)
+				if(modes[i].pixelheight_num * modes[i-1].pixelheight_denom != modes[i].pixelheight_denom * modes[i-1].pixelheight_num)
+					continue;
+		}
+		// a dupe, or a bogus mode!
+		if(i < count-1)
+			memmove(&modes[i], &modes[i+1], sizeof(*modes) * (count-1 - i));
+		--i; // check this index again, as mode i+1 is now here
+		--count;
+	}
+	return count;
 }

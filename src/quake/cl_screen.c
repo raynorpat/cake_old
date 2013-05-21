@@ -326,8 +326,6 @@ void SCR_CalcRefdef (void)
 
 	size /= 100.0;
 
-	VID_GetWindowSize (&vid.realx, &vid.realy, &vid.realwidth, &vid.realheight);
-
 	scr_vrect.width = (int)(vid.width * size + 1.0) & ~1;
 	if (scr_vrect.width < 96) {
 		size = 96.0 / scr_vrect.width;

@@ -245,7 +245,7 @@ void R_UpdateWarpTextures (void)
 
 		// copy to texture
 		GL_Bind (tx->warpimage->texnum);
-		qglCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, vid.realheight-gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
+		qglCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, vid.height-gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
 
 		tx->update_warp = false;
 	}

@@ -109,6 +109,14 @@ void M_PrintWhite (int cx, int cy, char *str)
 	R_DrawString (cx, cy, str);
 }
 
+static void M_ItemPrint(int cx, int cy, char *str, int unghosted)
+{
+	if (unghosted)
+		Draw_Alt_String (cx, cy, str);
+	else
+		R_DrawString (cx, cy, str);
+}
+
 void M_DrawPic (int x, int y, qpic_t *pic)
 {
 	R_DrawPic (x, y, pic);
@@ -398,6 +406,26 @@ void M_DrawSlider (int x, int y, float range)
 		M_DrawChar (x + i*8, y, 129);
 	M_DrawChar (x+i*8, y, 130);
 	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
+}
+
+#define	SLIDER_RANGE	10
+
+static void M_DrawRangeSlider (int x, int y, float num, float rangemin, float rangemax)
+{
+	char text[16];
+	int i;
+	float range;
+	range = bound(0, (num - rangemin) / (rangemax - rangemin), 1);
+	M_DrawChar (x-8, y, 128);
+	for (i = 0;i < SLIDER_RANGE;i++)
+		M_DrawChar (x + i*8, y, 129);
+	M_DrawChar (x+i*8, y, 130);
+	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
+	if (fabs((int)num - num) < 0.01)
+		Q_snprintfz(text, sizeof(text), "%i", (int)num);
+	else
+		Q_snprintfz(text, sizeof(text), "%.3f", num);
+	M_Print(x + (SLIDER_RANGE+2) * 8, y, text);
 }
 
 void M_DrawCheckbox (int x, int y, int on)
@@ -945,97 +973,198 @@ void M_Fps_Key (int k)
 //=============================================================================
 /* VIDEO MENU */
 
-#define VIDEO_ITEMS 4
+typedef struct video_resolution_s
+{
+	const char *type;
+	int width, height;
+	int conwidth, conheight;
+	double pixelheight; // pixel aspect
+} video_resolution_t;
 
-int video_cursor = 0;
-int video_cursor_table[] = {56, 68, 80, 100};
-// note: if modes are added to the beginning of this list, update the
-// video_resolution = x; in M_Menu_Video_f below
-unsigned short video_resolutions[][2] = {{320,240}, {400,300}, {512,384}, {640,480}, {800,600}, {1024,768}, {1152,864}, {1280,960}, {1280,1024}, {1600,1200}, {1792,1344}, {1920,1440}, {2048,1536}};
-int video_resolution;
+static video_resolution_t video_resolutions_hardcoded[] =
+{
+{"Standard 4x3"              ,  320, 240, 320, 240, 1     },
+{"Standard 4x3"              ,  400, 300, 400, 300, 1     },
+{"Standard 4x3"              ,  512, 384, 512, 384, 1     },
+{"Standard 4x3"              ,  640, 480, 640, 480, 1     },
+{"Standard 4x3"              ,  800, 600, 640, 480, 1     },
+{"Standard 4x3"              , 1024, 768, 640, 480, 1     },
+{"Standard 4x3"              , 1152, 864, 640, 480, 1     },
+{"Standard 4x3"              , 1280, 960, 640, 480, 1     },
+{"Standard 4x3"              , 1400,1050, 640, 480, 1     },
+{"Standard 4x3"              , 1600,1200, 640, 480, 1     },
+{"Standard 4x3"              , 1792,1344, 640, 480, 1     },
+{"Standard 4x3"              , 1856,1392, 640, 480, 1     },
+{"Standard 4x3"              , 1920,1440, 640, 480, 1     },
+{"Standard 4x3"              , 2048,1536, 640, 480, 1     },
+{"Short Pixel (CRT) 5x4"     ,  320, 256, 320, 256, 0.9375},
+{"Short Pixel (CRT) 5x4"     ,  640, 512, 640, 512, 0.9375},
+{"Short Pixel (CRT) 5x4"     , 1280,1024, 640, 512, 0.9375},
+{"Tall Pixel (CRT) 8x5"      ,  320, 200, 320, 200, 1.2   },
+{"Tall Pixel (CRT) 8x5"      ,  640, 400, 640, 400, 1.2   },
+{"Tall Pixel (CRT) 8x5"      ,  840, 525, 640, 400, 1.2   },
+{"Tall Pixel (CRT) 8x5"      ,  960, 600, 640, 400, 1.2   },
+{"Tall Pixel (CRT) 8x5"      , 1680,1050, 640, 400, 1.2   },
+{"Tall Pixel (CRT) 8x5"      , 1920,1200, 640, 400, 1.2   },
+{"Square Pixel (LCD) 5x4"    ,  320, 256, 320, 256, 1     },
+{"Square Pixel (LCD) 5x4"    ,  640, 512, 640, 512, 1     },
+{"Square Pixel (LCD) 5x4"    , 1280,1024, 640, 512, 1     },
+{"WideScreen 5x3"            ,  640, 384, 640, 384, 1     },
+{"WideScreen 5x3"            , 1280, 768, 640, 384, 1     },
+{"WideScreen 8x5"            ,  320, 200, 320, 200, 1     },
+{"WideScreen 8x5"            ,  640, 400, 640, 400, 1     },
+{"WideScreen 8x5"            ,  720, 450, 720, 450, 1     },
+{"WideScreen 8x5"            ,  840, 525, 640, 400, 1     },
+{"WideScreen 8x5"            ,  960, 600, 640, 400, 1     },
+{"WideScreen 8x5"            , 1280, 800, 640, 400, 1     },
+{"WideScreen 8x5"            , 1440, 900, 720, 450, 1     },
+{"WideScreen 8x5"            , 1680,1050, 640, 400, 1     },
+{"WideScreen 8x5"            , 1920,1200, 640, 400, 1     },
+{"WideScreen 8x5"            , 2560,1600, 640, 400, 1     },
+{"WideScreen 8x5"            , 3840,2400, 640, 400, 1     },
+{"WideScreen 14x9"           ,  840, 540, 640, 400, 1     },
+{"WideScreen 14x9"           , 1680,1080, 640, 400, 1     },
+{"WideScreen 16x9"           ,  640, 360, 640, 360, 1     },
+{"WideScreen 16x9"           ,  683, 384, 683, 384, 1     },
+{"WideScreen 16x9"           ,  960, 540, 640, 360, 1     },
+{"WideScreen 16x9"           , 1280, 720, 640, 360, 1     },
+{"WideScreen 16x9"           , 1360, 768, 680, 384, 1     },
+{"WideScreen 16x9"           , 1366, 768, 683, 384, 1     },
+{"WideScreen 16x9"           , 1920,1080, 640, 360, 1     },
+{"WideScreen 16x9"           , 2560,1440, 640, 360, 1     },
+{"WideScreen 16x9"           , 3840,2160, 640, 360, 1     },
+{"NTSC 3x2"                  ,  360, 240, 360, 240, 1.125 },
+{"NTSC 3x2"                  ,  720, 480, 720, 480, 1.125 },
+{"PAL 14x11"                 ,  360, 283, 360, 283, 0.9545},
+{"PAL 14x11"                 ,  720, 566, 720, 566, 0.9545},
+{"NES 8x7"                   ,  256, 224, 256, 224, 1.1667},
+{"SNES 8x7"                  ,  512, 448, 512, 448, 1.1667},
+{NULL, 0, 0, 0, 0, 0}
+};
+// this is the number of the default mode (640x480) in the list above
 
-extern int current_vid_fullscreen;
-extern int current_vid_width;
-extern int current_vid_height;
+#define VIDEO_ITEMS 7
+static int video_cursor = 0;
+static int video_cursor_table[VIDEO_ITEMS] = {68, 88, 96, 104, 112, 120, 128};
+static int video_resolution;
+
+video_resolution_t *video_resolutions;
+int video_resolutions_count;
 
 void M_Menu_Video_f (void)
 {
+	int i;
+
 	M_EnterMenu (m_video);
 
-	// Look for the current resolution
-	for (video_resolution = 0; video_resolution < (int) (sizeof (video_resolutions) / sizeof (video_resolutions[0])); video_resolution++)
+	// Look for the closest match to the current resolution
+	video_resolution = 0;
+	for (i = 1;i < video_resolutions_count;i++)
 	{
-		if (video_resolutions[video_resolution][0] == current_vid_width &&
-			video_resolutions[video_resolution][1] == current_vid_height)
-			break;
-	}
-
-	// Default to 800x600 if we didn't find it
-	if (video_resolution == sizeof (video_resolutions) / sizeof (video_resolutions[0]))
-	{
-		// may need to update this number if mode list changes
-		video_resolution = 4;
-		Cvar_SetValue (&vid_width, video_resolutions[video_resolution][0]);
-		Cvar_SetValue (&vid_height, video_resolutions[video_resolution][1]);
+		// if the new mode would be a worse match in width, skip it
+		if (fabs(video_resolutions[i].width - vid.width) > fabs(video_resolutions[video_resolution].width - vid.width))
+			continue;
+		// if it is equal in width, check height
+		if (video_resolutions[i].width == vid.width && video_resolutions[video_resolution].width == vid.width)
+		{
+			// if the new mode would be a worse match in height, skip it
+			if (fabs(video_resolutions[i].height - vid.height) > fabs(video_resolutions[video_resolution].height - vid.height))
+				continue;
+			// better match for width and height
+			video_resolution = i;
+		}
+		else // better match for width
+			video_resolution = i;
 	}
 }
 
 void M_Video_Draw (void)
 {
 	qpic_t	*p;
-	char	*string;
+	int t;
 
 	M_DrawPic(16, 4, R_CachePic("gfx/qplaque.lmp"));
 	p = R_CachePic("gfx/vidmodes.lmp");
 	M_DrawPic((320-p->width)/2, 4, p);
 
-	// resolution
-	M_Print(16, video_cursor_table[0], "            Resolution");
-	string = va("%dx%d", video_resolutions[video_resolution][0], video_resolutions[video_resolution][1]);
-	M_Print (220, video_cursor_table[0], string);
+	t = 0;
 
-	// fullscreen
-	M_Print(16, video_cursor_table[1], "            Fullscreen");
-	M_DrawCheckbox(220, video_cursor_table[1], vid_fullscreen.value);
+	// Current and Proposed Resolution
+	M_Print(16, video_cursor_table[t] - 12, "    Current Resolution");
+	if (vid_supportrefreshrate && vid.userefreshrate && vid.fullscreen)
+		M_Print(220, video_cursor_table[t] - 12, va("%dx%d %dhz", vid.width, vid.height, vid.refreshrate));
+	else
+		M_Print(220, video_cursor_table[t] - 12, va("%dx%d", vid.width, vid.height));
+	M_Print(16, video_cursor_table[t], "        New Resolution");
+	M_Print(220, video_cursor_table[t], va("%dx%d", video_resolutions[video_resolution].width, video_resolutions[video_resolution].height));
+	M_Print(96, video_cursor_table[t] + 8, va("Type: %s", video_resolutions[video_resolution].type));
+	t++;
 
-	// "Apply" button
-	M_PrintWhite(220, video_cursor_table[2], "Apply");
+	// Antialiasing
+	M_Print(16, video_cursor_table[t], "          Antialiasing");
+	M_DrawRangeSlider(220, video_cursor_table[t], vid_samples.value, 1, 32);
+	t++;
+
+	// Refresh Rate
+	M_ItemPrint(16, video_cursor_table[t], "      Use Refresh Rate", vid_supportrefreshrate);
+	M_DrawCheckbox(220, video_cursor_table[t], vid_userefreshrate.value);
+	t++;
+
+	// Refresh Rate
+	M_ItemPrint(16, video_cursor_table[t], "          Refresh Rate", vid_supportrefreshrate && vid_userefreshrate.value);
+	M_DrawRangeSlider(220, video_cursor_table[t], vid_refreshrate.value, 60, 150);
+	t++;
+
+	// Fullscreen
+	M_Print(16, video_cursor_table[t], "            Fullscreen");
+	M_DrawCheckbox(220, video_cursor_table[t], vid_fullscreen.value);
+	t++;
 
 	// Vertical Sync
-	M_Print(16, video_cursor_table[3], "         Vertical Sync");
-	M_DrawCheckbox(220, video_cursor_table[3], vid_vsync.value);
+	M_ItemPrint(16, video_cursor_table[t], "         Vertical Sync", gl_videosyncavailable);
+	M_DrawCheckbox(220, video_cursor_table[t], vid_vsync.value);
+	t++;
 
-	// cursor
-	M_DrawChar(200, video_cursor_table[video_cursor], 12+((int)(curtime*4)&1));
+	// "Apply" button
+	M_Print(220, video_cursor_table[t], "Apply");
+	t++;
+
+	// Cursor
+	M_DrawChar(200, video_cursor_table[video_cursor], 12+((int)(cl.time*4)&1));
 }
 
 void M_Menu_Video_AdjustSliders (int dir)
 {
+	int t;
+
 	S_LocalSound ("misc/menu3.wav");
 
-	switch (video_cursor)
+	t = 0;
+	if (video_cursor == t++)
 	{
 		// Resolution
-		case 0:
+		int r;
+		for(r = 0;r < video_resolutions_count;r++)
 		{
-			int new_resolution = video_resolution + dir;
-			if (new_resolution < 0)
-				video_resolution = sizeof (video_resolutions) / sizeof (video_resolutions[0]) - 1;
-			else if (new_resolution > (int) (sizeof (video_resolutions) / sizeof (video_resolutions[0]) - 1))
+			video_resolution += dir;
+			if (video_resolution >= video_resolutions_count)
 				video_resolution = 0;
-			else
-				video_resolution = new_resolution;
-
-			Cvar_SetValue (&vid_width, video_resolutions[video_resolution][0]);
-			Cvar_SetValue (&vid_height, video_resolutions[video_resolution][1]);
-			break;
+			if (video_resolution < 0)
+				video_resolution = video_resolutions_count - 1;
+			if (video_resolutions[video_resolution].width >= vid_minwidth.value && video_resolutions[video_resolution].height >= vid_minheight.value)
+				break;
 		}
-
-		// Fullscreen
-		case 1:
-			Cvar_SetValue (&vid_fullscreen, !vid_fullscreen.value);
-			break;
 	}
+	else if (video_cursor == t++)
+		Cvar_SetValue (&vid_samples, bound(1, vid_samples.value * (dir > 0 ? 2 : 0.5), 32));
+	else if (video_cursor == t++)
+		Cvar_SetValue (&vid_userefreshrate, !vid_userefreshrate.value);
+	else if (video_cursor == t++)
+		Cvar_SetValue (&vid_refreshrate, bound(60, vid_refreshrate.value + dir, 150));
+	else if (video_cursor == t++)
+		Cvar_SetValue (&vid_fullscreen, !vid_fullscreen.value);
+	else if (video_cursor == t++)
+		Cvar_SetValue (&vid_vsync, !vid_vsync.value);
 }
 
 void M_Video_Key (int key)
@@ -1043,9 +1172,12 @@ void M_Video_Key (int key)
 	switch (key)
 	{
 		case K_ESCAPE:
-			Cvar_SetValue(&vid_fullscreen, current_vid_fullscreen);
-			Cvar_SetValue(&vid_width, current_vid_width);
-			Cvar_SetValue(&vid_height, current_vid_height);
+			// vid_shared.c has a copy of the current video config. We restore it
+			Cvar_SetValue(&vid_fullscreen, vid.fullscreen);
+			Cvar_SetValue(&vid_samples, vid.samples);
+			if (vid_supportrefreshrate)
+				Cvar_SetValue(&vid_refreshrate, vid.refreshrate);
+			Cvar_SetValue(&vid_userefreshrate, vid.userefreshrate);
 
 			S_LocalSound ("misc/menu1.wav");
 			M_Menu_Options_f ();
@@ -1055,12 +1187,14 @@ void M_Video_Key (int key)
 			m_entersound = true;
 			switch (video_cursor)
 			{
-				case 2:
+				case (VIDEO_ITEMS - 1):
+					Cvar_SetValue (&vid_width, video_resolutions[video_resolution].width);
+					Cvar_SetValue (&vid_height, video_resolutions[video_resolution].height);
+					//Cvar_SetValue (&vid_conwidth, video_resolutions[video_resolution].conwidth);
+					//Cvar_SetValue (&vid_conheight, video_resolutions[video_resolution].conheight);
+					//Cvar_SetValue (&vid_pixelheight, video_resolutions[video_resolution].pixelheight);
 					Cbuf_AddText ("vid_restart\n");
 					M_Menu_Options_f ();
-					break;
-				case 3:
-					Cvar_SetValue (&vid_vsync, !vid_vsync.value);
 					break;
 				default:
 					M_Menu_Video_AdjustSliders (1);
@@ -2576,6 +2710,126 @@ void M_Setup_Key (int k)
 
 void M_Init (void)
 {
+	vid_mode_t res[1024];
+	size_t res_count, i;
+
+	res_count = VID_ListModes(res, sizeof(res) / sizeof(*res));
+	res_count = VID_SortModes(res, res_count, false, false, true);
+	if(res_count)
+	{
+		video_resolutions_count = res_count;
+		video_resolutions = (video_resolution_t *) malloc(sizeof(*video_resolutions) * (video_resolutions_count + 1));
+		memset(&video_resolutions[video_resolutions_count], 0, sizeof(video_resolutions[video_resolutions_count]));
+		for(i = 0; i < res_count; ++i)
+		{
+			int n, d, t;
+			video_resolutions[i].type = "Detected mode"; // FIXME make this more dynamic
+			video_resolutions[i].width = res[i].width;
+			video_resolutions[i].height = res[i].height;
+			video_resolutions[i].pixelheight = res[i].pixelheight_num / (double) res[i].pixelheight_denom;
+			n = res[i].pixelheight_denom * video_resolutions[i].width;
+			d = res[i].pixelheight_num * video_resolutions[i].height;
+			while(d)
+			{
+				t = n;
+				n = d;
+				d = t % d;
+			}
+			d = (res[i].pixelheight_num * video_resolutions[i].height) / n;
+			n = (res[i].pixelheight_denom * video_resolutions[i].width) / n;
+			switch(n * 0x10000 | d)
+			{
+				case 0x00040003:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 480;
+					video_resolutions[i].type = "Standard 4x3";
+					break;
+				case 0x00050004:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 512;
+					if(res[i].pixelheight_denom == res[i].pixelheight_num)
+						video_resolutions[i].type = "Square Pixel (LCD) 5x4";
+					else
+						video_resolutions[i].type = "Short Pixel (CRT) 5x4";
+					break;
+				case 0x00080005:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 400;
+					if(res[i].pixelheight_denom == res[i].pixelheight_num)
+						video_resolutions[i].type = "Widescreen 8x5";
+					else
+						video_resolutions[i].type = "Tall Pixel (CRT) 8x5";
+
+					break;
+				case 0x00050003:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 384;
+					video_resolutions[i].type = "Widescreen 5x3";
+					break;
+				case 0x000D0009:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 400;
+					video_resolutions[i].type = "Widescreen 14x9";
+					break;
+				case 0x00100009:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 480;
+					video_resolutions[i].type = "Widescreen 16x9";
+					break;
+				case 0x00030002:
+					video_resolutions[i].conwidth = 720;
+					video_resolutions[i].conheight = 480;
+					video_resolutions[i].type = "NTSC 3x2";
+					break;
+				case 0x000D000B:
+					video_resolutions[i].conwidth = 720;
+					video_resolutions[i].conheight = 566;
+					video_resolutions[i].type = "PAL 14x11";
+					break;
+				case 0x00080007:
+					if(video_resolutions[i].width >= 512)
+					{
+						video_resolutions[i].conwidth = 512;
+						video_resolutions[i].conheight = 448;
+						video_resolutions[i].type = "SNES 8x7";
+					}
+					else
+					{
+						video_resolutions[i].conwidth = 256;
+						video_resolutions[i].conheight = 224;
+						video_resolutions[i].type = "NES 8x7";
+					}
+					break;
+				default:
+					video_resolutions[i].conwidth = 640;
+					video_resolutions[i].conheight = 640 * d / n;
+					video_resolutions[i].type = "Detected mode";
+					break;
+			}
+			if(video_resolutions[i].conwidth > video_resolutions[i].width || video_resolutions[i].conheight > video_resolutions[i].height)
+			{
+				double f1, f2;
+				f1 = video_resolutions[i].conwidth > video_resolutions[i].width;
+				f2 = video_resolutions[i].conheight > video_resolutions[i].height;
+				if(f1 > f2)
+				{
+					video_resolutions[i].conwidth = video_resolutions[i].width;
+					video_resolutions[i].conheight = video_resolutions[i].conheight / f1;
+				}
+				else
+				{
+					video_resolutions[i].conwidth = video_resolutions[i].conwidth / f2;
+					video_resolutions[i].conheight = video_resolutions[i].height;
+				}
+			}
+		}
+	}
+	else
+	{
+		video_resolutions = video_resolutions_hardcoded;
+		video_resolutions_count = sizeof(video_resolutions_hardcoded) / sizeof(*video_resolutions_hardcoded) - 1;
+	}
+
 	Cvar_Register (&scr_menuscale);
 
 	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);

@@ -36,6 +36,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 	LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
 
+qbool vid_supportrefreshrate = true;
+
 static int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
 static int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
 //static int (WINAPI *qwglGetPixelFormat)(HDC);
@@ -72,7 +74,7 @@ static dllfunction_t wglswapintervalfuncs[] =
 	{NULL, NULL}
 };
 
-static DEVMODE	gdevmode;
+static DEVMODE	gdevmode, initialdevmode;;
 static qbool	vid_initialized = false;
 static qbool	vid_wassuspended = false;
 static qbool 	vid_usingmouse = false;
@@ -91,8 +93,8 @@ static int vid_isfullscreen;
 
 //====================================
 
-int window_x, window_y, window_width, window_height;
-int window_center_x, window_center_y;
+int window_x, window_y;
+
 unsigned int uiWheelMessage = (unsigned int)0;
 
 static void IN_Activate (qbool grab);
@@ -168,6 +170,8 @@ cvar_t	joy_pitchsensitivity = {"joypitchsensitivity", "1.0"};
 cvar_t	joy_yawsensitivity = {"joyyawsensitivity", "-1.0"};
 cvar_t	joy_wwhack1 = {"joywwhack1", "0.0"};
 cvar_t	joy_wwhack2 = {"joywwhack2", "0.0"};
+
+cvar_t vid_forcerefreshrate = {"vid_forcerefreshrate", "0"};
 
 static qbool	joy_avail = false, joy_advancedinit = false, joy_haspov = false;
 static DWORD	joy_oldbuttonstate, joy_oldpovstate;
@@ -250,42 +254,6 @@ void VID_SetCaption (char *text)
 	if (vid_initialized)
 		SetWindowText (mainwindow, text);
 }
-
-/*
-================
-VID_UpdateWindowStatus
-================
-*/
-void VID_UpdateWindowStatus (void)
-{
-	window_center_x = window_x + window_width / 2;
-	window_center_y = window_y + window_height / 2;
-
-	if (mouseinitialized && mouseactive && !dinput)
-	{
-		RECT window_rect;
-		window_rect.left = window_x;
-		window_rect.top = window_y;
-		window_rect.right = window_x + window_width;
-		window_rect.bottom = window_y + window_height;
-		ClipCursor (&window_rect);
-	}
-}
-
-/*
-=================
-VID_GetWindowSize
-=================
-*/
-void VID_GetWindowSize (int *x, int *y, int *width, int *height)
-{
-	*x = 0;
-	*y = 0;
-	*width = window_width;
-	*height = window_height;
-}
-
-//====================================
 
 void VID_Finish (void)
 {
@@ -511,7 +479,7 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM lParam)
 		case WM_MOVE:
 			window_x = (int) LOWORD(lParam);
 			window_y = (int) HIWORD(lParam);
-			VID_UpdateWindowStatus ();
+			IN_Activate(false);
 			break;
 
 		case WM_KEYDOWN:
@@ -659,10 +627,13 @@ void VID_Init (void)
 	if (!RegisterClass (&wc))
 		Sys_Error("Couldn't register window class\n");
 
+	memset(&initialdevmode, 0, sizeof(initialdevmode));
+	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &initialdevmode);
+
 	IN_Init();
 }
 
-int VID_InitMode (int fullscreen, int width, int height)
+int VID_InitMode (int fullscreen, int width, int height, int refreshrate)
 {
 	int i;
 	HDC hdc;
@@ -693,6 +664,8 @@ int VID_InitMode (int fullscreen, int width, int height)
 	DWORD WindowStyle, ExWindowStyle;
 	int CenterX, CenterY;
 	const char *gldrivername;
+	DEVMODE thismode;
+	qbool foundmode, foundgoodmode;
 
 	if (vid_initialized)
 		Sys_Error("VID_InitMode called when video is already initialised\n");
@@ -718,12 +691,72 @@ int VID_InitMode (int fullscreen, int width, int height)
 	vid_isfullscreen = false;
 	if (fullscreen)
 	{
-		gdevmode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
-		gdevmode.dmBitsPerPel = 32;
-		gdevmode.dmPelsWidth = width;
-		gdevmode.dmPelsHeight = height;
-		gdevmode.dmSize = sizeof (gdevmode);
-		if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
+		if(vid_forcerefreshrate.value)
+		{
+			foundmode = true;
+			gdevmode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
+			gdevmode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+			gdevmode.dmBitsPerPel = 32;
+			gdevmode.dmPelsWidth = width;
+			gdevmode.dmPelsHeight = height;
+			gdevmode.dmSize = sizeof (gdevmode);
+			if(refreshrate)
+			{
+				gdevmode.dmFields |= DM_DISPLAYFREQUENCY;
+				gdevmode.dmDisplayFrequency = refreshrate;
+			}
+		}
+		else
+		{
+			if(refreshrate == 0)
+				refreshrate = initialdevmode.dmDisplayFrequency; // default vid_refreshrate to the rate of the desktop
+
+			foundmode = false;
+			foundgoodmode = false;
+
+			thismode.dmSize = sizeof(thismode);
+			thismode.dmDriverExtra = 0;
+			for(i = 0; EnumDisplaySettings(NULL, i, &thismode); ++i)
+			{
+				if(~thismode.dmFields & (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY))
+				{
+					Com_DPrintf("enumerating modes yielded a bogus item... please debug this\n");
+					continue;
+				}
+				if(thismode.dmPelsWidth != (DWORD)width)
+					continue;
+				if(thismode.dmPelsHeight != (DWORD)height)
+					continue;
+
+				if(foundgoodmode)
+				{
+					// if we have a good mode, make sure this mode is better than the previous one, and allowed by the refreshrate
+					if(thismode.dmDisplayFrequency > (DWORD)refreshrate)
+						continue;
+					else if(thismode.dmDisplayFrequency <= gdevmode.dmDisplayFrequency)
+						continue;
+				}
+				else if(foundmode)
+				{
+					// we do have one, but it isn't good... make sure it has a lower frequency than the previous one
+					if(thismode.dmDisplayFrequency >= gdevmode.dmDisplayFrequency)
+						continue;
+				}
+				// otherwise, take anything
+				memcpy(&gdevmode, &thismode, sizeof(gdevmode));
+				if(thismode.dmDisplayFrequency <= (DWORD)refreshrate)
+					foundgoodmode = true;
+				foundmode = true;
+			}
+		}
+
+		if (!foundmode)
+		{
+			 VID_Shutdown();
+			 Com_Printf("Unable to find the requested mode %dx%d\n", width, height);
+			 return false;
+		}
+		else if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
 		{
 			VID_Shutdown();
 			Com_Printf("Unable to change to requested mode %dx%dx\n", width, height);
@@ -772,8 +805,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 	// x and y may be changed by WM_MOVE messages
 	window_x = CenterX;
 	window_y = CenterY;
-	window_width = width;
-	window_height = height;
 	rect.left += CenterX;
 	rect.right += CenterX;
 	rect.top += CenterY;
@@ -789,8 +820,6 @@ int VID_InitMode (int fullscreen, int width, int height)
 
 	ShowWindow (mainwindow, SW_SHOWDEFAULT);
 	UpdateWindow (mainwindow);
-
-	VID_UpdateWindowStatus ();
 
 	// now we try to make sure we get the focus on the mode switch, because
 	// sometimes in some systems we don't.  We grab the foreground, then
@@ -1245,12 +1274,12 @@ static void IN_MouseMove (usercmd_t *cmd)
 	else
 	{
 		GetCursorPos (&current_pos);
-		mx = current_pos.x - window_center_x;
-		my = current_pos.y - window_center_y;
+		mx = current_pos.x - (window_x + vid.width / 2);
+		my = current_pos.y - (window_y + vid.height / 2);
 
 		// if the mouse has moved, force it to the center, so there's room to move
 		if (mx || my)
-			SetCursorPos (window_center_x, window_center_y);
+			SetCursorPos ((window_x + vid.width / 2), (window_y + vid.height / 2));
 	}
 
 	if (m_filter.value)
@@ -2049,6 +2078,8 @@ static void IN_Init(void)
 	Cvar_Register (&joy_wwhack1);
 	Cvar_Register (&joy_wwhack2);
 
+	Cvar_Register (&vid_forcerefreshrate);
+
 	Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
 	Cmd_AddCommand ("loadkeys", IN_LoadKeys_f);
 }
@@ -2064,4 +2095,33 @@ static void IN_Shutdown(void)
 	if (g_pdi)
 		IDirectInput_Release(g_pdi);
 	g_pdi = NULL;
+}
+
+size_t VID_ListModes(vid_mode_t *modes, size_t maxcount)
+{
+	int i;
+	size_t k;
+	DEVMODE thismode;
+
+	thismode.dmSize = sizeof(thismode);
+	thismode.dmDriverExtra = 0;
+	k = 0;
+	for(i = 0; EnumDisplaySettings(NULL, i, &thismode); ++i)
+	{
+		if(~thismode.dmFields & (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY))
+		{
+			Com_DPrintf("enumerating modes yielded a bogus item... please debug this\n");
+			continue;
+		}
+		if(k >= maxcount)
+			break;
+		modes[k].width = thismode.dmPelsWidth;
+		modes[k].height = thismode.dmPelsHeight;
+		modes[k].bpp = thismode.dmBitsPerPel;
+		modes[k].refreshrate = thismode.dmDisplayFrequency;
+		modes[k].pixelheight_num = 1;
+		modes[k].pixelheight_denom = 1; // Win32 apparently does not provide this (FIXME)
+		++k;
+	}
+	return k;
 }

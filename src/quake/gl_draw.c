@@ -502,8 +502,6 @@ void R_LoadingScreen (void)
 	if (vid_hidden)
 		return;
 
-	VID_GetWindowSize(&vid.realx, &vid.realy, &vid.realwidth, &vid.realheight);
-
 	GL_SetCanvas (CANVAS_MENU);
 
 	// draw the loading plaque
@@ -527,9 +525,9 @@ void R_FadeScreen (void)
 
 	qglBegin (GL_QUADS);
 	qglVertex2f (0,0);
-	qglVertex2f (vid.realwidth, 0);
-	qglVertex2f (vid.realwidth, vid.realheight);
-	qglVertex2f (0, vid.realheight);
+	qglVertex2f (vid.width, 0);
+	qglVertex2f (vid.width, vid.height);
+	qglVertex2f (0, vid.height);
 	qglEnd ();
 
 	qglColor4f (1,1,1,1);
@@ -563,43 +561,43 @@ void GL_SetCanvas (canvastype newcanvas)
 	switch(newcanvas)
 	{
 	case CANVAS_DEFAULT:
-		qglOrtho (0, vid.realwidth, vid.realheight, 0, -99999, 99999);
-		qglViewport (0, 0, vid.realwidth, vid.realheight);
+		qglOrtho (0, vid.width, vid.height, 0, -99999, 99999);
+		qglViewport (0, 0, vid.width, vid.height);
 		break;
 	case CANVAS_CONSOLE:
-		lines = vid.height - (scr_con_current * vid.height / vid.realheight);
+		lines = vid.height - (scr_con_current * vid.height / vid.height);
 		qglOrtho (0, vid.width, vid.height + lines, lines, -99999, 99999);
-		qglViewport (0, 0, vid.realwidth, vid.realheight);
+		qglViewport (0, 0, vid.width, vid.height);
 		break;
 	case CANVAS_MENU:
-		s = min ((float)vid.realwidth / 320.0, (float)vid.realheight / 200.0);
+		s = min ((float)vid.width / 320.0, (float)vid.height / 200.0);
 		s = clamp (1.0, scr_menuscale.value, s);
 		qglOrtho (0, 320, 200, 0, -99999, 99999);
-		qglViewport ((vid.realwidth - 320*s) / 2, (vid.realheight - 200*s) / 2, 320*s, 200*s);
+		qglViewport ((vid.width - 320*s) / 2, (vid.height - 200*s) / 2, 320*s, 200*s);
 		break;
 	case CANVAS_SBAR:
-		s = clamp (1.0, scr_sbarscale.value, (float)vid.realwidth / 320.0);
+		s = clamp (1.0, scr_sbarscale.value, (float)vid.width / 320.0);
 		qglOrtho (0, 320, 48, 0, -99999, 99999);
-		qglViewport ((vid.realwidth - 320*s) / 2, 0, 320*s, 48*s);
+		qglViewport ((vid.width - 320*s) / 2, 0, 320*s, 48*s);
 		break;
 	case CANVAS_WARPIMAGE:
 		qglOrtho (0, 128, 0, 128, -99999, 99999);
-		qglViewport (0, vid.realheight-gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
+		qglViewport (0, vid.height-gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
 		break;
 	case CANVAS_CROSSHAIR: //0,0 is center of viewport
 		s = clamp (1.0, scr_crosshairscale.value, 10.0);
 		qglOrtho (scr_vrect.width/-2/s, scr_vrect.width/2/s, scr_vrect.height/2/s, scr_vrect.height/-2/s, -99999, 99999);
-		qglViewport (scr_vrect.x, vid.realheight - scr_vrect.y - scr_vrect.height, scr_vrect.width & ~1, scr_vrect.height & ~1);
+		qglViewport (scr_vrect.x, vid.height - scr_vrect.y - scr_vrect.height, scr_vrect.width & ~1, scr_vrect.height & ~1);
 		break;
 	case CANVAS_BOTTOMLEFT: //used by devstats
-		s = (float)vid.realwidth/vid.width;
+		s = (float)vid.width/vid.width;
 		qglOrtho (0, 320, 200, 0, -99999, 99999);
 		qglViewport (0, 0, 320*s, 200*s);
 		break;
 	case CANVAS_BOTTOMRIGHT: //used by fps
-		s = (float)vid.realwidth/vid.width;
+		s = (float)vid.width/vid.width;
 		qglOrtho (0, 320, 200, 0, -99999, 99999);
-		qglViewport (vid.realwidth-320*s, 0, 320*s, 200*s);
+		qglViewport (vid.width-320*s, 0, 320*s, 200*s);
 		break;
 	default:
 		Sys_Error ("GL_SetCanvas: bad canvas type");

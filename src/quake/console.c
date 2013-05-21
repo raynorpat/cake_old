@@ -306,8 +306,8 @@ void Con_Linefeed (void)
 {
 	if (con.backscroll)
 		con.backscroll++;
-	if (con.backscroll > con_totallines - (vid.realheight>>3) - 1)
-		con.backscroll = con_totallines - (vid.realheight>>3) - 1;
+	if (con.backscroll > con_totallines - (vid.height>>3) - 1)
+		con.backscroll = con_totallines - (vid.height>>3) - 1;
 
 	con_x = 0;
 	con.current++;
@@ -419,7 +419,7 @@ void Con_ScrollToTop (void)
 		if (x != con_linewidth)
 			break;
 	}
-	con.backscroll = clamp(0, con.current-i%con_totallines-2, con_totallines-(vid.realheight>>3)-1);
+	con.backscroll = clamp(0, con.current-i%con_totallines-2, con_totallines-(vid.height>>3)-1);
 }
 
 
@@ -578,7 +578,7 @@ void Con_DrawConsole (int lines)
 	if (lines <= 0)
 		return;
 
-	con_vislines = lines * vid.height / vid.realheight;
+	con_vislines = lines;
 
 // draw the buffer text
 	rows = (con_vislines +7)/8;

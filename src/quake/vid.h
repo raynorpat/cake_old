@@ -45,32 +45,37 @@ typedef struct
 {
 	pixel_t			*colormap;		// 256 * VID_GRADES size
 
+	// these are set by VID_Mode
 	int				width;
 	int				height;
+	int				fullscreen;
+	int				refreshrate;
+	qbool			userefreshrate;
+	int				samples;
 
 	renderpath_t	renderpath;
-
-	// these are set with VID_GetWindowSize and can change from frame to frame
-	int				realx;
-	int				realy;
-	int				realwidth;
-	int				realheight;
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state
 extern	unsigned	d_8to24table[256];
 
-extern int vid_hidden;
-extern int vid_activewindow;
-extern int vid_allowhwgamma;
-extern int vid_hardwaregammasupported;
-extern int vid_usinghwgamma;
+extern qbool vid_hidden;
+extern qbool vid_activewindow;
+extern qbool vid_allowhwgamma;
+extern qbool vid_hardwaregammasupported;
+extern qbool vid_usinghwgamma;
+extern qbool vid_supportrefreshrate;
 
 extern cvar_t vid_fullscreen;
 extern cvar_t vid_width;
 extern cvar_t vid_height;
-extern cvar_t vid_mouse;
+extern cvar_t vid_refreshrate;
+extern cvar_t vid_userefreshrate;
 extern cvar_t vid_vsync;
+extern cvar_t vid_samples;
+extern cvar_t vid_mouse;
+extern cvar_t vid_minwidth;
+extern cvar_t vid_minheight;
 
 // brand of graphics chip
 extern const char *gl_vendor;
@@ -103,7 +108,7 @@ void	VID_Shared_Init(void);
 void	VID_CheckExtensions(void);
 
 void	VID_Init (void);
-int		VID_Mode(int fullscreen, int width, int height);
+int		VID_Mode(int fullscreen, int width, int height, int refreshrate);
 // Called at startup
 
 void	VID_Shutdown (void);
@@ -122,13 +127,19 @@ void	VID_RestoreSystemGamma(void);
 void	VID_Finish (void);
 // Called at end of each frame
 
-void	VID_GetWindowSize (int *x, int *y, int *width, int *height);
-
 void	VID_SetCaption (char *text);
 
 void	VID_Restart_f(void);
 
 void	VID_Start (void);
+
+typedef struct
+{
+	int width, height, bpp, refreshrate;
+	int pixelheight_num, pixelheight_denom;
+} vid_mode_t;
+size_t VID_ListModes(vid_mode_t *modes, size_t maxcount);
+size_t VID_SortModes(vid_mode_t *modes, size_t count, qbool usebpp, qbool userefreshrate, qbool useaspect);
 
 #endif /* _VID_H_ */
 

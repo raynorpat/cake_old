@@ -50,23 +50,9 @@ void	VID_Update (vrect_t *rects)
 {
 }
 
-/*
-================
-D_BeginDirectRect
-================
-*/
-void D_BeginDirectRect (int x, int y, byte *pbitmap, int width, int height)
+size_t VID_ListModes(vid_mode_t *modes, size_t maxcount)
 {
-}
-
-
-/*
-================
-D_EndDirectRect
-================
-*/
-void D_EndDirectRect (int x, int y, int width, int height)
-{
+	return 0;
 }
 
 
