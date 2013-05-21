@@ -588,7 +588,6 @@ void ED_EdictCount_f (void)
 	Com_Printf ("view      :%3i\n", models);
 	Com_Printf ("touch     :%3i\n", solid);
 	Com_Printf ("step      :%3i\n", step);
-
 }
 
 /*
@@ -848,7 +847,7 @@ if (!strcmp(com_token, "light"))
 		key = ED_FindField (keyname);
 		if (!key)
 		{
-			Com_Printf ("%s is not a field\n", keyname);
+			Com_DPrintf ("%s is not a field\n", keyname);
 			continue;
 		}
 

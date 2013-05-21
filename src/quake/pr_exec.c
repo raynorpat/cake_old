@@ -20,10 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "server.h"
 
-
-/*
-
-*/
 typedef struct
 {
 	int				s;
@@ -150,7 +146,7 @@ void PR_PrintStatement (dstatement_t *s)
 {
 	int		i;
 	
-	if ( (unsigned)s->op < sizeof(pr_opnames)/sizeof(pr_opnames[0]))
+	if ( (unsigned int)s->op < sizeof(pr_opnames)/sizeof(pr_opnames[0]))
 	{
 		Com_Printf ("%s ",  pr_opnames[s->op]);
 		i = strlen(pr_opnames[s->op]);
@@ -164,7 +160,7 @@ void PR_PrintStatement (dstatement_t *s)
 	{
 		Com_Printf ("branch %i",s->a);
 	}
-	else if ( (unsigned)(s->op - OP_STORE_F) < 6)
+	else if ( (unsigned int)(s->op - OP_STORE_F) < 6)
 	{
 		Com_Printf ("%s",PR_GlobalString(s->a));
 		Com_Printf ("%s", PR_GlobalStringNoContents(s->b));
@@ -284,14 +280,6 @@ void PR_RunError (char *error, ...)
 }
 
 /*
-============================================================================
-PR_ExecuteProgram
-
-The interpretation main loop
-============================================================================
-*/
-
-/*
 ====================
 PR_EnterFunction
 
@@ -363,6 +351,8 @@ int PR_LeaveFunction (void)
 /*
 ====================
 PR_ExecuteProgram
+
+The interpretation main loop
 ====================
 */
 void PR_ExecuteProgram (func_t fnum)
