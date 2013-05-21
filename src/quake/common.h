@@ -33,10 +33,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // per-level limits
 //
-#define	MAX_CL_EDICTS	768			// the protocol can only handle 512, but not changing
-									// for compatibility (QW svc_startsound & NQ demos)
+#define	MAX_CL_EDICTS	768			// the protocol can only handle 512, but not changing for compatibility (QW svc_startsound & NQ demos)
 #define	MAX_EDICTS		1024		// server limit, can be increased if needed
 #define	MAX_LIGHTSTYLES	64
+
 #define	MAX_MODELS		256			// these are sent over the net as bytes
 #define MAX_VWEP_MODELS 32			// could be increased to 256
 #define	MAX_SOUNDS		256			// so they cannot be blindly increased

@@ -472,7 +472,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			0,            /* owner       */
 			"qwcl"); /* Semaphore name      */
 		if (!qwclsemaphore)
-			Sys_Error ("QuakeWorld is already running on this system");
+			Sys_Error (PROGRAM "is already running on this system");
 		CloseHandle (qwclsemaphore);
 		
 		qwclsemaphore = CreateSemaphore(

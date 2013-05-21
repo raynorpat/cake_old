@@ -338,9 +338,7 @@ void CL_ClearState (void)
 // make sure no centerprint messages are left from previous level
 	scr_centertime_off = 0;
 
-//
 // allocate the efrags and chain together into a free list
-//
 	cl.free_efrags = cl_efrags;
 	for (i=0 ; i<MAX_EFRAGS-1 ; i++)
 		cl.free_efrags[i].entnext = &cl.free_efrags[i+1];

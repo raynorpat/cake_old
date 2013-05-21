@@ -779,10 +779,10 @@ int VID_InitMode (int fullscreen, int width, int height)
 	rect.top += CenterY;
 	rect.bottom += CenterY;
 
-	mainwindow = CreateWindowEx (ExWindowStyle, "QuakeWindowClass", "WinQuake", WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
+	mainwindow = CreateWindowEx (ExWindowStyle, "QuakeWindowClass", PROGRAM, WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
 	if (!mainwindow)
 	{
-		Com_Printf("CreateWindowEx(%d, %s, %s, %d, %d, %d, %d, %d, %p, %p, %d, %p) failed\n", ExWindowStyle, "QuakeWindowClass", "WinQuake", WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
+		Com_Printf("CreateWindowEx(%d, %s, %s, %d, %d, %d, %d, %d, %p, %p, %d, %p) failed\n", ExWindowStyle, "QuakeWindowClass", PROGRAM, WindowStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, global_hInstance, NULL);
 		VID_Shutdown();
 		return false;
 	}
