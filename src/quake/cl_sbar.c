@@ -515,18 +515,18 @@ static void Sbar_SoloScoreboard (void)
 {
 	char	str[80];
 	double	_time;
-	int		minutes, seconds, tens, units;
+	int		minutes, seconds, tens, units, l;
+
+	if (!cl.gametype == GAME_COOP)
+		return;
 
 	Sbar_DrawPic (0, 0, sb_scorebar);
 
-	if (cl.gametype == GAME_COOP)
-	{
-		sprintf(str, "Monsters:%3i /%3i", cl.stats[STAT_MONSTERS], cl.stats[STAT_TOTALMONSTERS]);
-		Sbar_DrawString (8, 4, str);
+	sprintf(str, "Monsters:%3i /%3i", cl.stats[STAT_MONSTERS], cl.stats[STAT_TOTALMONSTERS]);
+	Sbar_DrawString (8, 4, str);
 
-		sprintf(str, "Secrets :%3i /%3i", cl.stats[STAT_SECRETS], cl.stats[STAT_TOTALSECRETS]);
-		Sbar_DrawString (8, 12, str);
-	}
+	sprintf(str, "Secrets :%3i /%3i", cl.stats[STAT_SECRETS], cl.stats[STAT_TOTALSECRETS]);
+	Sbar_DrawString (8, 12, str);
 
 	// time
 	if (cl.servertime_works) {
@@ -544,13 +544,10 @@ static void Sbar_SoloScoreboard (void)
 	sprintf (str,"Time :%3i:%i%i", minutes, tens, units);
 	Sbar_DrawString (184, 4, str);
 
-	if (cl.gametype == GAME_COOP)
-	{
-		// draw level name
-		int l = strlen (cl.levelname);
-		if (l < 22 && !strstr(cl.levelname, "\n"))
-			Sbar_DrawString (232 - l*4, 12, cl.levelname);
-	}
+	// draw level name
+	l = strlen (cl.levelname);
+	if (l < 22 && !strstr(cl.levelname, "\n"))
+		Sbar_DrawString (232 - l*4, 12, cl.levelname);
 }
 
 //=============================================================================
