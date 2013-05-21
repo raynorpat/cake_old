@@ -870,8 +870,8 @@ void M_Fps_Key (int k)
 	case K_UPARROW:
 		S_LocalSound ("misc/menu1.wav");
 		fps_cursor--;
-		if (fps_cursor == 11)
-			fps_cursor = 10;
+		if (fps_cursor == 13)
+			fps_cursor = 12;
 		if (fps_cursor < 0)
 			fps_cursor = FPS_ITEMS - 1;
 		break;
@@ -879,7 +879,7 @@ void M_Fps_Key (int k)
 	case K_DOWNARROW:
 		S_LocalSound ("misc/menu1.wav");
 		fps_cursor++;
-		if (fps_cursor == 11)
+		if (fps_cursor == 13)
 			fps_cursor = 12;
 		if (fps_cursor >= FPS_ITEMS)
 			fps_cursor = 0;
