@@ -365,6 +365,7 @@ typedef struct model_s
 
 	byte		*visdata;
 	byte		*lightdata;
+	char		*entities;
 
 //
 // additional model data

@@ -673,6 +673,23 @@ void Mod_LoadVisibility (lump_t *l)
 
 /*
 =================
+Mod_LoadEntities
+=================
+*/
+void Mod_LoadEntities (lump_t *l)
+{
+	if (!l->filelen)
+	{
+		loadmodel->entities = NULL;
+		return;
+	}
+	loadmodel->entities = (char *) Hunk_AllocName ( l->filelen, loadname);
+	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
+}
+
+
+/*
+=================
 Mod_LoadVertexes
 =================
 */
@@ -1292,6 +1309,7 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 	Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	Mod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
 	Mod_LoadNodes (&header->lumps[LUMP_NODES]);
+	Mod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
 	Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 
 	mod->numframes = 2;		// regular and alternate animation
