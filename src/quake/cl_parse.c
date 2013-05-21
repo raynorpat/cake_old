@@ -266,7 +266,6 @@ void CL_Prespawn (void)
 
 	CL_FindModelNumbers ();
 	R_NewMap (cl.model_precache[1]);
-	R_SetSky (cl.sky);
 
 	TP_NewMap ();
 
@@ -1264,16 +1263,6 @@ void CL_ProcessServerInfo (void)
 			for (i = 0; i < MAX_CLIENTS ; i++)
 				CL_NewTranslation (i);
 		}
-	}
-
-	// parse skybox
-	if (strcmp(cl.sky, (p = Info_ValueForKey(cl.serverinfo, "sky")))) {
-		// sky has changed
-		strcpy (cl.sky, p);
-		if (strstr(cl.sky, ".."))
-			cl.sky[0] = 0;
-		if (cls.state >= ca_onserver && cl.model_precache[1])
-			R_SetSky (cl.sky);
 	}
 }
 

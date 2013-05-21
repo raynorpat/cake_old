@@ -158,17 +158,7 @@ static void Cmd_New_f (void)
 	ClientReliableWrite_End ();
 
 	// send server info string
-	// append skybox name if there's enough room
 	strcpy (info, svs.info);
-	if (sv.sky[0] && !strstr(sv.sky, ".."))
-	{
-		if (!strstr(svs.info, "\\sky\\") &&
-			strlen(info) + 5 + strlen(sv.sky) < MAX_SERVERINFO_STRING)
-		{
-			strcat (info, "\\sky\\");
-			strcat (info, sv.sky);
-		}
-	}
 
 	ClientReliableWrite_Begin (sv_client, svc_stufftext);
 	ClientReliableWrite_String (va("fullserverinfo \"%s\"\n", info));

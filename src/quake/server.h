@@ -67,12 +67,10 @@ typedef struct
 
 	qbool		loadgame;			// handle connections specially
 
-	//check player/eyes models for hacks
+	// check player/eyes models for hacks
 	unsigned	model_player_checksum;
 	unsigned	eyes_player_checksum;
-
-	char		sky[32];			// skybox file name ("unit1_", etc)
-
+	
 	char		mapname[64];		// "e1m1", "dm6", etc
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
 	unsigned	map_checksum;

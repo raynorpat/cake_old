@@ -794,7 +794,7 @@ Used for initial level load and for savegames.
 char *ED_ParseEdict (char *data, edict_t *ent)
 {
 	ddef_t	*key;
-	qbool	anglehack, skyhack;
+	qbool	anglehack;
 	qbool	init;
 	char	keyname[256];
 
@@ -839,15 +839,6 @@ if (!strcmp(com_token, "light"))
 			Host_Error ("ED_ParseEntity: closing brace without data");
 
 		init = true;	
-
-		skyhack = false;
-		if (ent == sv.edicts && (!strcmp(keyname, "sky") || !strcmp(keyname, "skyname")))
-		{
-			skyhack = true;
-			strlcpy (sv.sky, com_token, sizeof(sv.sky));
-			if (strstr(sv.sky, ".."))
-				sv.sky[0] = 0;
-		}
 
 // keynames with a leading underscore are used for utility comments,
 // and are immediately discarded by quake
