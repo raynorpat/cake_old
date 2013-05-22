@@ -24,9 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_CLIP_VERTS 64
 
-float Fog_GetDensity(void);
-float *Fog_GetColor(void);
-
 extern	model_t	*loadmodel;
 float	skyflatcolor[4];
 float	skymins[2][6], skymaxs[2][6];
@@ -152,7 +149,7 @@ void Sky_LoadSkyBox (char *name)
 	qbool	nonefound = true;
 
 	if (strcmp(skybox_name, name) == 0)
-		return; //no change
+		return; // no change
 
 	// purge old textures
 	for (i=0; i<6; i++)

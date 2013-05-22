@@ -413,7 +413,6 @@ static sndinitstat SNDDMA_InitDirect (void)
 
 	dma.samples = gSndBufSize/(dma.samplebits/8);
 	dma.samplepos = 0;
-	dma.submission_chunk = 1;
 	dma.buffer = (unsigned char *) lpData;
 	sample16 = (dma.samplebits/8) - 1;
 
@@ -538,7 +537,6 @@ static qbool SNDDMA_InitWav (void)
 
 	dma.samples = gSndBufSize/(dma.samplebits/8);
 	dma.samplepos = 0;
-	dma.submission_chunk = 1;
 	dma.buffer = (unsigned char *) lpData;
 	sample16 = (dma.samplebits/8) - 1;
 
@@ -555,7 +553,6 @@ Try to find a sound device to mix for.
 Returns false if nothing is found.
 ==================
 */
-
 qbool SNDDMA_Init(void)
 {
 	sndinitstat	stat;
