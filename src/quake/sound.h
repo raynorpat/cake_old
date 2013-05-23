@@ -90,6 +90,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds (qbool clear);
 void S_ClearBuffer (void);
+void S_RawSamples (int samples, int rate, int width, int channels, byte *data);
 void S_Update (vec3_t origin, vec3_t v_forward, vec3_t v_right, vec3_t v_up);
 void S_ExtraUpdate (void);
 
@@ -133,12 +134,16 @@ extern	int			total_channels;
 
 //
 extern int		paintedtime;
+extern	int		s_rawend;
 extern vec3_t	listener_origin;
 extern vec3_t	listener_forward;
 extern vec3_t	listener_right;
 extern vec3_t	listener_up;
 
 extern dma_t	dma;
+
+#define	MAX_RAW_SAMPLES	8192
+extern	portable_samplepair_t s_rawsamples[MAX_RAW_SAMPLES];
 
 extern cvar_t	s_loadas8bit;
 extern cvar_t	s_khz;

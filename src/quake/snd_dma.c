@@ -68,6 +68,9 @@ int			num_sfx;
 
 sfx_t		*ambient_sfx[NUM_AMBIENTS];
 
+int			s_rawend;
+portable_samplepair_t s_rawsamples[MAX_RAW_SAMPLES];
+
 
 // ====================================================================
 // User-setable variables
@@ -689,6 +692,106 @@ void S_UpdateAmbientSounds (void)
 	}
 }
 
+//=============================================================================
+
+/*
+============
+S_RawSamples
+
+Cinematic streaming and voice over network
+============
+*/
+void S_RawSamples (int samples, int rate, int width, int channels, byte *data)
+{
+	int		i;
+	int		src, dst;
+	float	scale;
+
+	if (!sound_started)
+		return;
+
+	if (s_rawend < paintedtime)
+		s_rawend = paintedtime;
+	scale = (float)rate / dma.speed;
+
+//Com_Printf ("%i < %i < %i\n", soundtime, paintedtime, s_rawend);
+	if (channels == 2 && width == 2)
+	{
+		if (scale == 1.0)
+		{	// optimized case
+			for (i=0 ; i<samples ; i++)
+			{
+				dst = s_rawend&(MAX_RAW_SAMPLES-1);
+				s_rawend++;
+				s_rawsamples[dst].left =
+				    LittleShort(((short *)data)[i*2]) << 8;
+				s_rawsamples[dst].right =
+				    LittleShort(((short *)data)[i*2+1]) << 8;
+			}
+		}
+		else
+		{
+			for (i=0 ; ; i++)
+			{
+				src = i*scale;
+				if (src >= samples)
+					break;
+				dst = s_rawend&(MAX_RAW_SAMPLES-1);
+				s_rawend++;
+				s_rawsamples[dst].left =
+				    LittleShort(((short *)data)[src*2]) << 8;
+				s_rawsamples[dst].right =
+				    LittleShort(((short *)data)[src*2+1]) << 8;
+			}
+		}
+	}
+	else if (channels == 1 && width == 2)
+	{
+		for (i=0 ; ; i++)
+		{
+			src = i*scale;
+			if (src >= samples)
+				break;
+			dst = s_rawend&(MAX_RAW_SAMPLES-1);
+			s_rawend++;
+			s_rawsamples[dst].left =
+			    LittleShort(((short *)data)[src]) << 8;
+			s_rawsamples[dst].right =
+			    LittleShort(((short *)data)[src]) << 8;
+		}
+	}
+	else if (channels == 2 && width == 1)
+	{
+		for (i=0 ; ; i++)
+		{
+			src = i*scale;
+			if (src >= samples)
+				break;
+			dst = s_rawend&(MAX_RAW_SAMPLES-1);
+			s_rawend++;
+			s_rawsamples[dst].left =
+			    ((char *)data)[src*2] << 16;
+			s_rawsamples[dst].right =
+			    ((char *)data)[src*2+1] << 16;
+		}
+	}
+	else if (channels == 1 && width == 1)
+	{
+		for (i=0 ; ; i++)
+		{
+			src = i*scale;
+			if (src >= samples)
+				break;
+			dst = s_rawend&(MAX_RAW_SAMPLES-1);
+			s_rawend++;
+			s_rawsamples[dst].left =
+			    (((byte *)data)[src]-128) << 16;
+			s_rawsamples[dst].right = (((byte *)data)[src]-128) << 16;
+		}
+	}
+}
+
+//=============================================================================
 
 /*
 ============
