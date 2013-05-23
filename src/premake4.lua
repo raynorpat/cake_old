@@ -32,7 +32,18 @@ solution "Cake"
 		targetdir = "../qc"
 		includedirs { "qcc" }
 		files { "qcc/*.h", "qcc/*.cpp" }
-	
+
+-- QE3 project
+	project "QE3"
+		kind "WindowedApp"
+		language "C"
+		targetdir = "../qe3"
+		includedirs { "qe3" }
+
+		configuration { "Windows" }
+			flags { "WinMain" }
+			files { "qe3/*.h", "qcc/*.c", "qe3/win_qe3.rc" }
+
 -- Cake project
 	project "Cake"
 		kind "WindowedApp"
