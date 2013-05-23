@@ -653,20 +653,6 @@ void CL_Quit_f (void)
 		Host_Quit ();
 }
 
-
-/*
-===============
-CL_Windows_f
-===============
-*/
-#ifdef _WINDOWS
-void CL_Windows_f (void)
-{
-	SendMessage(mainwindow, WM_SYSKEYUP, VK_TAB, 1 | (0x0F << 16) | (1<<29));
-}
-#endif
-
-
 /*
 ===============
 CL_Serverinfo_f
@@ -941,13 +927,6 @@ void CL_InitCommands (void)
 	Cmd_AddCommand ("give", NULL);
 	Cmd_AddCommand ("noclip", NULL);
 	Cmd_AddCommand ("fly", NULL);
-
-//
-//  Windows commands
-//
-#ifdef _WINDOWS
-	Cmd_AddCommand ("windows", CL_Windows_f);
-#endif
 }
 
 

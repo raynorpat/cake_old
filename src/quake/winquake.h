@@ -56,11 +56,7 @@ extern HWND			mainwindow;
 //
 // input
 //
-extern int		window_center_x, window_center_y;
-extern qbool	dinput;
-
 enum { MWHEEL_UNKNOWN, MWHEEL_DINPUT, MWHEEL_WINDOWMSG };
-extern int	in_mwheeltype;
 
 #ifndef WM_MOUSEWHEEL
 #define WM_MOUSEWHEEL	0x020A

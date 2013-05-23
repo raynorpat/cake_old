@@ -38,19 +38,19 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 
 qbool vid_supportrefreshrate = true;
 
-static int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
-static int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
-//static int (WINAPI *qwglGetPixelFormat)(HDC);
-static BOOL (WINAPI *qwglSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
-static BOOL (WINAPI *qwglSwapBuffers)(HDC);
-static HGLRC (WINAPI *qwglCreateContext)(HDC);
-static BOOL (WINAPI *qwglDeleteContext)(HGLRC);
-static HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
-static HDC (WINAPI *qwglGetCurrentDC)(VOID);
-static PROC (WINAPI *qwglGetProcAddress)(LPCSTR);
-static BOOL (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
-static BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
-static const char *(WINAPI *qwglGetExtensionsStringARB)(HDC hdc);
+int (WINAPI *qwglChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
+int (WINAPI *qwglDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
+//int (WINAPI *qwglGetPixelFormat)(HDC);
+BOOL (WINAPI *qwglSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
+BOOL (WINAPI *qwglSwapBuffers)(HDC);
+HGLRC (WINAPI *qwglCreateContext)(HDC);
+BOOL (WINAPI *qwglDeleteContext)(HGLRC);
+HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
+HDC (WINAPI *qwglGetCurrentDC)(VOID);
+PROC (WINAPI *qwglGetProcAddress)(LPCSTR);
+BOOL (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
+BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
+const char *(WINAPI *qwglGetExtensionsStringARB)(HDC hdc);
 
 static dllfunction_t wglfuncs[] =
 {

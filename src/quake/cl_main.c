@@ -479,11 +479,6 @@ void CL_ConnectionlessPacket (void)
 			return;
 		}
 
-#ifdef _WIN32
-		ShowWindow (mainwindow, SW_RESTORE);
-		SetForegroundWindow (mainwindow);
-#endif
-
 		s = MSG_ReadString ();
 		strlcpy (cmdtext, s, sizeof(cmdtext));
 

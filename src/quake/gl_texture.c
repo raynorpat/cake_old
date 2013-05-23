@@ -866,7 +866,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 	if (!data)
 	{
 invalid:
-		Com_Printf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
+		Com_DPrintf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
 		Hunk_FreeToLowMark (mark);
 		return;
 	}
