@@ -520,7 +520,7 @@ void ED_PrintEdicts_f (void)
 {
 	int		i;
 
-	if (sv.state != ss_active)
+	if (sv.state != ss_game)
 		return;
 
 	Com_Printf ("%i entities\n", sv.num_edicts);
@@ -544,7 +544,7 @@ void ED_PrintEdict_f (void)
 {
 	int		i;
 	
-	if (sv.state != ss_active)
+	if (sv.state != ss_game)
 		return;
 
 	i = Q_atoi (Cmd_Argv(1));
@@ -565,7 +565,7 @@ void ED_EdictCount_f (void)
 	edict_t	*ent;
 	int		active, models, solid, step;
 
-	if (sv.state != ss_active)
+	if (sv.state != ss_game)
 		return;
 
 	active = models = solid = step = 0;

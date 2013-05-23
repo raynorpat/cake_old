@@ -40,7 +40,7 @@ typedef struct
 typedef enum {
 	ss_dead,			// no map loaded
 	ss_loading,			// spawning level edicts
-	ss_active			// actively running
+	ss_game,			// actively running
 } server_state_t;
 // some qc commands are only valid before the server has finished
 // initializing (precache commands, static sounds / objects, etc)

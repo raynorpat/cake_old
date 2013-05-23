@@ -73,7 +73,7 @@ void SV_SaveGame_f (void)
 		return;
 	}
 
-	if (sv.state != ss_active) {
+	if (sv.state != ss_game) {
 		Com_Printf ("Not playing a local game.\n");
 		return;
 	}
@@ -209,7 +209,7 @@ void SV_LoadGame_f (void)
 	CL_BeginLocalConnection ();
 
 	SV_SpawnServer (mapname, false);
-	if (sv.state != ss_active)
+	if (sv.state != ss_game)
 	{
 		Com_Printf ("Couldn't load map\n");
 		return;

@@ -896,7 +896,7 @@ void SV_Physics (void)
 	int		i;
 	edict_t	*ent;
 
-	if (sv.state != ss_active)
+	if (sv.state != ss_game)
 		return;
 
 	if (sv.old_time)

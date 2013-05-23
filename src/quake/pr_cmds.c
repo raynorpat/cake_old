@@ -1316,7 +1316,7 @@ static void PF_lightstyle (void)
 	sv.lightstyles[style] = val;
 	
 // send message to all clients on this server
-	if (sv.state != ss_active)
+	if (sv.state != ss_game)
 		return;
 	
 	for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
