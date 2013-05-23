@@ -59,14 +59,6 @@ TARGA LOADING
 =========================================================
 */
 
-typedef struct targaheader_s {
-	unsigned char 	id_length, colormap_type, image_type;
-	unsigned short	colormap_index, colormap_length;
-	unsigned char	colormap_size;
-	unsigned short	x_origin, y_origin, width, height;
-	unsigned char	pixel_size, attributes;
-} targaheader_t;
-
 targaheader_t targa_header;
 
 int fgetLittleShort (FILE *f)
@@ -269,23 +261,6 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 
 =================================================================
 */
-
-typedef struct
-{
-    char	manufacturer;
-    char	version;
-    char	encoding;
-    char	bits_per_pixel;
-    unsigned short	xmin,ymin,xmax,ymax;
-    unsigned short	hres,vres;
-    unsigned char	palette[48];
-    char	reserved;
-    char	color_planes;
-    unsigned short	bytes_per_line;
-    unsigned short	palette_type;
-    char	filler[58];
-    unsigned 	data;			// unbounded
-} pcxheader_t;
 
 /*
 ============

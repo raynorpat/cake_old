@@ -20,6 +20,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _RC_IMAGE_H_
 #define _RC_IMAGE_H_
 
+//
+// TGA header
+//
+typedef struct targaheader_s {
+	unsigned char 	id_length, colormap_type, image_type;
+	unsigned short	colormap_index, colormap_length;
+	unsigned char	colormap_size;
+	unsigned short	x_origin, y_origin, width, height;
+	unsigned char	pixel_size, attributes;
+} targaheader_t;
+
+//
+// PCX header
+//
+typedef struct
+{
+    char	manufacturer;
+    char	version;
+    char	encoding;
+    char	bits_per_pixel;
+    unsigned short	xmin,ymin,xmax,ymax;
+    unsigned short	hres,vres;
+    unsigned char	palette[48];
+    char	reserved;
+    char	color_planes;
+    unsigned short	bytes_per_line;
+    unsigned short	palette_type;
+    char	filler[58];
+    unsigned 	data;			// unbounded
+} pcxheader_t;
+
 byte *Image_LoadImage (char *name, int *width, int *height);
 
 byte *Image_LoadTGA (FILE *fin, int *width, int *height);
