@@ -506,7 +506,5 @@ void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
 void DrawWaterPoly (glpoly_t *p);
 
-void R_NetGraph (void);
-
 #endif /* _GL_LOCAL_H_ */
 

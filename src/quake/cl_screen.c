@@ -772,7 +772,7 @@ void SCR_UpdateScreen (void)
 		R_PolyBlend ();
 	
 		if (r_netgraph.value)
-			R_NetGraph ();
+			R_DrawNetGraph ();
 
 		if (cl.intermission == 1 && key_dest != key_menu)
 		{

@@ -158,6 +158,8 @@ void R_DrawStretchPic (int x, int y, int width, int height, qpic_t *pic, float a
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);
 void R_DrawCrosshair (int num, int crossx, int crossy);
 
+void R_DrawNetGraph (void);
+
 #define GetPicWidth(pic) (pic->width)
 #define GetPicHeight(pic) (pic->height)
 

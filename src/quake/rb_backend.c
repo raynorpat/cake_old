@@ -120,7 +120,7 @@ void RB_EndFrame (void)
 			c_alias_polys,
 			r_numverts,
 			r_numtris,
-			r_numflushes ); 
+			r_numflushes );
 	}
 }
 

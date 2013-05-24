@@ -643,6 +643,106 @@ void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *dat
 	qglEnd ();
 }
 
+//====================================================================
+
+int	netgraphtexture; // netgraph texture
+
+#define NET_GRAPHHEIGHT 32
+
+static byte ngraph_texels[NET_GRAPHHEIGHT][NET_TIMINGS];
+
+static void R_LineGraph (int x, int h)
+{
+	int		i;
+	int		s;
+	int		color;
+
+	s = NET_GRAPHHEIGHT;
+
+	if (h == 10000)
+		color = 0x6f;	// yellow
+	else if (h == 9999)
+		color = 0x4f;	// red
+	else if (h == 9998)
+		color = 0xd0;	// blue
+	else
+		color = 0xfe;	// white
+
+	if (h>s)
+		h = s;
+	
+	for (i=0 ; i<h ; i++)
+		if (i & 1)
+			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = 0xff;
+		else
+			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (byte)color;
+
+	for ( ; i<s ; i++)
+		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (byte)0xff;
+}
+
+/*
+==============
+R_DrawNetGraph
+==============
+*/
+void R_DrawNetGraph (void)
+{
+	int		a, x, i, y;
+	int lost;
+	char st[80];
+	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
+
+	x = 0;
+	lost = CL_CalcNet();
+	for (a=0 ; a<NET_TIMINGS ; a++)
+	{
+		i = (cls.netchan.outgoing_sequence-a) & NET_TIMINGSMASK;
+		R_LineGraph (NET_TIMINGS-1-a, packet_latency[i]);
+	}
+
+	// now load the netgraph texture into gl and draw it
+	for (y = 0; y < NET_GRAPHHEIGHT; y++)
+		for (x = 0; x < NET_TIMINGS; x++)
+			ngraph_pixels[y][x] = d_8to24table[ngraph_texels[y][x]];
+
+	x =	0;
+	y = 320 - 24 - NET_GRAPHHEIGHT - 1;
+
+	if (r_netgraph.value != 2 && r_netgraph.value != 3)
+		Draw_TextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 1);
+
+	if (r_netgraph.value != 3) {
+		sprintf (st, "%3i%% packet loss", lost);
+		R_DrawString (8, y + 8, st);
+	}
+
+	x = 8;
+	y += 16;
+	
+    GL_Bind(netgraphtexture);
+
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
+		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
+		GL_UNSIGNED_BYTE, ngraph_pixels);
+
+	qglTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (0, 0);
+	qglVertex2f (x, y);
+	qglTexCoord2f (1, 0);
+	qglVertex2f (x+NET_TIMINGS, y);
+	qglTexCoord2f (1, 1);
+	qglVertex2f (x+NET_TIMINGS, y+NET_GRAPHHEIGHT);
+	qglTexCoord2f (0, 1);
+	qglVertex2f (x, y+NET_GRAPHHEIGHT);
+	qglEnd ();
+}
+
+//====================================================================
 
 /*
 ================
