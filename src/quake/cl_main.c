@@ -361,6 +361,9 @@ void CL_Disconnect (void)
 
 	// stop sounds (especially looping!)
 	S_StopAllSounds (true);
+
+	// reset game palette
+	R_SetPalette (NULL);
 	
 	Cmd_RemoveStuffedAliases ();
 
@@ -1024,11 +1027,14 @@ void CL_Frame (double time)
 		vec3_t forward, right, up;
 		AngleVectors (r_refdef2.viewangles, forward, right, up);
 		S_Update (r_refdef2.vieworg, forward, right, up);
-	}
-	else
+	} else {
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
+	}
 
 	CDAudio_Update();
+
+	// update cinematic
+	SCR_RunCinematic ();
 
 	if (host_speeds.value)
 	{

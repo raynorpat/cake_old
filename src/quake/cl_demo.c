@@ -1079,7 +1079,6 @@ try_again:
 /*
 ====================
 CL_FinishTimeDemo
-
 ====================
 */
 void CL_FinishTimeDemo (void)
@@ -1137,9 +1136,9 @@ void CL_NextDemo (void)
 	cls.demonum++;
 	if (cls.demonum >= MAX_DEMOS || !cls.demos[cls.demonum][0])
 	{
-		if (cls.playdemos == 2)
+		if (cls.playdemos == 2)	{
 			cls.demonum = 0;		// start again
-		else {
+		} else {
 			// stop demo loop
 			cls.playdemos = 0;
 			return;
@@ -1159,11 +1158,11 @@ void CL_StartDemos_f (void)
 
 	c = Cmd_Argc();
 	if (c < 2) {
-		Com_Printf ("usage: startdemos [-noloop] demo1 demo2 ...\n");
+		Com_Printf ("usage: startdemos [-loop|-noloop] demo1 demo2 ...\n");
 		return;
 	}
 
-	cls.playdemos = 2;
+	cls.playdemos = 2; // deafult to looping
 
 	num = 0;
 	for (i = 1; i < c; i++) {
@@ -1187,6 +1186,7 @@ void CL_StartDemos_f (void)
 	if (num < MAX_DEMOS)
 		cls.demos[num][0] = 0;
 
+	// start at first demo
 	cls.demonum = 0;
 	Cbuf_InsertText (va("playdemo \"%s\"\n", cls.demos[0]));
 

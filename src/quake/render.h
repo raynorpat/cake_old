@@ -139,12 +139,10 @@ void R_PushDlights (void);
 // never store this pointer for later use!
 void R_RSShot (byte **pcxdata, int *pcxsize);
 
-//
 // surface cache related
-//
 extern qbool	r_cache_thrash;	// set if thrashing the surface cache
 
-void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
+void R_SetPalette ( unsigned char *palette );
 
 // 2D drawing functions
 void R_DrawChar (int x, int y, int num);
@@ -157,6 +155,7 @@ void R_FadeScreen (void);
 qpic_t *R_CachePic (char *path);
 qpic_t *R_CacheWadPic (char *name);
 void R_DrawStretchPic (int x, int y, int width, int height, qpic_t *pic, float alpha);
+void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);
 void R_DrawCrosshair (int num, int crossx, int crossy);
 
 #define GetPicWidth(pic) (pic->width)

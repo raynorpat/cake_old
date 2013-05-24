@@ -28,7 +28,6 @@ typedef struct
 	cache_user_t	cache;
 } skin_t;
 
-
 #define MAX_STATIC_SOUNDS	256
 typedef struct
 {
@@ -37,6 +36,30 @@ typedef struct
 	int			vol;
 	int			atten;
 } static_sound_t;
+
+typedef struct
+{
+	FILE		*cinematic_file;
+	int			cinematictime;		// cls.realtime for first cinematic frame
+	int			cinematicframe;
+	char		cinematicpalette[768];
+	qbool		cinematicpalette_active;
+
+	int			s_rate;
+	int			s_width;
+	int			s_channels;
+
+	int			width;
+	int			height;
+	byte		*pic;
+
+	// order 1 huffman stuff
+	int			*hnodes1; // [256][256][2];
+	int			numhnodes1[256];
+
+	int			h_used[512];
+	int			h_count[512];
+} cinematics_t;
 
 // player_state_t is the information needed by a player entity
 // to do move prediction and to generate a drawable entity
@@ -240,6 +263,9 @@ typedef struct
 	int			demonum;			// demo being played
 	char		demos[MAX_DEMOS][MAX_QPATH];
 
+// cinematic control
+	qbool		cinplayback;
+
 // demo recording info must be here, because record is started before
 // entering a map (and clearing client_state_t)
 	qbool		demorecording;
@@ -380,6 +406,8 @@ typedef struct
 	int			num_statics;	// stored top down in cl_entities
 
 	int			cdtrack;		// cd audio
+
+	cinematics_t cin;			// cinematics
 
 // all player information
 	player_info_t	players[MAX_CLIENTS];
@@ -581,6 +609,17 @@ void Skin_NextDownload (void);
 
 #define RSSHOT_WIDTH 320
 #define RSSHOT_HEIGHT 200
+
+//
+// cl_cin.c
+//
+
+void SCR_RunCinematic (void);
+
+void SCR_DrawCinematic (void);
+
+void CL_PlayCin_f (void);
+void CL_StopCin_f (void);
 
 #endif /* _CLIENT_H_ */
 

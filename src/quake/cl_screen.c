@@ -749,52 +749,63 @@ void SCR_UpdateScreen (void)
 
 	SCR_CalcRefdef ();
 
-	//
-	// Do 3D drawing first, followed by 2D, and then finally a finish command
-	//
-
-	SCR_SetUpToDrawConsole ();
-	
-	V_RenderView ();
-
-	RB_Set2DProjections ();
-
-	R_PolyBlend ();
-	
-	if (r_netgraph.value)
-		R_NetGraph ();
-
-	if (cl.intermission == 1 && key_dest != key_menu)
+	if (cl.cin.cinematictime > 0)
 	{
-		Sbar_IntermissionOverlay ();
-		Con_ClearNotify ();
+		SCR_DrawCinematic ();
 	}
-	else if (cl.intermission == 2 && key_dest != key_menu)
+	else
 	{
-		Sbar_FinaleOverlay ();
-		SCR_CheckDrawCenterString ();
-		Con_ClearNotify ();
-	}
-		
-	if (cls.state == ca_active)
-	{
-		SCR_DrawRam ();
-		SCR_DrawNet ();
-		SCR_DrawTurtle ();
-		SCR_DrawPause ();
-		if (!cl.intermission)
+		// make sure the game palette is active
+		if (cl.cin.cinematicpalette_active)
 		{
-			if (key_dest != key_menu)
-				Draw_Crosshair ();
-			SCR_CheckDrawCenterString ();
-			SCR_DrawSpeed ();
-			SCR_DrawFPS ();
-			Sbar_Draw ();
+			R_SetPalette(NULL);
+			cl.cin.cinematicpalette_active = false;
 		}
-	}
+
+		// Do 3D drawing first, followed by 2D, and then finally a finish command
+		SCR_SetUpToDrawConsole ();
 	
-	SCR_DrawConsole ();	
-	M_Draw ();
+		V_RenderView ();
+
+		RB_Set2DProjections ();
+
+		R_PolyBlend ();
+	
+		if (r_netgraph.value)
+			R_NetGraph ();
+
+		if (cl.intermission == 1 && key_dest != key_menu)
+		{
+			Sbar_IntermissionOverlay ();
+			Con_ClearNotify ();
+		}
+		else if (cl.intermission == 2 && key_dest != key_menu)
+		{
+			Sbar_FinaleOverlay ();
+			SCR_CheckDrawCenterString ();
+			Con_ClearNotify ();
+		}
+		
+		if (cls.state == ca_active)
+		{
+			SCR_DrawRam ();
+			SCR_DrawNet ();
+			SCR_DrawTurtle ();
+			SCR_DrawPause ();
+			if (!cl.intermission)
+			{
+				if (key_dest != key_menu)
+					Draw_Crosshair ();
+				SCR_CheckDrawCenterString ();
+				SCR_DrawSpeed ();
+				SCR_DrawFPS ();
+				Sbar_Draw ();
+			}
+		}
+	
+		SCR_DrawConsole ();	
+		M_Draw ();
+	}
 
 	VID_Finish ();
 }

@@ -536,6 +536,114 @@ void R_FadeScreen (void)
 	qglDisable (GL_BLEND);
 }
 
+//====================================================================
+
+/*
+=============
+R_SetPalette
+=============
+*/
+unsigned r_rawpalette[256];
+
+void R_SetPalette ( unsigned char *palette )
+{
+	int		i;
+
+	byte *rp = ( byte * ) r_rawpalette;
+
+	if ( palette )
+	{
+		for ( i = 0; i < 256; i++ )
+		{
+			rp[i*4+0] = palette[i*3+0];
+			rp[i*4+1] = palette[i*3+1];
+			rp[i*4+2] = palette[i*3+2];
+			rp[i*4+3] = 0xff;
+		}
+	}
+	else
+	{
+		for ( i = 0; i < 256; i++ )
+		{
+			rp[i*4+0] = d_8to24table[i] & 0xff;
+			rp[i*4+1] = ( d_8to24table[i] >> 8 ) & 0xff;
+			rp[i*4+2] = ( d_8to24table[i] >> 16 ) & 0xff;
+			rp[i*4+3] = 0xff;
+		}
+	}
+
+	qglClearColor (0,0,0,0);
+	qglClear (GL_COLOR_BUFFER_BIT);
+	qglClearColor (1,0, 0.5 , 0.5);
+}
+
+/*
+=============
+R_DrawStretchRaw
+=============
+*/
+void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data)
+{
+	unsigned	image32[256*256];
+	unsigned char image8[256*256];
+	int			i, j, trows;
+	byte		*source;
+	int			frac, fracstep;
+	float		hscale;
+	int			row;
+	float		t;
+	unsigned	*dest;
+
+	GL_SetCanvas (CANVAS_DEFAULT);
+
+	GL_Bind (0);
+
+	if (rows<=256)
+	{
+		hscale = 1;
+		trows = rows;
+	}
+	else
+	{
+		hscale = rows/256.0;
+		trows = 256;
+	}
+	t = rows * hscale / 256;
+
+	for (i=0 ; i<trows ; i++)
+	{
+		row = (int)(i*hscale);
+		if (row > rows)
+			break;
+		source = data + cols*row;
+		dest = &image32[i*256];
+		fracstep = cols*0x10000/256;
+		frac = fracstep >> 1;
+		for (j=0 ; j<256 ; j++)
+		{
+			dest[j] = r_rawpalette[source[frac>>16]];
+			frac += fracstep;
+		}
+	}
+
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, image32);
+
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (0, 0);
+	qglVertex2f (x, y);
+	qglTexCoord2f (1, 0);
+	qglVertex2f (x+w, y);
+	qglTexCoord2f (1, t);
+	qglVertex2f (x+w, y+h);
+	qglTexCoord2f (0, t);
+	qglVertex2f (x, y+h);
+	qglEnd ();
+}
+
+
 /*
 ================
 GL_SetCanvas

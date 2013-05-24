@@ -207,13 +207,6 @@ void Host_Init (int argc, char **argv)
 
 	Con_Init ();
 
-	if (!dedicated)
-	{
-		Cbuf_AddText ("exec default.cfg\n");
-		Cbuf_AddText ("exec config.cfg\n");
-		Cbuf_Execute ();
-	}
-
 	Cbuf_AddEarlyCommands ();
 	Cbuf_Execute ();
 
@@ -240,7 +233,7 @@ void Host_Init (int argc, char **argv)
 	if (dedicated)
 	{
 		Cbuf_AddText ("exec server.cfg\n");
-		Cmd_StuffCmds_f ();		// process command line arguments
+		Cmd_StuffCmds_f (); // process command line arguments
 		Cbuf_Execute ();
 
 		// if a map wasn't specified on the command line, spawn start map
@@ -251,12 +244,8 @@ void Host_Init (int argc, char **argv)
 	}
 	else
 	{
-		Cbuf_AddText ("exec autoexec.cfg\n");
-		Cmd_StuffCmds_f ();		// process command line arguments
-		Cbuf_AddText ("cl_warncmd 1\n");
-
-		// start the demo list
-		Cbuf_AddText("startdemos demo1 demo2 demo3\n");
+		Cbuf_AddText ("exec quake.rc\n");
+		Cbuf_Execute ();
 	}
 
 	Com_DPrintf ("\n========= " PROGRAM " Initialized =========\n");
