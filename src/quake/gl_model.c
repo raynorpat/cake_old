@@ -621,6 +621,19 @@ void Mod_LoadLighting (lump_t *l)
 	// a valid .lit was successfully loaded
 	in = mod_base + l->fileofs;
 	out = loadmodel->lightdata = data + 8;
+
+	// clamp brightness to avoid color wash-out
+	for (i = l->filelen; i; i--) {
+		int threshold = (r_lightscale == 1 ? 255 : r_lightscale == 2 ? 170 : 128);
+		int m = max(out[0], max(out[1], out[2]));
+		if (m > threshold) {
+			out[0] = out[0] * threshold / m;
+			out[1] = out[1] * threshold / m;
+			out[2] = out[2] * threshold / m;
+		}
+		out += 3;
+		in++;
+	}
 	return;
 
 loadmono:
