@@ -384,6 +384,13 @@ void SCR_RunCinematic (void)
 		if (frame <= cl.cin.cinematicframe)
 			return;
 
+		// get out of here if we get a key
+		if (key_dest != key_game)
+		{
+			SCR_StopCinematic ();
+			return;
+		}
+
 		if (frame > cl.cin.cinematicframe + 1)
 		{
 			Com_Printf ("Dropped frame: %i > %i\n", frame, cl.cin.cinematicframe + 1);
