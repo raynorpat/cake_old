@@ -312,7 +312,7 @@ cvar_t	cl_forwardspeed = {"cl_forwardspeed", "200", CVAR_ARCHIVE};
 cvar_t	cl_backspeed = {"cl_backspeed", "200", CVAR_ARCHIVE};
 cvar_t	cl_sidespeed = {"cl_sidespeed", "200", CVAR_ARCHIVE};
 
-cvar_t	cl_run = {"cl_run", "0", CVAR_ARCHIVE};
+cvar_t	cl_run = {"cl_run", "1", CVAR_ARCHIVE};
 cvar_t	cl_movespeedkey = {"cl_movespeedkey", "2.0", CVAR_ARCHIVE};
 cvar_t	cl_anglespeedkey = {"cl_anglespeedkey", "1.5"};
 
@@ -321,7 +321,7 @@ cvar_t	cl_pitchspeed = {"cl_pitchspeed","150"};
 
 cvar_t	lookspring = {"lookspring","0",CVAR_ARCHIVE};
 cvar_t	lookstrafe = {"lookstrafe","0",CVAR_ARCHIVE};
-cvar_t	sensitivity = {"sensitivity","3",CVAR_ARCHIVE};
+cvar_t	sensitivity = {"sensitivity","6",CVAR_ARCHIVE};
 cvar_t	freelook = {"freelook","1",CVAR_ARCHIVE};
 
 cvar_t	m_pitch = {"m_pitch","0.022", CVAR_ARCHIVE};
