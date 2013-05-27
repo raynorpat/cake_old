@@ -451,8 +451,9 @@ cvar_t *Cvar_Get (char *name, char *string, int cvarflags)
 /*
 ===========
 Cvar_Delete
-===========
+
 returns true if the cvar was found (and deleted)
+===========
 */
 qbool Cvar_Delete (char *name)
 {
