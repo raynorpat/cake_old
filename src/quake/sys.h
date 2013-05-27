@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 
 // Win32 specific
-#ifdef WIN32
+#ifdef _WIN32
 #include <windows.h>
 typedef HMODULE dllhandle_t;
 #else

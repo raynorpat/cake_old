@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // FIXME
 #include "gl_local.h"
 
-#include "winquake.h"
 #include "input.h"
 #include "keys.h"
 #include "sound.h"
@@ -30,6 +29,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _WIN32
 #include <dirent.h>
 #include <sys/stat.h>
+#else
+#include <windows.h>
 #endif
 
 enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer,

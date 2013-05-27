@@ -25,7 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "keys.h"
 #include "resource.h"
 #include "sound.h"
-#include "winquake.h"
+
+#include <Windows.h>
 
 #define DIRECTINPUT_VERSION 0x0300
 #include <dinput.h>
@@ -85,6 +86,9 @@ static HICON	hIcon;
 
 // used by cd_win.c and snd_win.c
 HWND			mainwindow;
+
+extern HINSTANCE global_hInstance;
+extern HWND		hwnd_dialog; // startup screen handle
 
 static HDC		baseDC;
 static HGLRC	baseRC;
@@ -186,6 +190,22 @@ static LPDIRECTINPUTDEVICE	g_pMouse;
 static JOYINFOEX	ji;
 
 static HINSTANCE hInstDI;
+
+enum { MWHEEL_UNKNOWN, MWHEEL_DINPUT, MWHEEL_WINDOWMSG };
+
+#ifndef WM_MOUSEWHEEL
+#define WM_MOUSEWHEEL	0x020A
+#endif
+
+#ifndef MK_XBUTTON1
+#define MK_XBUTTON1		0x20
+#define MK_XBUTTON2		0x40
+#endif
+
+#ifndef WM_XBUTTONDOWN
+#define WM_XBUTTONDOWN	0x020B
+#define WM_XBUTTONUP	0x020C
+#endif
 
 // Some drivers send DIMOFS_Z, some send WM_MOUSEWHEEL, and some send both.
 // To get the mouse wheel to work in any case but avoid duplicate events,

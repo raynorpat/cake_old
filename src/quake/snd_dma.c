@@ -22,10 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "sound.h"
 
-#ifdef _WIN32
-#include "winquake.h"
-#endif
-
 void S_Play_f (void);
 void S_PlayVol_f (void);
 void S_SoundList_f (void);
