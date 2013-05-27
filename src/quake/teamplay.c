@@ -37,9 +37,6 @@ cvar_t	cl_triggers = {"cl_triggers", "0"};
 cvar_t	tp_forceTriggers = {"tp_forceTriggers", "0"};
 cvar_t	tp_loadlocs = {"tp_loadlocs", "1"};
 
-cvar_t	cl_teamskin = {"teamskin", ""};
-cvar_t	cl_enemyskin = {"enemyskin", ""};
-
 cvar_t  tp_soundtrigger = {"tp_soundtrigger", "~"};
 
 cvar_t	tp_name_axe = {"tp_name_axe", "axe"};
@@ -2359,8 +2356,6 @@ void TP_Init (void)
 	Cvar_Register (&cl_triggers);
 	Cvar_Register (&tp_forceTriggers);
 	Cvar_Register (&tp_loadlocs);
-	Cvar_Register (&cl_teamskin);
-	Cvar_Register (&cl_enemyskin);
 	Cvar_Register (&tp_soundtrigger);
 	Cvar_Register (&tp_name_axe);
 	Cvar_Register (&tp_name_sg);
