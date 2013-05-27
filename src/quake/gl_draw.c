@@ -459,7 +459,6 @@ Fills a box of pixels with a single indexed color
 */
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha)
 {
-	float v[3];
 	byte *pal = (byte *)d_8to24table;
 
 	qglDisable (GL_TEXTURE_2D);
@@ -467,23 +466,12 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha)
 	qglDisable (GL_ALPHA_TEST);
 	qglColor4f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0, alpha);
 
-	VectorSet (v, x, y, 0);
-	R_PushVertex (v);
-
-	VectorSet (v, x+w, y, 0);
-	R_PushVertex (v);
-
-	VectorSet (v, x+w, y+h, 0);
-	R_PushVertex (v);
-
-	VectorSet (v, x, y+h, 0);
-	R_PushVertex (v);
-
-	R_VertexTCBase ( 0, false );
-	R_LockArrays ();
-	R_FlushArrays ();
-	R_UnlockArrays ();
-	R_ClearArrays ();
+	qglBegin (GL_QUADS);
+	qglVertex2f (x,y);
+	qglVertex2f (x+w, y);
+	qglVertex2f (x+w, y+h);
+	qglVertex2f (x, y+h);
+	qglEnd ();
 
 	qglColor4f (1, 1, 1, 1);
 	qglDisable (GL_BLEND);
@@ -585,7 +573,6 @@ R_DrawStretchRaw
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data)
 {
 	unsigned	image32[256*256];
-	unsigned char image8[256*256];
 	int			i, j, trows;
 	byte		*source;
 	int			frac, fracstep;
