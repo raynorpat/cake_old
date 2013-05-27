@@ -332,6 +332,8 @@ void CL_ClearState (void)
 	cl_oldentframecount = -1;
 	cl_entframecount = 0;
 	cl.viewheight = DEFAULT_VIEWHEIGHT;
+	cl.minpitch = -70;
+	cl.maxpitch = 80;
 
 	V_NewMap ();
 
