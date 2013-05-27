@@ -24,6 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef _WIN32
 #include "winquake.h"
+
+extern char *DSoundError (int error);
 #else
 #define DWORD	unsigned long
 #endif
@@ -34,10 +36,6 @@ int		snd_scaletable[32][256];
 int 	*snd_p, snd_linear_count, snd_vol;
 short	*snd_out;
 
-void Snd_WriteLinearBlastStereo16 (void);
-void Snd_WriteLinearBlastStereo16_SwapStereo (void);
-
-#if	!id386
 void Snd_WriteLinearBlastStereo16 (void)
 {
 	int		i;
@@ -45,29 +43,23 @@ void Snd_WriteLinearBlastStereo16 (void)
 
 	for (i=0 ; i<snd_linear_count ; i+=2)
 	{
-		val = (snd_p[i]*snd_vol)>>8;
-		snd_out[i] = bound (-32768, val, 32767);
-		val = (snd_p[i+1]*snd_vol)>>8;
-		snd_out[i+1] = bound (-32768, val, 32767);
+		val = snd_p[i] >> 8;
+		if (val > 0x7fff)
+			snd_out[i] = 0x7fff;
+		else if (val < (short)0x8000)
+			snd_out[i] = (short)0x8000;
+		else
+			snd_out[i] = val;
+		
+		val = snd_p[i+1] >> 8;
+		if (val > 0x7fff)
+			snd_out[i+1] = 0x7fff;
+		else if (val < (short)0x8000)
+			snd_out[i+1] = (short)0x8000;
+		else
+			snd_out[i+1] = val;
 	}
 }
-
-void Snd_WriteLinearBlastStereo16_SwapStereo (void)
-{
-	int		i;
-	int		val;
-
-	for (i=0 ; i<snd_linear_count ; i+=2)
-	{
-		val = (snd_p[i+1]*snd_vol)>>8;
-		snd_out[i] = bound (-32768, val, 32767);
-		val = (snd_p[i]*snd_vol)>>8;
-		snd_out[i+1] = bound (-32768, val, 32767);
-	}
-}
-#endif
-
-extern char *DSoundError (int error);
 
 void S_TransferStereo16 (int endtime)
 {
@@ -80,8 +72,6 @@ void S_TransferStereo16 (int endtime)
 	DWORD	*pbuf2;
 	HRESULT	hresult;
 #endif
-
-	snd_vol = s_volume.value*256;
 
 	snd_p = (int *) paintbuffer;
 	lpaintedtime = paintedtime;
@@ -129,10 +119,7 @@ void S_TransferStereo16 (int endtime)
 		snd_linear_count <<= 1;
 
 	// write a linear blast of samples
-		if (s_swapstereo.value)
-			Snd_WriteLinearBlastStereo16_SwapStereo ();
-		else
-			Snd_WriteLinearBlastStereo16 ();
+		Snd_WriteLinearBlastStereo16 ();
 
 		snd_p += snd_linear_count;
 		lpaintedtime += (snd_linear_count>>1);
@@ -152,8 +139,7 @@ void S_TransferPaintBuffer(int endtime)
 	int 	*p;
 	int 	step;
 	int		val;
-	int		snd_vol;
-	DWORD	*pbuf;
+	unsigned long *pbuf;
 #ifdef _WIN32
 	int		reps;
 	DWORD	dwSize,dwSize2;
@@ -162,95 +148,93 @@ void S_TransferPaintBuffer(int endtime)
 	extern char *DSoundError (int error);
 #endif
 
+	pbuf = (unsigned long *)dma.buffer;
+
 	if (dma.samplebits == 16 && dma.channels == 2)
 	{
+		// optimized case
 		S_TransferStereo16 (endtime);
-		return;
-	}
-
-	p = (int *) paintbuffer;
-	count = (endtime - paintedtime) * dma.channels;
-	out_mask = dma.samples - 1;
-	out_idx = paintedtime * dma.channels & out_mask;
-	step = 3 - dma.channels;
-	snd_vol = s_volume.value*256;
-
-#ifdef _WIN32
-	if (pDSBuf)
-	{
-		reps = 0;
-
-		while ((hresult = pDSBuf->lpVtbl->Lock(pDSBuf, 0, gSndBufSize, &pbuf, &dwSize,
-									   &pbuf2,&dwSize2, 0)) != DS_OK)
-		{
-			if (hresult != DSERR_BUFFERLOST)
-			{
-				Com_Printf ("S_TransferPaintBuffer: Lock failed with error '%s'\n", DSoundError(hresult));
-				S_Shutdown ();
-				return;
-			}
-			else
-			{
-				pDSBuf->lpVtbl->Restore (pDSBuf);
-			}
-
-			if (++reps > 2)
-				return;
-		}
 	}
 	else
-#endif
 	{
-		pbuf = (DWORD *)dma.buffer;
-	}
-
-	if (dma.samplebits == 16)
-	{
-		short *out = (short *) pbuf;
-		while (count--)
-		{
-			val = (*p * snd_vol) >> 8;
-			p+= step;
-			if (val > 0x7fff)
-				val = 0x7fff;
-			else if (val < (int)0x8000)
-				val = (int)0x8000;
-			out[out_idx] = val;
-			out_idx = (out_idx + 1) & out_mask;
-		}
-	}
-	else if (dma.samplebits == 8)
-	{
-		unsigned char *out = (unsigned char *) pbuf;
-		while (count--)
-		{
-			val = (*p * snd_vol) >> 8;
-			p+= step;
-			if (val > 0x7fff)
-				val = 0x7fff;
-			else if (val < (int)0x8000)
-				val = (int)0x8000;
-			out[out_idx] = (val>>8) + 128;
-			out_idx = (out_idx + 1) & out_mask;
-		}
-	}
+		// general case
+		p = (int *) paintbuffer;
+		count = (endtime - paintedtime) * dma.channels;
+		out_mask = dma.samples - 1;
+		out_idx = paintedtime * dma.channels & out_mask;
+		step = 3 - dma.channels;
 
 #ifdef _WIN32
-	if (pDSBuf) {
-		DWORD dwNewpos, dwWrite;
-		int il = paintedtime;
-		int ir = endtime - paintedtime;
+		if (pDSBuf)
+		{
+			reps = 0;
 
-		ir += il;
+			while ((hresult = pDSBuf->lpVtbl->Lock(pDSBuf, 0, gSndBufSize, &pbuf, &dwSize,
+										   &pbuf2,&dwSize2, 0)) != DS_OK)
+			{
+				if (hresult != DSERR_BUFFERLOST)
+				{
+					Com_Printf ("S_TransferPaintBuffer: Lock failed with error '%s'\n", DSoundError(hresult));
+					S_Shutdown ();
+					return;
+				}
+				else
+				{
+					pDSBuf->lpVtbl->Restore (pDSBuf);
+				}
 
-		pDSBuf->lpVtbl->Unlock(pDSBuf, pbuf, dwSize, NULL, 0);
-
-		pDSBuf->lpVtbl->GetCurrentPosition(pDSBuf, &dwNewpos, &dwWrite);
-
-//		if ((dwNewpos >= il) && (dwNewpos <= ir))
-//			Com_Printf ("%d-%d p %d c\n", il, ir, dwNewpos);
-	}
+				if (++reps > 2)
+					return;
+			}
+		}
 #endif
+
+		if (dma.samplebits == 16)
+		{
+			short *out = (short *) pbuf;
+			while (count--)
+			{
+				val = *p >> 8;
+				p+= step;
+				if (val > 0x7fff)
+					val = 0x7fff;
+				else if (val < (short)0x8000)
+					val = (short)0x8000;
+				out[out_idx] = val;
+				out_idx = (out_idx + 1) & out_mask;
+			}
+		}
+		else if (dma.samplebits == 8)
+		{
+			unsigned char *out = (unsigned char *) pbuf;
+			while (count--)
+			{
+				val = *p >> 8;
+				p+= step;
+				if (val > 0x7fff)
+					val = 0x7fff;
+				else if (val < (short)0x8000)
+					val = (short)0x8000;
+				out[out_idx] = (val>>8) + 128;
+				out_idx = (out_idx + 1) & out_mask;
+			}
+		}
+
+#ifdef _WIN32
+		if (pDSBuf)
+		{
+			DWORD dwNewpos, dwWrite;
+			int il = paintedtime;
+			int ir = endtime - paintedtime;
+
+			ir += il;
+
+			pDSBuf->lpVtbl->Unlock(pDSBuf, pbuf, dwSize, NULL, 0);
+
+			pDSBuf->lpVtbl->GetCurrentPosition(pDSBuf, &dwNewpos, &dwWrite);
+		}
+#endif
+	}
 }
 
 
@@ -262,8 +246,55 @@ CHANNEL MIXING
 ===============================================================================
 */
 
-void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int endtime);
-void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int endtime);
+static void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
+{
+	int 	data;
+	int		*lscale, *rscale;
+	unsigned char *sfx;
+	int		i;
+
+	if (ch->leftvol > 255)
+		ch->leftvol = 255;
+	if (ch->rightvol > 255)
+		ch->rightvol = 255;
+
+	lscale = snd_scaletable[ch->leftvol >> 3];
+	rscale = snd_scaletable[ch->rightvol >> 3];
+	sfx = (signed char *)sc->data + ch->pos;
+
+	for (i=0 ; i<count ; i++)
+	{
+		data = sfx[i];
+		paintbuffer[i].left += lscale[data];
+		paintbuffer[i].right += rscale[data];
+	}
+
+	ch->pos += count;
+}
+
+static void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
+{
+	int data;
+	int left, right;
+	int leftvol, rightvol;
+	signed short *sfx;
+	int	i;
+
+	leftvol = ch->leftvol * snd_vol;
+	rightvol = ch->rightvol * snd_vol;
+	sfx = (signed short *)sc->data + ch->pos;
+
+	for (i=0 ; i<count ; i++)
+	{
+		data = sfx[i];
+		left = (data * leftvol) >> 8;
+		right = (data * rightvol) >> 8;
+		paintbuffer[i].left += left;
+		paintbuffer[i].right += right;
+	}
+
+	ch->pos += count;
+}
 
 void S_PaintChannels(int endtime)
 {
@@ -272,6 +303,8 @@ void S_PaintChannels(int endtime)
 	channel_t *ch;
 	sfxcache_t	*sc;
 	int		ltime, count;
+
+	snd_vol = s_volume.value * 256;
 
 	while (paintedtime < endtime)
 	{
@@ -366,65 +399,12 @@ void S_PaintChannels(int endtime)
 void SND_InitScaletable (void)
 {
 	int		i, j;
+	int		scale;
 
-	for (i=0 ; i<32 ; i++)
-		for (j=0 ; j<256 ; j++)
-			snd_scaletable[i][j] = ((signed char)j) * i * 8;
-}
-
-
-#if	!id386
-
-void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
-{
-	int 	data;
-	int		*lscale, *rscale;
-	unsigned char *sfx;
-	int		i;
-
-	if (ch->leftvol > 255)
-		ch->leftvol = 255;
-	if (ch->rightvol > 255)
-		ch->rightvol = 255;
-
-	lscale = snd_scaletable[ch->leftvol >> 3];
-	rscale = snd_scaletable[ch->rightvol >> 3];
-	sfx = (signed char *)sc->data + ch->pos;
-
-	for (i=0 ; i<count ; i++)
-	{
-		data = sfx[i];
-		paintbuffer[i].left += lscale[data];
-		paintbuffer[i].right += rscale[data];
+	for (i=0 ; i<32 ; i++) {
+		scale = i * 8 * 256 * s_volume.value;
+		for (j=0 ; j<256 ; j++) {
+			snd_scaletable[i][j] = ((signed char)j) * scale;
+		}
 	}
-
-	ch->pos += count;
 }
-
-#endif	// !id386
-
-
-void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
-{
-	int data;
-	int left, right;
-	int leftvol, rightvol;
-	signed short *sfx;
-	int	i;
-
-	leftvol = ch->leftvol;
-	rightvol = ch->rightvol;
-	sfx = (signed short *)sc->data + ch->pos;
-
-	for (i=0 ; i<count ; i++)
-	{
-		data = sfx[i];
-		left = (data * leftvol) >> 8;
-		right = (data * rightvol) >> 8;
-		paintbuffer[i].left += left;
-		paintbuffer[i].right += right;
-	}
-
-	ch->pos += count;
-}
-

@@ -51,6 +51,9 @@ vec3_t		listener_forward;
 vec3_t		listener_right;
 vec3_t		listener_up;
 
+// only begin attenuating sound volumes when outside the FULLVOLUME range
+#define		SOUND_FULLVOLUME	80
+
 #define sound_nominal_clip_dist 1000.0
 
 int			soundtime;		// sample PAIRS
@@ -77,7 +80,7 @@ portable_samplepair_t s_rawsamples[MAX_RAW_SAMPLES];
 
 cvar_t bgmvolume = {"bgmvolume", "1", CVAR_ARCHIVE};
 cvar_t s_initsound = {"s_initsound", "1"};
-cvar_t s_volume = {"s_volume", "0.5", CVAR_ARCHIVE};
+cvar_t s_volume = {"s_volume", "0.7", CVAR_ARCHIVE};
 cvar_t s_nosound = {"s_nosound", "0"};
 cvar_t s_precache = {"s_precache", "1"};
 cvar_t s_khz = {"s_khz", "44", CVAR_ARCHIVE};
@@ -85,8 +88,6 @@ cvar_t s_ambientlevel = {"s_ambientlevel", "0.3"};
 cvar_t s_ambientfade = {"s_ambientfade", "100"};
 cvar_t s_show = {"s_show", "0"};
 cvar_t s_mixahead = {"s_mixahead", "0.1", CVAR_ARCHIVE};
-cvar_t s_swapstereo = {"s_swapstereo", "0", CVAR_ARCHIVE};
-
 
 void S_SoundInfo_f (void)
 {
@@ -123,7 +124,6 @@ void S_Init(void)
 	Cvar_Register(&s_ambientfade);
 	Cvar_Register(&s_show);
 	Cvar_Register(&s_mixahead);
-	Cvar_Register(&s_swapstereo);
 
 	// compatibility with old configs
 	Cmd_AddLegacyCommand ("volume", "s_volume");
@@ -146,8 +146,8 @@ void S_Init(void)
 
 	SND_InitScaletable ();
 
-	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav", false);
-	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav", false);
+	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
+	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 
 	total_channels = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS;	// no statics
 	memset(channels, 0, MAX_CHANNELS * sizeof(channel_t));
@@ -348,12 +348,12 @@ SND_Spatialize
 */
 void SND_Spatialize (channel_t *ch)
 {
-	vec_t dist, scale, pan;
-    vec3_t source_vec;
+	vec_t		dot, dist;
+    vec_t		lscale, rscale, scale;
+    vec3_t		source_vec;
 
 	// anything coming from the view entity will always be full volume
-	// also make sounds with ATTN_NONE have no spatialization
-	if (ch->entnum == cl.playernum+1 || ch->dist_mult == 0)
+	if (ch->entnum == cl.playernum+1)
 	{
 		ch->leftvol = ch->master_vol;
 		ch->rightvol = ch->master_vol;
@@ -362,17 +362,37 @@ void SND_Spatialize (channel_t *ch)
 	{
 		// calculate stereo seperation and distance attenuation
 		VectorSubtract(ch->origin, listener_origin, source_vec);
+
 		dist = VectorNormalize(source_vec);
+		dist -= SOUND_FULLVOLUME;
+		if (dist < 0)
+			dist = 0;			// close enough to be at full volume
+		dist *= ch->dist_mult;	// different attenuation levels
 
-		// distance
-		scale = ch->master_vol * (1.0 - (dist * ch->dist_mult));
+		dot = DotProduct(listener_right, source_vec);
 
-		// panning
-		pan = scale * DotProduct(listener_right, source_vec);
+		if (dma.channels == 1 || !ch->dist_mult)
+		{
+			// no attenuation = no spatialization
+			rscale = 1.0;
+			lscale = 1.0;
+		}
+		else
+		{
+			rscale = 0.5 * (1.0 + dot);
+			lscale = 0.5*(1.0 - dot);
+		}
 
-		// calculate the volumes
-		ch->leftvol = (int) (scale - pan);
-		ch->rightvol = (int) (scale + pan);
+		// add in distance effect
+		scale = (1.0 - dist) * rscale;
+		ch->rightvol = (int) (ch->master_vol * scale);
+		if (ch->rightvol < 0)
+			ch->rightvol = 0;
+
+		scale = (1.0 - dist) * lscale;
+		ch->leftvol = (int) (ch->master_vol * scale);
+		if (ch->leftvol < 0)
+			ch->leftvol = 0;
 	}
 
 	// clamp volumes

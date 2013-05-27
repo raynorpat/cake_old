@@ -142,7 +142,6 @@ extern	portable_samplepair_t s_rawsamples[MAX_RAW_SAMPLES];
 
 extern cvar_t	s_khz;
 extern cvar_t	s_volume;
-extern cvar_t	s_swapstereo;
 extern cvar_t	bgmvolume;
 
 extern qbool	snd_initialized;
