@@ -33,20 +33,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern HINSTANCE	global_hInstance;
 extern HWND			hwnd_dialog;	// startup screen handle
 
-
-
 //
 // sound
 //
 #include <dsound.h>
-
-extern LPDIRECTSOUND		pDS;
-extern LPDIRECTSOUNDBUFFER	pDSBuf;
-extern DWORD				gSndBufSize;
-
-void S_BlockSound (void);
-void S_UnblockSound (void);
-
 
 //
 // video

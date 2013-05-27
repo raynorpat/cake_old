@@ -848,13 +848,12 @@ void CL_Init (void)
 	VID_Init();
 
 	R_Init ();
-
 	S_Init ();
+	CDAudio_Init ();
 
 	CL_InitLocal ();
 	CL_FixupModelNames ();
 	CL_InitInput ();
-	CL_InitTEnts ();
 	CL_InitPrediction ();
 	CL_InitCam ();
 	CL_InitParticles ();
@@ -862,6 +861,11 @@ void CL_Init (void)
 	SCR_Init ();
 	Sbar_Init ();
 	M_Init ();
+
+	// put up the loading image so the user doesn't stare at a black screen...
+	SCR_BeginLoadingPlaque();
+
+	CL_PrecacheTEntSounds ();
 
 	NET_ClientConfig (true);
 

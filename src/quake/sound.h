@@ -21,20 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __SOUND__
 #define __SOUND__
 
-// !!! if this is changed, it much be changed in asm_i386.h too !!!
 typedef struct
 {
 	int left;
 	int right;
 } portable_samplepair_t;
 
-typedef struct sfx_s
-{
-	char 	name[MAX_QPATH];
-	cache_user_t	cache;
-} sfx_t;
-
-// !!! if this is changed, it much be changed in asm_i386.h too !!!
 typedef struct
 {
 	int 	length;
@@ -45,14 +37,21 @@ typedef struct
 	byte	data[1];		// variable sized
 } sfxcache_t;
 
+typedef struct sfx_s
+{
+	char 	name[MAX_QPATH];
+	cache_user_t	cache;
+} sfx_t;
+
 typedef struct
 {
 	int				channels;
 	int				samples;				// mono samples in buffer
+	int				submission_chunk;		// don't mix less than this #
 	int				samplepos;				// in mono samples
 	int				samplebits;
 	int				speed;
-	unsigned char	*buffer;
+	byte			*buffer;
 } dma_t;
 
 // !!! if this is changed, it much be changed in asm_i386.h too !!!
@@ -81,44 +80,34 @@ typedef struct
 	int		dataofs;		// chunk starts this many bytes from file start
 } wavinfo_t;
 
-void S_Init (void);
-void S_Startup (void);
-void S_Shutdown (void);
-void S_Restart (void);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol,  float attenuation);
-void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
-void S_StopSound (int entnum, int entchannel);
-void S_StopAllSounds (qbool clear);
-void S_ClearBuffer (void);
-void S_RawSamples (int samples, int rate, int width, int channels, byte *data);
-void S_Update (vec3_t origin, vec3_t v_forward, vec3_t v_right, vec3_t v_up);
 
-sfx_t *S_PrecacheSound (char *sample);
-void S_TouchSound (char *sample);
-void S_PaintChannels(int endtime);
+/*
+====================================================================
 
-// picks a channel based on priorities, empty slots, number of channels
-channel_t *SND_PickChannel(int entnum, int entchannel);
+  SYSTEM SPECIFIC FUNCTIONS
 
-// spatializes a channel
-void SND_Spatialize(channel_t *ch);
+====================================================================
+*/
 
 // initializes cycling through a DMA buffer and returns information on it
-qbool SNDDMA_Init(void);
+qbool	SNDDMA_Init(void);
 
 // gets the current DMA position
-int SNDDMA_GetDMAPos(void);
+int		SNDDMA_GetDMAPos(void);
 
 // shutdown the DMA xfer.
-void SNDDMA_Shutdown(void);
+void	SNDDMA_Shutdown(void);
 
-// ====================================================================
-// User-setable variables
-// ====================================================================
+void	SNDDMA_BeginPainting (void);
+
+void	SNDDMA_Submit(void);
+
+void	S_Activate (qbool active);
+
+//====================================================================
 
 #define	MAX_CHANNELS			128
 #define	MAX_DYNAMIC_CHANNELS	8
-
 
 extern	channel_t   channels[MAX_CHANNELS];
 // 0 to MAX_DYNAMIC_CHANNELS-1	= normal entity sounds
@@ -127,7 +116,6 @@ extern	channel_t   channels[MAX_CHANNELS];
 
 extern	int			total_channels;
 
-//
 extern int		paintedtime;
 extern	int		s_rawend;
 extern vec3_t	listener_origin;
@@ -153,7 +141,36 @@ sfxcache_t *S_LoadSound (sfx_t *s);
 wavinfo_t GetWavinfo (char *name, byte *wav, int wavlength);
 
 void SND_InitScaletable (void);
-void SNDDMA_Submit(void);
+
+// picks a channel based on priorities, empty slots, number of channels
+channel_t *SND_PickChannel(int entnum, int entchannel);
+
+// spatializes a channel
+void SND_Spatialize(channel_t *ch);
+
+//====================================================================
+
+// sound attenuation values
+#define	ATTN_NONE               0	// full volume the entire level
+#define	ATTN_NORM               1
+#define	ATTN_IDLE               2
+#define	ATTN_STATIC             3	// diminish very rapidly with distance
+
+void S_Init (void);
+void S_Startup (void);
+void S_Shutdown (void);
+void S_Restart (void);
+int S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation);
+void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
+void S_StopSound (int entnum, int entchannel);
+void S_StopAllSounds (qbool clear);
+void S_ClearBuffer (void);
+void S_RawSamples (int samples, int rate, int width, int channels, byte *data);
+void S_Update (vec3_t origin, vec3_t v_forward, vec3_t v_right, vec3_t v_up);
+
+sfx_t *S_PrecacheSound (char *sample);
+void S_TouchSound (char *sample);
+void S_PaintChannels(int endtime);
 
 #endif /* __SOUND__ */
 

@@ -111,7 +111,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	if (!data)
 	{
-		Com_Printf ("Couldn't load %s\n", namebuffer);
+		Com_DPrintf ("Couldn't load %s\n", namebuffer);
 		return NULL;
 	}
 

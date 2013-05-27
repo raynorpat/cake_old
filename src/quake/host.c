@@ -227,9 +227,6 @@ void Host_Init (int argc, char **argv)
 
 	host_initialized = true;
 
-	// put up the loading image so the user doesn't stare at a black screen...
-	SCR_BeginLoadingPlaque();
-
 	if (dedicated)
 	{
 		Cbuf_AddText ("exec server.cfg\n");

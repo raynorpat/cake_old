@@ -403,12 +403,12 @@ void AppActivate(BOOL fActive, BOOL minimize)
 // enable/disable sound on focus gain/loss
 	if (!vid_activewindow && sound_active)
 	{
-		S_BlockSound ();
+		S_Activate( false );
 		sound_active = false;
 	}
 	else if (vid_activewindow && !sound_active)
 	{
-		S_UnblockSound ();
+		S_Activate( true );
 		sound_active = true;
 	}
 
