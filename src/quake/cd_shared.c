@@ -35,7 +35,7 @@ extern int CDAudio_SysStartup (void);
 extern void CDAudio_SysShutdown (void);
 
 // used by menu to ghost CD audio slider
-cvar_t	cdaudioinitialized = {"cdaudioinitialized","0",CVAR_ROM};
+cvar_t	cdaudioinitialized = {"cdaudioinitialized","0"};
 
 extern cvar_t bgmvolume;
 
@@ -92,15 +92,8 @@ void CDAudio_Play (byte track, qbool looping)
 	if (!enabled)
 		return;
 
-	if (!cdValid)
-	{
-		CDAudio_GetAudioDiskInfo();
-		if (!cdValid)
-			return;
-	}
-
 	track = remap[track];
-	if (track < 1 || track > maxTrack)
+	if (track < 1)
 	{
 		Com_DPrintf("CDAudio: Bad track number %u.\n", track);
 		return;
@@ -108,7 +101,24 @@ void CDAudio_Play (byte track, qbool looping)
 
 	if (cdPlaying && cdPlayTrack == track)
 		return;
+	CDAudio_Stop ();
 
+	if (!cdValid)
+	{
+		CDAudio_GetAudioDiskInfo();
+		if (!cdValid)
+		{
+			Com_DPrintf ("No CD in player.\n");
+			return;
+		}
+	}
+
+	if (track > maxTrack)
+	{
+		Com_DPrintf("CDAudio: Bad track number %u.\n", track);
+		return;
+	}
+	
 	if (CDAudio_SysPlay(track) == -1)
 		return;
 
@@ -138,7 +148,7 @@ void CDAudio_Pause (void)
 	if (!enabled || !cdPlaying)
 		return;
 
-	if (CDAudio_SysPause() == -1)
+	 if (CDAudio_SysPause() == -1)
 		return;
 
 	wasPlaying = cdPlaying;
@@ -148,7 +158,7 @@ void CDAudio_Pause (void)
 
 void CDAudio_Resume (void)
 {
-	if (!enabled || !cdValid || !wasPlaying)
+	if (!enabled || !wasPlaying)
 		return;
 
 	if (CDAudio_SysResume() == -1)
@@ -212,17 +222,7 @@ static void CD_f (void)
 		CDAudio_CloseDoor();
 		return;
 	}
-
-	if (!cdValid)
-	{
-		CDAudio_GetAudioDiskInfo();
-		if (!cdValid)
-		{
-			Com_Printf("No CD in player.\n");
-			return;
-		}
-	}
-
+	
 	if (strcasecmp(command, "play") == 0)
 	{
 		CDAudio_Play((byte)atoi(Cmd_Argv (2)), false);
@@ -264,12 +264,16 @@ static void CD_f (void)
 
 	if (strcasecmp(command, "info") == 0)
 	{
-		Com_Printf("%u tracks\n", maxTrack);
+		CDAudio_GetAudioDiskInfo ();
+		if (cdValid)
+			Com_Printf ("%u tracks on CD.\n", maxTrack);
+		else
+			Com_Printf ("No CD in player.\n");
 		if (cdPlaying)
-			Com_Printf("Currently %s track %u\n", cdPlayLooping ? "looping" : "playing", cdPlayTrack);
+			Com_Printf ("Currently %s track %u\n", cdPlayLooping ? "looping" : "playing", cdPlayTrack);
 		else if (wasPlaying)
-			Com_Printf("Paused %s track %u\n", cdPlayLooping ? "looping" : "playing", cdPlayTrack);
-		Com_Printf("Volume is %f\n", cdvolume);
+			Com_Printf ("Paused %s track %u\n", cdPlayLooping ? "looping" : "playing", cdPlayTrack);
+		Com_Printf ("Volume is %f\n", cdvolume);
 		return;
 	}
 }
@@ -324,12 +328,11 @@ int CDAudio_Init (void)
 
 int CDAudio_Startup (void)
 {
-	if (CDAudio_SysStartup() == -1)
-		return -1;
+	CDAudio_SysStartup ();
 
 	if (CDAudio_GetAudioDiskInfo())
 	{
-		Com_DPrintf("CDAudio_Init: No CD in player.\n");
+		Com_DPrintf("CDAudio_Startup: No CD in player.\n");
 		cdValid = false;
 	}
 
