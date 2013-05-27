@@ -20,6 +20,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CDAUDIO_H_
 #define _CDAUDIO_H_
 
+extern qbool cdValid;
+extern qbool cdPlaying;
+extern qbool cdPlayLooping;
+extern byte cdPlayTrack;
+
 int CDAudio_Init (void);
 void CDAudio_Play (byte track, qbool looping);
 void CDAudio_Stop (void);
