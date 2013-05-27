@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <Windows.h>
 
+#ifdef WIN32_DIRECTINPUT
 #define DIRECTINPUT_VERSION 0x0300
 #include <dinput.h>
 
@@ -36,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 	LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
+#endif
 
 qbool vid_supportrefreshrate = true;
 
@@ -184,8 +186,10 @@ static int		joy_id;
 static DWORD	joy_flags;
 static DWORD	joy_numbuttons;
 
+#ifdef WIN32_DIRECTINPUT
 static LPDIRECTINPUT		g_pdi;
 static LPDIRECTINPUTDEVICE	g_pMouse;
+#endif
 
 static JOYINFOEX	ji;
 
@@ -226,7 +230,7 @@ typedef struct MYDATA {
 	BYTE  bButtonH;             // Another button goes here
 } MYDATA;
 
-
+#ifdef WIN32_DIRECTINPUT
 // This structure corresponds to c_dfDIMouse2 in dinput8.lib
 // 0x80000000 is something undocumented but must be there, otherwise
 // IDirectInputDevice_SetDataFormat may fail.
@@ -254,6 +258,7 @@ static DIDATAFORMAT	df = {
 	NUM_OBJECTS,                // number of objects
 	rgodf,                      // and here they are
 };
+#endif
 
 // forward-referenced functions
 static void Joy_AdvancedUpdate_f (void);
@@ -987,12 +992,14 @@ static void IN_Activate (qbool grab)
 		if (!vid_usingmouse)
 		{
 			vid_usingmouse = true;
+#ifdef WIN32_DIRECTINPUT
 			if (dinput && g_pMouse)
 			{
 				IDirectInputDevice_Acquire(g_pMouse);
 				dinput_acquired = true;
 			}
 			else
+#endif
 			{
 				RECT window_rect;
 				window_rect.left = window_x;
@@ -1013,12 +1020,14 @@ static void IN_Activate (qbool grab)
 		if (vid_usingmouse)
 		{
 			vid_usingmouse = false;
+#ifdef WIN32_DIRECTINPUT
 			if (dinput_acquired)
 			{
 				IDirectInputDevice_Unacquire(g_pMouse);
 				dinput_acquired = false;
 			}
 			else
+#endif
 			{
 				if (restore_spi)
 					SystemParametersInfo (SPI_SETMOUSE, 0, originalmouseparms, 0);
@@ -1038,6 +1047,7 @@ IN_InitDInput
 */
 static qbool IN_InitDInput (void)
 {
+#ifdef WIN32_DIRECTINPUT
     HRESULT		hr;
 	DIPROPDWORD	dipdw = {
 		{
@@ -1133,6 +1143,9 @@ static qbool IN_InitDInput (void)
 	}
 
 	return true;
+#else
+	return false;
+#endif
 }
 
 
@@ -1195,14 +1208,17 @@ IN_MouseMove
 static void IN_MouseMove (usercmd_t *cmd)
 {
 	int		mx, my;
+#ifdef WIN32_DIRECTINPUT
 	int					i;
 	DIDEVICEOBJECTDATA	od;
 	DWORD				dwElements;
 	HRESULT				hr;
+#endif
 
 	if (!vid_usingmouse)
 		return;
 
+#ifdef WIN32_DIRECTINPUT
 	if (dinput)
 	{
 		mx = 0;
@@ -1290,6 +1306,7 @@ static void IN_MouseMove (usercmd_t *cmd)
 		mouse_oldbuttonstate = mstate_di;
 	}
 	else
+#endif
 	{
 		GetCursorPos (&current_pos);
 		mx = current_pos.x - (window_x + vid.width / 2);
@@ -2106,6 +2123,7 @@ static void IN_Shutdown(void)
 {
 	IN_Activate (false);
 
+#ifdef WIN32_DIRECTINPUT
 	if (g_pMouse)
 		IDirectInputDevice_Release(g_pMouse);
 	g_pMouse = NULL;
@@ -2113,6 +2131,7 @@ static void IN_Shutdown(void)
 	if (g_pdi)
 		IDirectInput_Release(g_pdi);
 	g_pdi = NULL;
+#endif
 }
 
 size_t VID_ListModes(vid_mode_t *modes, size_t maxcount)

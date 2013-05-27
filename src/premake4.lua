@@ -17,7 +17,7 @@ solution "Cake"
         flags { "Optimize" }
 		
 	configuration "windows"
-	   links { "user32", "gdi32", "winmm", "ws2_32", "dxguid" }
+	   links { "user32", "gdi32", "winmm", "ws2_32" }
 	configuration "linux"
 	   links { "m" }	 
 	configuration "macosx"
