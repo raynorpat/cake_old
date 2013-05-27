@@ -917,9 +917,7 @@ int VID_InitMode (int fullscreen, int width, int height, int refreshrate)
 	vid_usingvsync = false;
 	vid_hidden = false;
 	vid_initialized = true;
-
-	vid.colormap = host_colormap;
-
+	
 	IN_StartupMouse ();
 	IN_StartupJoystick ();
 

@@ -74,6 +74,12 @@ cvar_t	cl_fakename = {"cl_fakename", ""};
 cvar_t	cl_useproxy = {"cl_useproxy", "1"};
 cvar_t	default_fov = {"default_fov", "0"};
 cvar_t	qizmo_dir = {"qizmo_dir", "qizmo"};
+void OnChangeSkinForcing(cvar_t *var, char *str, qbool *cancel);
+cvar_t  noskins = {"noskins", "0", 0, OnChangeSkinForcing};
+cvar_t  allskins = {"allskins", "", 0, OnChangeSkinForcing};
+cvar_t  baseskin = {"baseskin", "", 0, OnChangeSkinForcing};
+cvar_t  teamskin = {"teamskin", "", 0, OnChangeSkinForcing};
+cvar_t  enemyskin = {"enemyskin", "", 0, OnChangeSkinForcing};
 
 //
 // info mirrors
@@ -113,8 +119,6 @@ double			connect_time = 0;		// for connection retransmits
 
 static qbool	host_skipframe;			// used in demo playback
 
-byte		*host_colormap;
-
 cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
 
 int			fps_count;
@@ -133,6 +137,19 @@ static void CL_FixupModelNames (void)
 {
 	simple_crypt (emodel_name, sizeof(emodel_name) - 1);
 	simple_crypt (pmodel_name, sizeof(pmodel_name) - 1);
+}
+
+//============================================================================
+
+void OnChangeSkinForcing(cvar_t *var, char *str, qbool *cancel)
+{
+	if (cl.teamfortress || (cl.fpd & FPD_NO_FORCE_SKIN))
+		return;
+
+	Cvar_Set (var, str);
+
+	if (cls.state == ca_active)
+		CL_UpdateSkins ();
 }
 
 //============================================================================
@@ -709,9 +726,6 @@ void CL_InitCommands (void);
 
 void CL_InitLocal (void)
 {
-	extern	cvar_t		baseskin;
-	extern	cvar_t		noskins;
-
 	Cvar_Register (&host_speeds);
 
 	Cvar_Register (&cl_warncmd);
@@ -731,8 +745,11 @@ void CL_InitLocal (void)
 
 	Cvar_Register (&localid);
 
-	Cvar_Register (&baseskin);
 	Cvar_Register (&noskins);
+	Cvar_Register (&allskins);
+	Cvar_Register (&baseskin);
+	Cvar_Register (&teamskin);
+	Cvar_Register (&enemyskin);
 
 	// ZQuake cvars
 	Cvar_Register (&r_rocketlight);
@@ -821,10 +838,6 @@ void CL_Init (void)
 	strcpy (cls.gamedir, com_gamedir);
 
 	CL_CheckGfxWad ();
-
-	host_colormap = (byte *)FS_LoadHunkFile ("gfx/colormap.lmp");
-	if (!host_colormap)
-		Sys_Error ("Couldn't load gfx/colormap.lmp");
 
 	Sys_mkdir(va("%s/%s", com_basedir, "qw"));
 

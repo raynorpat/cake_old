@@ -27,10 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "teamplay.h"
 #include "version.h"
 
-
-void R_TranslatePlayerSkin (int playernum);
-
-
 char *svc_strings[] =
 {
 	"svc_bad",
@@ -439,6 +435,80 @@ void Sound_NextDownload (void)
 	MSG_WriteString (&cls.netchan.message, va("modellist %i %i", cl.servercount, 0));
 }
 
+
+static char skinlist[MAX_CLIENTS][32];
+static int numskins;
+
+void Skin_NextDownload (void);
+
+// Build a list of skins to download and start downloading
+void CL_Skins_f (void)
+{
+	int i, j;
+
+	if (cls.demoplayback || cls.state != ca_onserver)
+		return;
+
+	numskins = 0;
+
+	if (noskins.value)
+		goto done;
+
+	// build a list of skins to check
+	CL_UpdateSkins ();
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		char *s = cl.players[i].skin;
+		if (i == cl.playernum || !*s)
+			continue;
+		for (j = 0; j < numskins; j++)
+			if (!strcmp(s, skinlist[j]))
+				goto skip;
+		assert (numskins < MAX_CLIENTS);
+		strlcpy (skinlist[numskins], s, sizeof(skinlist[0]));
+		numskins++;
+skip:   ;
+	}
+
+done:
+	cls.downloadnumber = 0;
+	cls.downloadtype = dl_skin;
+	Skin_NextDownload ();
+}
+
+
+/*
+=================
+Skin_NextDownload
+=================
+*/
+void Skin_NextDownload (void)
+{
+	if (!numskins)
+		goto done;
+
+	if (cls.downloadnumber == 0) {
+		if (!com_serveractive || developer.value)
+			Com_Printf ("Checking skins...\n");
+	}
+	cls.downloadtype = dl_skin;
+
+	for (
+		; cls.downloadnumber != numskins
+		; cls.downloadnumber++)
+	{
+		char *s = skinlist[cls.downloadnumber];
+		if (!CL_CheckOrDownloadFile(va("skins/%s.pcx", s)))
+			return; // started a download
+	}
+
+done:
+	cls.downloadtype = dl_none;
+
+	// get next signon phase
+	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+	MSG_WriteString (&cls.netchan.message, va("begin %i", cl.servercount));
+}
 
 /*
 ======================
@@ -929,7 +999,7 @@ void CL_ParseStatic (void)
 // copy it to the current state
 	ent->model = cl.model_precache[es.modelindex];
 	ent->frame = es.frame;
-	ent->colormap = vid.colormap;
+	ent->colormap = 0;
 	ent->skinnum = es.skinnum;
 
 	MSG_UnpackOrigin (es.s_origin, ent->origin);
@@ -1059,47 +1129,68 @@ CL_NewTranslation
 */
 void CL_NewTranslation (int slot)
 {
-	char	s[512];
+	char    skin[32];
 	player_info_t	*player;
+	static char myteam[32];
 
-	if (slot >= MAX_CLIENTS)
-		Sys_Error ("CL_NewTranslation: slot >= MAX_CLIENTS");
+	assert (slot >= 0 && slot <= MAX_CLIENTS);
 
 	player = &cl.players[slot];
 	if (player->spectator)
 		return;
 
-	strcpy(s, Info_ValueForKey(player->userinfo, "skin"));
-	COM_StripExtension(s, s);
-	if (player->skin && Q_stricmp(s, player->skin->name))
-		player->skin = NULL;
+	player->topcolor = atoi(Info_ValueForKey (player->userinfo, "topcolor"));
+	player->bottomcolor = atoi(Info_ValueForKey (player->userinfo, "bottomcolor"));
 
-// teamcolor/enemycolor -->
-	player->topcolor = player->real_topcolor;
-	player->bottomcolor = player->real_bottomcolor;
+	if (noskins.value == 1) {
+		player->skin[0] = 0;
+		return;
+	}
 
-	strcpy (s, cl.players[cl.playernum].team);
+	strlcpy (skin, Info_ValueForKey(player->userinfo, "skin"), sizeof(skin));
+	if (!skin[0] || !strcmp(skin, "base"))
+		strlcpy (skin, baseskin.string, sizeof(skin));
+	if (allskins.string[0])
+		strlcpy (skin, allskins.string, sizeof(skin));
 
+	// check team/enemy overrides
 	if ( !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_COLOR) ) {
-		if (cl_teamtopcolor >= 0 && cl.teamplay && 
-			!strcmp(player->team, s))
-		{
+		qbool teammate;
+
+		strlcpy (myteam, cl.players[cl.playernum].team, sizeof(myteam));
+
+		teammate = (cl.teamplay && !strcmp(player->team, myteam)) ? true : false;
+		
+		if (teammate && cl_teamtopcolor >= 0) {
 			player->topcolor = cl_teamtopcolor;
 			player->bottomcolor = cl_teambottomcolor;
-		}
-		
-		if (cl_enemytopcolor >= 0 && slot != cl.playernum &&
-			(!cl.teamplay || strcmp(player->team, s)))
-		{
+		} else if (!teammate && cl_enemytopcolor >= 0 && slot != cl.playernum) {
 			player->topcolor = cl_enemytopcolor;
 			player->bottomcolor = cl_enemybottomcolor;
 		}
-	}
-// <--
 
-	R_TranslatePlayerSkin(slot);
+		if (teammate && teamskin.string[0])
+			strlcpy (skin, teamskin.string, sizeof(skin));
+		else if (!teammate && enemyskin.string[0])
+			strlcpy (skin, enemyskin.string, sizeof(skin));
+	}
+
+	COM_StripExtension(skin, skin);
+	strlcpy (player->skin, skin, sizeof(player->skin));
 }
 
+/*
+=====================
+CL_UpdateSkins
+=====================
+*/
+void CL_UpdateSkins (void)
+{
+	int i;
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+		CL_NewTranslation (i);
+}
 
 /*
 ==============
@@ -1115,8 +1206,6 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 		// somebody's trying to hide himself by overflowing userinfo
 		strcpy (player->name, " ");
 	}
-	player->real_topcolor = atoi(Info_ValueForKey (player->userinfo, "topcolor"));
-	player->real_bottomcolor = atoi(Info_ValueForKey (player->userinfo, "bottomcolor"));
 	strcpy (old_team, player->team);
 	strcpy (player->team, Info_ValueForKey (player->userinfo, "team"));
 
@@ -1131,12 +1220,8 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 		cl.spectator = player->spectator;
 	}
 
-	if (slot == cl.playernum && (cl_teamtopcolor >= 0 || cl_enemytopcolor >= 0) && strcmp(player->team, old_team))
-	{
-		int i;
-		for (i=0 ; i < MAX_CLIENTS ; i++)
-			CL_NewTranslation (i);
-	}
+	if (slot == cl.playernum && strcmp(player->team, old_team))
+		CL_UpdateSkins ();
 	else
 		CL_NewTranslation (slot);
 }
@@ -1206,7 +1291,6 @@ void CL_ProcessServerInfo (void)
 {
 	char	*p;
 	int teamplay, fpd;
-	int i;
 
 	// game type (sbar code checks it)
 	p = Info_ValueForKey(cl.serverinfo, "deathmatch");
@@ -1259,10 +1343,8 @@ void CL_ProcessServerInfo (void)
 	if (teamplay != cl.teamplay || fpd != cl.fpd) {
 		cl.teamplay = teamplay;
 		cl.fpd = fpd;
-		if (cls.state >= ca_connected) {
-			for (i = 0; i < MAX_CLIENTS ; i++)
-				CL_NewTranslation (i);
-		}
+		if (cls.state == ca_active)
+			CL_UpdateSkins ();
 	}
 }
 

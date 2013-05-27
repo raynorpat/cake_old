@@ -366,9 +366,6 @@ extern	cvar_t	gl_farclip;
 
 extern	float	r_lightscale;	// overbright light scale
 
-void R_TranslatePlayerSkin (int playernum);
-void R_TranslateNewPlayerSkin (int playernum);
-
 void GL_MBind ( GLenum target, int texnum );
 void GL_Bind ( int texnum );
 void GL_SelectTexture ( GLenum target );
@@ -505,6 +502,19 @@ void R_DrawAliasShadow (entity_t *e);
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
 void DrawWaterPoly (glpoly_t *p);
+
+void R_GetTranslatedPlayerSkin (int colormap, int *texture, int *fb_texture);
+void R_FlushTranslations (void);
+
+typedef struct skin_s {
+	char            name[16];
+	qbool           failedload; // the name isn't a valid skin
+	cache_user_t    cache;
+} skin_t;
+
+void Skin_Find (char *skinname, struct skin_s **sk);
+byte *Skin_Cache (struct skin_s *skin);
+void Skin_Flush (void);
 
 #endif /* _GL_LOCAL_H_ */
 

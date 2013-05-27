@@ -23,9 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern qbool mtexenabled;
 
-// up to 32 color translated skins
-extern gltexture_t *playertextures[MAX_CLIENTS];
-
 #define NUMVERTEXNORMALS	162
 
 float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
@@ -228,7 +225,6 @@ R_DrawAliasModel
 */
 void R_DrawAliasModel (entity_t *ent)
 {
-	int			i;
 	aliashdr_t	*paliashdr;
 	int			anim, skinnum;
 	model_t		*clmodel = ent->model;
@@ -285,25 +281,10 @@ void R_DrawAliasModel (entity_t *ent)
 	}
 	texture = paliashdr->gl_texture[skinnum][anim];
 	fb_texture = paliashdr->fb_texture[skinnum][anim];
-
-	// we can't dynamically colormap textures, so they are cached
-	// separately for the players.  Heads are just uncolored.
-	if (ent->scoreboard && (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL) && !gl_nocolors.value)
-	{
-		i = ent->scoreboard - cl.players;
-
-		if (!ent->scoreboard->skin) {
-			Skin_Find (ent->scoreboard);
-			R_TranslateNewPlayerSkin (i);
-		}
-
-		if (i >= 0 && i < MAX_CLIENTS) {
-		    texture = playertextures[i];
-		}
-	}
-
 	if (!gl_fullbrights.value)
 		fb_texture = NULL;
+	if (ent->colormap && (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL) && !gl_nocolors.value)
+		R_GetTranslatedPlayerSkin (ent->colormap, &texture->texnum, &fb_texture->texnum);
 
 	//
 	// draw it

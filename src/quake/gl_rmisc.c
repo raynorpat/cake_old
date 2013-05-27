@@ -24,90 +24,232 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <time.h>
 
-extern gltexture_t *playertextures[MAX_CLIENTS];
+int     playertextures; // up to 32 color translated skins
+int     playerfbtextures[MAX_CLIENTS];
 
 /*
-===============
-R_TranslatePlayerSkin
+=============================================================
 
-Translates a skin texture by the per-player color lookup
-===============
+  TRANSLATED PLAYER SKINS
+
+=============================================================
 */
-void R_TranslatePlayerSkin (int playernum)
+
+typedef struct r_translation_s {
+	int topcolor;
+	int bottomcolor;
+	char skinname[32];
+} r_translation_t;
+
+static r_translation_t r_translations[MAX_CLIENTS];
+static struct skin_s *r_baseskin;
+static char cur_baseskin[32];
+
+// called on startup and every time gamedir changes
+void R_FlushTranslations (void)
 {
-	int			top, bottom;
-	player_info_t *player;
-	char		s[512];
+	int i;
 
-	player = &cl.players[playernum];
-	if (!player->name[0])
-		return;
-
-	strcpy(s, Info_ValueForKey(player->userinfo, "skin"));
-	COM_StripExtension(s, s);
-	if (player->skin && Q_stricmp(s, player->skin->name))
-		player->skin = NULL;
-
-	if (player->_topcolor != player->topcolor || player->_bottomcolor != player->bottomcolor || !player->skin)
-	{
-		player->_topcolor = player->topcolor;
-		player->_bottomcolor = player->bottomcolor;
-
-		top = player->topcolor;
-		bottom = player->bottomcolor;
-		top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
-		bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
-		top *= 16;
-		bottom *= 16;
-
-		// FIXME: if gl_nocolors is on, then turned off, the textures may be out of sync with the scoreboard colors.
-		if (!gl_nocolors.value)
-		{
-			if (playertextures[playernum])
-				TexMgr_ReloadImage (playertextures[playernum], top, bottom);
-		}
+	Skin_Flush ();
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		r_translations[i].topcolor = -1; // this will force a rebuild
+		r_translations[i].skinname[0] = 0;
 	}
+	r_baseskin = NULL;
+	cur_baseskin[0] = 0;
 }
 
-/*
-===============
-R_TranslateNewPlayerSkin
-
-this is called when the skin or model actually changes, instead of just new colors
-===============
-*/
-void R_TranslateNewPlayerSkin (int playernum)
+void R_TranslatePlayerSkin (int playernum, byte *original)
 {
-	player_info_t	*player;
-	char			name[256];
-	int				width, height;
-	byte			*skin;
-	extern byte	player_8bit_texels[320*200];
+	int		top, bottom;
+	byte	translate[256];
+	unsigned	translate32[256];
+	int		i, j;
+	unsigned	pixels[512*256], *out;
+	int			inwidth, inheight;
+	int			tinwidth, tinheight;
+	byte		*inrow;
+	unsigned	frac, fracstep;
+	extern	byte		player_8bit_texels[320*200];
 
-	player = &cl.players[playernum];
-	if (!player->name[0])
-		return;
+	GL_DisableMultitexture();
 
-	// locate the original skin pixels
-	if (!player->skin)
-		Skin_Find(player);
+	top = r_translations[playernum].topcolor;
+	bottom = r_translations[playernum].bottomcolor;
+	top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
+	bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
+	top *= 16;
+	bottom *= 16;
 
-	if ((skin = Skin_Cache(player->skin)) != NULL) {
-		// skin data width
-		width = 320;
-		height = 200;
-	} else {
-		skin = player_8bit_texels;
-		width = 296;
-		height = 194;
+	for (i = 0; i < 256; i++)
+			translate[i] = i;
+
+	for (i = 0; i < 16; i++)
+	{
+		if (top < 128)	// the artists made some backwards ranges.  sigh.
+			translate[TOP_RANGE+i] = top+i;
+		else
+			translate[TOP_RANGE+i] = top+15-i;
+
+		if (bottom < 128)
+			translate[BOTTOM_RANGE+i] = bottom+i;
+		else
+			translate[BOTTOM_RANGE+i] = bottom+15-i;
 	}
 
-	// upload new image
-	sprintf (name, "player_%i", playernum);
-	playertextures[playernum] = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, skin, "", 0, TEXPREF_OVERWRITE);
+	for (i=0 ; i<256 ; i++)
+		translate32[i] = d_8to24table[translate[i]];
 
-	// now recolor it
-	R_TranslatePlayerSkin (playernum);
+
+	//
+	// locate the original skin pixels
+	//
+	// real model width
+	tinwidth = 296;
+	tinheight = 194;
+
+	if (original) {
+		//skin data width
+		inwidth = 320;
+		inheight = 200;
+	} else {
+		original = player_8bit_texels;
+		inwidth = 296;
+		inheight = 194;
+	}
+
+	// because this happens during gameplay, do it fast
+	// instead of sending it through gl_upload 8
+	GL_Bind(playertextures + playernum);
+
+	// scale and upload the texture
+	out = pixels;
+	memset(pixels, 0, sizeof(pixels));
+	fracstep = tinwidth*0x10000/inwidth;
+	for (i=0 ; i<inheight ; i++, out += inwidth)
+	{
+		inrow = original + inwidth*(i*tinheight/inheight);
+		frac = fracstep >> 1;
+		for (j=0 ; j<inwidth ; j+=4)
+		{
+			out[j] = translate32[inrow[frac>>16]];
+			frac += fracstep;
+			out[j+1] = translate32[inrow[frac>>16]];
+			frac += fracstep;
+			out[j+2] = translate32[inrow[frac>>16]];
+			frac += fracstep;
+			out[j+3] = translate32[inrow[frac>>16]];
+			frac += fracstep;
+		}
+	}
+
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, inwidth, inheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	playerfbtextures[playernum] = 0;
+	/*
+	if (Mod_CheckFullbrights ((byte *)original, inwidth*inheight))
+	{
+		playerfbtextures[playernum] = playertextures + playernum + MAX_CLIENTS;
+		GL_Bind (playerfbtextures[playernum]);
+
+		out = pixels;
+		memset(pixels, 0, sizeof(pixels));
+		fracstep = tinwidth*0x10000/inwidth;
+
+		// make all non-fullbright colors transparent
+		for (i=0 ; i<inheight ; i++, out += inwidth)
+		{
+			inrow = original + inwidth*(i*tinheight/inheight);
+			frac = fracstep >> 1;
+			for (j=0 ; j<inwidth ; j+=4)
+			{
+				if (inrow[frac>>16] < 224)
+					out[j] = translate32[inrow[frac>>16]] & LittleLong(0x00FFFFFF); // transparent
+				else
+					out[j] = translate32[inrow[frac>>16]]; // fullbright
+				frac += fracstep;
+				if (inrow[frac>>16] < 224)
+					out[j+1] = translate32[inrow[frac>>16]] & LittleLong(0x00FFFFFF);
+				else
+					out[j+1] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				if (inrow[frac>>16] < 224)
+					out[j+2] = translate32[inrow[frac>>16]] & LittleLong(0x00FFFFFF);
+				else
+					out[j+2] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+				if (inrow[frac>>16] < 224)
+					out[j+3] = translate32[inrow[frac>>16]] & LittleLong(0x00FFFFFF);
+				else
+					out[j+3] = translate32[inrow[frac>>16]];
+				frac += fracstep;
+			}
+		}
+
+		qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, inwidth, inheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+	*/
+}
+
+void R_GetTranslatedPlayerSkin (int colormap, int *texture, int *fb_texture)
+{
+	struct skin_s *skin;
+	byte *data;
+	r_translation_t *cur;
+	translation_info_t *new;
+
+	assert (colormap >= 0 && colormap <= MAX_CLIENTS);
+	if (!colormap)
+		return;
+
+	cur = r_translations + (colormap - 1);
+	new = r_refdef2.translations + (colormap - 1);
+
+	// rebuild if necessary
+	if (new->topcolor != cur->topcolor
+		|| new->bottomcolor != cur->bottomcolor
+		|| strcmp(new->skinname, cur->skinname))
+	{
+		cur->topcolor = new->topcolor;
+		cur->bottomcolor = new->bottomcolor;
+		strlcpy (cur->skinname, new->skinname, sizeof(cur->skinname));
+
+		if (!cur->skinname[0]) {
+			data = NULL;
+			goto inlineskin;
+		}
+
+		Skin_Find (r_translations[colormap - 1].skinname, &skin);
+		data = Skin_Cache (skin);
+		if (!data) {
+			if (r_refdef2.baseskin[0] && strcmp(r_refdef2.baseskin, cur->skinname)) {
+				if (strcmp(cur_baseskin, r_refdef2.baseskin))
+				{
+					strlcpy (cur_baseskin, r_refdef2.baseskin, sizeof(cur_baseskin));
+					if (!cur_baseskin[0]) {
+						data = NULL;
+						goto inlineskin;
+					}
+					Skin_Find (r_refdef2.baseskin, &r_baseskin);
+				}
+				data = Skin_Cache (r_baseskin);
+			}
+		}
+
+inlineskin:
+		R_TranslatePlayerSkin (colormap - 1, data);
+	}
+
+	*texture = playertextures + (colormap - 1);
+	*fb_texture = playerfbtextures[colormap - 1];
 }
 
 /*
@@ -134,6 +276,8 @@ void R_NewMap (struct model_s *worldmodel)
 	r_viewleaf = NULL;
 
 	GL_BuildLightmaps ();
+
+	R_FlushTranslations ();
 }
 
 
@@ -318,7 +462,10 @@ Never store this pointer for later use!
 
 On failure (not enough memory), *pcxdata will be set to NULL
 ================== 
-*/  
+*/
+#define RSSHOT_WIDTH 320
+#define RSSHOT_HEIGHT 200
+
 void R_RSShot (byte **pcxdata, int *pcxsize)
 { 
 	int     x, y;

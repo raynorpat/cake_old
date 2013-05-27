@@ -43,8 +43,6 @@ typedef struct vrect_s
 
 typedef struct
 {
-	pixel_t			*colormap;		// 256 * VID_GRADES size
-
 	// these are set by VID_Mode
 	int				width;
 	int				height;

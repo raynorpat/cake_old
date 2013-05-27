@@ -454,15 +454,9 @@ void CL_LinkPacketEntities (void)
 		// set colormap
 		if (state->colormap >= 1 && state->colormap <= MAX_CLIENTS
 			&& state->modelindex == cl_playerindex)
-		{
-			ent.colormap = cl.players[state->colormap-1].translations;
-			ent.scoreboard = &cl.players[state->colormap-1];
-		}
+			ent.colormap = state->colormap;
 		else
-		{
-			ent.colormap = vid.colormap;
-			ent.scoreboard = NULL;
-		}
+			ent.colormap = 0;
 
 		// set skin
 		ent.skinnum = state->skinnum;
@@ -621,7 +615,7 @@ void CL_LinkProjectiles (void)
 	entity_t		ent;
 
 	memset (&ent, 0, sizeof(entity_t));
-	ent.colormap = vid.colormap;
+	ent.colormap = 0;
 
 	for (i=0, pr=cl_projectiles ; i<cl_num_projectiles ; i++, pr++)
 	{
@@ -822,7 +816,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 
 	newent.model = cl.model_precache[cl_flagindex];
 	newent.skinnum = team;
-	newent.colormap = vid.colormap;
+	newent.colormap = 0;
 
 	AngleVectors (ent->angles, v_forward, v_right, NULL);
 	v_forward[2] = -v_forward[2]; // reverse z component
@@ -863,7 +857,7 @@ static qbool CL_AddVWepModel (entity_t *ent, int vw_index, int vw_frame)
 	newent.model = cl.vw_model_precache[vw_index];
 	newent.frame = vw_frame;
 	newent.skinnum = 0;
-	newent.colormap = vid.colormap;
+	newent.colormap = 0;
 	newent.renderfx = RF_PLAYERMODEL;	// not really, but use same lighting rules
 
 	V_AddEntity (&newent);
@@ -963,11 +957,7 @@ void CL_LinkPlayers (void)
 			Host_Error ("CL_LinkPlayers: bad modelindex");
 		ent.skinnum = state->skinnum;
 		ent.frame = state->frame;
-		ent.colormap = info->translations;
-		if (state->modelindex == cl_playerindex)
-			ent.scoreboard = info;		// use custom skin
-		else
-			ent.scoreboard = NULL;
+		ent.colormap = j + 1;
 
 		//
 		// angles

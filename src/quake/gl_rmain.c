@@ -37,8 +37,6 @@ mplane_t	frustum[4];
 
 int			c_brush_polys, c_brush_passes, c_alias_polys;
 
-gltexture_t *playertextures[MAX_CLIENTS]; // up to 32 color translated skins
-
 //
 // view origin
 //

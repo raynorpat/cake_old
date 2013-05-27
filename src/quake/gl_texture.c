@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 
 cvar_t	gl_picmip = {"gl_picmip", "0"};
-cvar_t	r_upscale_textures = {"r_upscale_textures", "1"};
+cvar_t	r_upscale_textures = {"r_upscale_textures", "0"};
 
 #define MAX_STACK_PIXELS (256 * 256)
 
@@ -628,6 +628,11 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 		memcpy (data, data + 32*31, 32);
 	}
 
+	// HACK HACK: don't upscale the player menu
+	if (strstr(glt->name, "menuplyr") && glt->flags & TEXPREF_HQ2X)
+	{
+	}
+
 	// choose palette and padbyte
 	if (glt->flags & TEXPREF_FULLBRIGHT)
 	{
@@ -866,7 +871,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 	if (!data)
 	{
 invalid:
-		Com_DPrintf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
+		Com_Printf ("TexMgr_ReloadImage: invalid source for %s\n", glt->name);
 		Hunk_FreeToLowMark (mark);
 		return;
 	}

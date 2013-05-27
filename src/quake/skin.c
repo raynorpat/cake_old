@@ -21,85 +21,45 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "rc_image.h"
 #include "teamplay.h"
+#include "gl_local.h"
 
-cvar_t		baseskin = {"baseskin", "base"};
-cvar_t		noskins = {"noskins", "0"};
-
-char		allskins[128];
 #define	MAX_CACHED_SKINS		128
-skin_t		skins[MAX_CACHED_SKINS];
-int			numskins;
+static skin_t skins[MAX_CACHED_SKINS];
+static int numskins;
 
 /*
 ================
 Skin_Find
-
-  Determines the best skin for the given scoreboard
-  slot, and sets scoreboard->skin
-
 ================
 */
-void Skin_Find (player_info_t *sc)
+void Skin_Find (char *skinname, struct skin_s **sk)
 {
 	skin_t		*skin;
 	int			i;
-	char		name[128], *s;
+	char		name[MAX_OSPATH];
 
-	if (allskins[0])
-		strcpy (name, allskins);
-	else
-	{
-		s = Info_ValueForKey (sc->userinfo, "skin");
-		if (s && s[0])
-			strcpy (name, s);
-		else
-			strcpy (name, baseskin.string);
-	}
-
-	// ZQuake: check teamskin/enemyskin
-	// FIXME: does this work?
-	if ( !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_SKIN) )
-	{
-		int teamplay;
-
-		teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
-		
-		if (cl_teamskin.string[0] && teamplay && 
-			!strcmp(sc->team, cl.players[cl.playernum].team))
-		{
-			strlcpy (name, cl_teamskin.string, sizeof(name));
-		}
-		
-		if (cl_enemyskin.string[0] && (!teamplay || 
-			strcmp(sc->team, cl.players[cl.playernum].team)))
-		{
-			strlcpy (name, cl_enemyskin.string, sizeof(name));
-		}
-	}
-
-	if (strstr (name, "..") || *name == '.')
-		strcpy (name, "base");
-
-	COM_StripExtension (name, name);
+	strlcpy (name, skinname, sizeof(name));
 
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (!strcmp (name, skins[i].name))
 		{
-			sc->skin = &skins[i];
-			Skin_Cache (sc->skin);
+			*sk = &skins[i];
+			Skin_Cache (*sk);
 			return;
 		}
 	}
 
 	if (numskins == MAX_CACHED_SKINS)
-	{	// ran out of spots, so flush everything
-		Skin_Skins_f ();
+	{
+		// ran out of spots, so flush everything
+		extern void R_FlushTranslations ();
+		R_FlushTranslations ();
 		return;
 	}
 
 	skin = &skins[numskins];
-	sc->skin = skin;
+	*sk = skin;
 	numskins++;
 
 	memset (skin, 0, sizeof(*skin));
@@ -121,10 +81,6 @@ byte *Skin_Cache (skin_t *skin)
 	int		width, height;
 	char	name[MAX_OSPATH];
 
-	if (cls.downloadtype == dl_skin)
-		return NULL;		// use base until downloaded
-	if (noskins.value == 1) 
-		return NULL;		// JACK: So NOSKINS > 1 will show skins, but not download new ones.
 	if (skin->failedload)
 		return NULL;
 
@@ -142,16 +98,9 @@ byte *Skin_Cache (skin_t *skin)
 		if (pic)
 			Q_free (pic);
 
-		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
-		pic = Image_LoadImage (name, &width, &height);
-		if (!pic || width > 320 || height > 200)
-		{
-			if (pic)
-				Q_free (pic);
-			skin->failedload = true;
-			Com_DPrintf ("Couldn't load skin %s\n", name);
-			return NULL;
-		}
+		skin->failedload = true;
+		Com_DPrintf ("Couldn't load skin %s\n", name);
+		return NULL;
 	}
 
 	out = pix = Cache_Alloc (&skin->cache, 320*200, skin->name);
@@ -169,67 +118,12 @@ byte *Skin_Cache (skin_t *skin)
 	return out;
 }
 
-
-/*
-=================
-Skin_NextDownload
-=================
-*/
-void Skin_NextDownload (void)
-{
-	player_info_t	*sc;
-	int			i;
-
-	if (cls.downloadnumber == 0) {
-		if (!com_serveractive || developer.value)
-			Com_Printf ("Checking skins...\n");
-	}
-	cls.downloadtype = dl_skin;
-
-	for ( 
-		; cls.downloadnumber != MAX_CLIENTS
-		; cls.downloadnumber++)
-	{
-		sc = &cl.players[cls.downloadnumber];
-		if (!sc->name[0])
-			continue;
-		Skin_Find (sc);
-		if (noskins.value)
-			continue;
-		if (!CL_CheckOrDownloadFile(va("skins/%s.pcx", sc->skin->name)))
-			return;		// started a download
-	}
-
-	cls.downloadtype = dl_none;
-
-	// now load them in for real
-	for (i=0 ; i<MAX_CLIENTS ; i++)
-	{
-		sc = &cl.players[i];
-		if (!sc->name[0])
-			continue;
-		Skin_Cache (sc->skin);
-		sc->skin = NULL;
-	}
-
-	if (cls.state == ca_onserver)
-	{
-		// get next signon phase
-		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-		MSG_WriteString (&cls.netchan.message,
-			va("begin %i", cl.servercount));
-	}
-}
-
-
 /*
 ==========
-Skin_Skins_f
-
-Refind all skins, downloading if needed.
+Skin_Flush
 ==========
 */
-void Skin_Skins_f (void)
+void Skin_Flush (void)
 {
 	int		i;
 
@@ -238,23 +132,6 @@ void Skin_Skins_f (void)
 		if (skins[i].cache.data)
 			Cache_Free (&skins[i].cache);
 	}
+
 	numskins = 0;
-
-	cls.downloadnumber = 0;
-	cls.downloadtype = dl_skin;
-	Skin_NextDownload ();
-}
-
-
-/*
-==========
-Skin_AllSkins_f
-
-Sets all skins to one specific one
-==========
-*/
-void Skin_AllSkins_f (void)
-{
-	strlcpy (allskins, Cmd_Argv(1), sizeof(allskins));
-	Skin_Skins_f ();
 }

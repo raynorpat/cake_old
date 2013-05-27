@@ -690,70 +690,6 @@ static void Sbar_DrawInventory (void)
 
 /*
 ===============
-Sbar_DrawFrags
-===============
-*/
-static void Sbar_DrawFrags (void)
-{	
-	int				i, k, l;
-	int				top, bottom;
-	int				x, y, f;
-	char			num[12];
-	player_info_t	*s;
-	
-	if (cl.gametype == GAME_COOP)
-		return;
-
-	Sbar_SortFrags (false);
-
-	// draw the text
-	l = scoreboardlines <= 4 ? scoreboardlines : 4;
-	
-	x = 23;
-	y = 320 - SBAR_HEIGHT - 23;
-
-	for (i=0 ; i<l ; i++)
-	{
-		k = fragsort[i];
-		s = &cl.players[k];
-		if (!s->name[0])
-			continue;
-		if (s->spectator)
-			continue;
-
-		// draw background
-		top = s->topcolor;
-		bottom = s->bottomcolor;
-		top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
-		bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
-
-		top = Sbar_ColorForMap (top);
-		bottom = Sbar_ColorForMap (bottom);
-	
-		R_DrawFilledRect (x*8 + 10, y, 28, 4, top, 1.0f);
-		R_DrawFilledRect (x*8 + 10, y+4, 28, 3, bottom, 1.0f);
-
-		// draw number
-		f = s->frags;
-		sprintf (num, "%3i",f);
-		
-		Sbar_DrawChar ((x+1)*8 , -24, num[0]);
-		Sbar_DrawChar ((x+2)*8 , -24, num[1]);
-		Sbar_DrawChar ((x+3)*8 , -24, num[2]);
-
-		if (k == cl.playernum)
-		{
-			Sbar_DrawChar (x*8+2, -24, 16);
-			Sbar_DrawChar ((x+4)*8-4, -24, 17);
-		}
-		x+=4;
-	}
-}
-
-//=============================================================================
-
-/*
-===============
 Sbar_DrawFace
 ===============
 */
@@ -905,9 +841,6 @@ void Sbar_Draw (void)
 			Sbar_DrawInventory ();
 			inventory_area_drawn = true;
 		}
-
-		if (vid.width < 512)
-			Sbar_DrawFrags ();
 	}	
 
 // main area
@@ -1221,10 +1154,10 @@ static void Sbar_DeathmatchOverlay (int start)
 		bottom = Sbar_ColorForMap (bottom);
 	
 		if (largegame)
-			R_DrawFilledRect ( x+104, y+1, 40, 3, top, 1.0f);
+			R_DrawFilledRect ( x+104, y+1, 40, 3, top, 0.6f);
 		else
-			R_DrawFilledRect ( x+104, y, 40, 4, top, 1.0f);
-		R_DrawFilledRect ( x+104, y+4, 40, 4, bottom, 1.0f);
+			R_DrawFilledRect ( x+104, y, 40, 4, top, 0.6f);
+		R_DrawFilledRect ( x+104, y+4, 40, 4, bottom, 0.6f);
 
 		// draw number
 		f = s->frags;

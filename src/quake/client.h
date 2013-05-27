@@ -21,13 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CLIENT_H_
 #define _CLIENT_H_
 
-typedef struct
-{
-	char		name[16];
-	qbool		failedload;		// the name isn't a valid skin
-	cache_user_t	cache;
-} skin_t;
-
 #define MAX_STATIC_SOUNDS	256
 typedef struct
 {
@@ -112,19 +105,10 @@ typedef struct player_info_s
 	byte	pl;
 	qbool	spectator;
 
-	// skin information
-	int		real_topcolor;			// what the server tells us
-	int		real_bottomcolor;
-
-	int		topcolor;				// real, or forced by enemycolor etc
+	// skin information (affected by team/enemy overrides)
+	int		topcolor;
 	int		bottomcolor;
-
-	// FIXME, get rid of these two
-	int		_topcolor;
-	int		_bottomcolor;
-
-	byte	translations[VID_GRADES*256];
-	skin_t	*skin;
+	char    skin[32];
 } player_info_t;
 
 
@@ -431,7 +415,11 @@ extern client_state_t	cl;
 extern cvar_t	cl_warncmd;
 extern cvar_t	cl_shownet;
 extern cvar_t	cl_sbar;
-
+extern cvar_t   noskins;
+extern cvar_t   allskins;
+extern cvar_t   baseskin;
+extern cvar_t   teamskin;
+extern cvar_t   enemyskin;
 
 // ZQuake cvars
 extern cvar_t	cl_r2g;
@@ -454,8 +442,6 @@ extern	centity_t		cl_entities[MAX_CL_EDICTS];
 extern	efrag_t			cl_efrags[MAX_EFRAGS];
 extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
-
-extern byte		*host_colormap;
 
 //=============================================================================
 
@@ -518,6 +504,7 @@ extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (void);
 void CL_ParseServerMessage (void);
 void CL_NewTranslation (int slot);
+void CL_UpdateSkins(void);
 qbool CL_CheckOrDownloadFile (char *filename);
 qbool CL_IsUploading (void);
 void CL_NextUpload (void);
@@ -596,19 +583,6 @@ void Cam_FinishMove (usercmd_t *cmd);
 void Cam_Reset (void);
 void Cam_SetViewPlayer (void);
 void CL_InitCam (void);
-
-//
-// skin.c
-//
-
-void Skin_Find (player_info_t *sc);
-byte *Skin_Cache (skin_t *skin);
-void Skin_Skins_f (void);
-void Skin_AllSkins_f (void);
-void Skin_NextDownload (void);
-
-#define RSSHOT_WIDTH 320
-#define RSSHOT_HEIGHT 200
 
 //
 // cl_cin.c
