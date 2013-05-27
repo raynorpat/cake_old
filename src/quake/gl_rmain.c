@@ -640,8 +640,6 @@ void R_RenderScene (void)
 
 	R_DrawWorld ();
 
-	S_ExtraUpdate ();	// don't let sound get messed up if going slow
-
 	R_DrawShadows ();	// render entity shadows
 
 	R_DrawEntitiesOnList ();

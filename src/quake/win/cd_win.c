@@ -424,13 +424,26 @@ void CDAudio_Update(void)
 
 int CDAudio_Init(void)
 {
-	DWORD	dwReturn;
-	MCI_OPEN_PARMS	mciOpenParms;
-    MCI_SET_PARMS	mciSetParms;
 	int				n;
 
 	if (!COM_CheckParm("-cdaudio"))
 		return -1;
+
+	for (n = 0; n < 100; n++)
+		remap[n] = n;
+	enabled = true;
+
+	Cmd_AddCommand ("cd", CD_f);
+
+	return 0;
+}
+
+
+int CDAudio_Startup(void)
+{
+	DWORD	dwReturn;
+	MCI_OPEN_PARMS	mciOpenParms;
+    MCI_SET_PARMS	mciSetParms;
 
 	mciOpenParms.lpstrDeviceType = "cdaudio";
 	dwReturn = mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_SHAREABLE, (DWORD) (LPVOID) &mciOpenParms);
@@ -450,22 +463,16 @@ int CDAudio_Init(void)
         mciSendCommand(wDeviceID, MCI_CLOSE, 0, (DWORD)NULL);
 		return -1;
     }
-
-	for (n = 0; n < 100; n++)
-		remap[n] = n;
-	initialized = true;
-	enabled = true;
-
+	
 	if (CDAudio_GetAudioDiskInfo())
 	{
 		Com_Printf ("CDAudio_Init: No CD in player.\n");
 		cdValid = false;
-		enabled = false;
 	}
 
-	Cmd_AddCommand ("cd", CD_f);
+	initialized = true;
 
-//	Com_Printf ("CD Audio Initialized\n");
+	Com_DPrintf ("CD Audio Initialized\n");
 
 	return 0;
 }
@@ -478,4 +485,5 @@ void CDAudio_Shutdown(void)
 	CDAudio_Stop();
 	if (mciSendCommand(wDeviceID, MCI_CLOSE, MCI_WAIT, (DWORD)NULL))
 		Com_DPrintf ("CDAudio_Shutdown: MCI_CLOSE failed\n");
+	initialized = false;
 }

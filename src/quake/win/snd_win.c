@@ -275,7 +275,7 @@ static sndinitstat SNDDMA_InitDirect (void)
 		return SIS_FAILURE;
 	}
 
-	if (DS_OK != pDS->lpVtbl->SetCooperativeLevel (pDS, mainwindow, DSSCL_EXCLUSIVE))
+	if (DS_OK != pDS->lpVtbl->SetCooperativeLevel (pDS, mainwindow, DSSCL_PRIORITY))
 	{
 		Com_Printf ("Set coop level failed\n");
 		FreeSound ();
@@ -569,7 +569,7 @@ qbool SNDDMA_Init(void)
 	{
 		if (snd_firsttime || snd_isdirect)
 		{
-			stat = SNDDMA_InitDirect ();;
+			stat = SNDDMA_InitDirect ();
 
 			if (stat == SIS_SUCCESS)
 			{

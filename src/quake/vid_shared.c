@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // vid_shared.c -- shared video functionality
 
 #include "gl_local.h"
+#include "sound.h"
+#include "cdaudio.h"
 
 // if window is hidden, don't update screen
 qbool vid_hidden = true;
@@ -591,10 +593,14 @@ void VID_Shared_Init(void)
 static void VID_OpenSystems(void)
 {
 	R_Modules_Start();
+	S_Startup();
+	CDAudio_Startup();
 }
 
 static void VID_CloseSystems(void)
 {
+	CDAudio_Shutdown();
+	S_Shutdown();
 	R_Modules_Shutdown();
 }
 

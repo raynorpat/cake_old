@@ -92,15 +92,10 @@ void S_StopAllSounds (qbool clear);
 void S_ClearBuffer (void);
 void S_RawSamples (int samples, int rate, int width, int channels, byte *data);
 void S_Update (vec3_t origin, vec3_t v_forward, vec3_t v_right, vec3_t v_up);
-void S_ExtraUpdate (void);
 
 sfx_t *S_PrecacheSound (char *sample);
 void S_TouchSound (char *sample);
-void S_ClearPrecache (void);
-void S_BeginPrecaching (void);
-void S_EndPrecaching (void);
 void S_PaintChannels(int endtime);
-void S_InitPaintChannels (void);
 
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(int entnum, int entchannel);
@@ -145,7 +140,6 @@ extern dma_t	dma;
 #define	MAX_RAW_SAMPLES	8192
 extern	portable_samplepair_t s_rawsamples[MAX_RAW_SAMPLES];
 
-extern cvar_t	s_loadas8bit;
 extern cvar_t	s_khz;
 extern cvar_t	s_volume;
 extern cvar_t	s_swapstereo;

@@ -42,7 +42,6 @@ int			total_channels;
 
 int			snd_blocked = 0;
 qbool		snd_initialized = false;
-qbool		snd_commands_initialized = false;
 qbool		sound_started = false;
 
 dma_t		dma;
@@ -78,18 +77,12 @@ portable_samplepair_t s_rawsamples[MAX_RAW_SAMPLES];
 
 cvar_t bgmvolume = {"bgmvolume", "1", CVAR_ARCHIVE};
 cvar_t s_initsound = {"s_initsound", "1"};
-cvar_t s_volume = {"s_volume", "0.7", CVAR_ARCHIVE};
-#if defined (hpux) || defined(sun)
-cvar_t s_nosound = {"s_nosound", "1"};
-#else
+cvar_t s_volume = {"s_volume", "0.5", CVAR_ARCHIVE};
 cvar_t s_nosound = {"s_nosound", "0"};
-#endif
 cvar_t s_precache = {"s_precache", "1"};
-cvar_t s_loadas8bit = {"s_loadas8bit", "0"};
-cvar_t s_khz = {"s_khz", "22", CVAR_ARCHIVE};
+cvar_t s_khz = {"s_khz", "44", CVAR_ARCHIVE};
 cvar_t s_ambientlevel = {"s_ambientlevel", "0.3"};
 cvar_t s_ambientfade = {"s_ambientfade", "100"};
-cvar_t s_noextraupdate = {"s_noextraupdate", "0"};
 cvar_t s_show = {"s_show", "0"};
 cvar_t s_mixahead = {"s_mixahead", "0.1", CVAR_ARCHIVE};
 cvar_t s_swapstereo = {"s_swapstereo", "0", CVAR_ARCHIVE};
@@ -113,27 +106,51 @@ void S_SoundInfo_f (void)
 }
 
 
-/*
-================
-S_Startup
-================
-*/
-void S_Startup (void)
+void S_Init(void)
 {
-	int		rc;
+	Com_DPrintf("\nSound Initialization\n");
 
-	rc = SNDDMA_Init();
-
-	if (!rc)
-	{
-#ifndef	_WIN32
-		Com_Printf ("S_Startup: SNDDMA_Init failed.\n");
-#endif
-		sound_started = false;
+	if (COM_CheckParm("-nosound") || COM_CheckParm("-safe"))
 		return;
-	}
 
-	sound_started = true;
+	Cvar_Register(&bgmvolume);
+	Cvar_Register(&s_volume);
+	Cvar_Register(&s_initsound);
+	Cvar_Register(&s_nosound);
+	Cvar_Register(&s_precache);
+	Cvar_Register(&s_khz);
+	Cvar_Register(&s_ambientlevel);
+	Cvar_Register(&s_ambientfade);
+	Cvar_Register(&s_show);
+	Cvar_Register(&s_mixahead);
+	Cvar_Register(&s_swapstereo);
+
+	// compatibility with old configs
+	Cmd_AddLegacyCommand ("volume", "s_volume");
+	Cmd_AddLegacyCommand ("nosound", "s_nosound");
+	Cmd_AddLegacyCommand ("precache", "s_precache");
+	Cmd_AddLegacyCommand ("ambient_level", "s_ambientlevel");
+	Cmd_AddLegacyCommand ("ambient_fade", "s_ambientfade");
+	Cmd_AddLegacyCommand ("snd_show", "s_show");
+	Cmd_AddLegacyCommand ("_snd_mixahead", "s_mixahead");
+
+	Cmd_AddCommand("play", S_Play_f);
+	Cmd_AddCommand("playvol", S_PlayVol_f);
+	Cmd_AddCommand("stopsound", S_StopAllSounds_f);
+	Cmd_AddCommand("soundlist", S_SoundList_f);
+	Cmd_AddCommand("soundinfo", S_SoundInfo_f);
+
+	snd_initialized = true;
+
+	num_sfx = 0;
+
+	SND_InitScaletable ();
+
+	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav", false);
+	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav", false);
+
+	total_channels = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS;	// no statics
+	memset(channels, 0, MAX_CHANNELS * sizeof(channel_t));
 }
 
 
@@ -160,71 +177,24 @@ void S_Restart (void)
 
 /*
 ================
-S_Init
+S_Startup
 ================
 */
-void S_Init (void)
+void S_Startup (void)
 {
-//	Com_Printf ("\nSound Initialization\n");
-
-	if (!snd_commands_initialized) {
-		snd_commands_initialized = true;
-
-		Cvar_Register(&bgmvolume);
-		Cvar_Register(&s_volume);
-		Cvar_Register(&s_initsound);
-		Cvar_Register(&s_nosound);
-		Cvar_Register(&s_precache);
-		Cvar_Register(&s_loadas8bit);
-		Cvar_Register(&s_khz);
-		Cvar_Register(&s_ambientlevel);
-		Cvar_Register(&s_ambientfade);
-		Cvar_Register(&s_noextraupdate);
-		Cvar_Register(&s_show);
-		Cvar_Register(&s_mixahead);
-		Cvar_Register(&s_swapstereo);
-
-		// compatibility with old configs
-		Cmd_AddLegacyCommand ("volume", "s_volume");
-		Cmd_AddLegacyCommand ("nosound", "s_nosound");
-		Cmd_AddLegacyCommand ("precache", "s_precache");
-		Cmd_AddLegacyCommand ("loadas8bit", "s_loadas8bit");
-		Cmd_AddLegacyCommand ("ambient_level", "s_ambientlevel");
-		Cmd_AddLegacyCommand ("ambient_fade", "s_ambientfade");
-		Cmd_AddLegacyCommand ("snd_noextraupdate", "s_noextraupdate");
-		Cmd_AddLegacyCommand ("snd_show", "s_show");
-		Cmd_AddLegacyCommand ("_snd_mixahead", "s_mixahead");
-
-		Cmd_AddCommand("play", S_Play_f);
-		Cmd_AddCommand("playvol", S_PlayVol_f);
-		Cmd_AddCommand("stopsound", S_StopAllSounds_f);
-		Cmd_AddCommand("soundlist", S_SoundList_f);
-		Cmd_AddCommand("soundinfo", S_SoundInfo_f);
-	}
+	Com_DPrintf ("\nSound Initialization\n");
 
 	if (!s_initsound.value || COM_CheckParm("-nosound") || s_nosound.value) {
 		Com_Printf ("sound initialization skipped\n");
 		return;
 	}
 	
-	S_Startup ();
-
-	if (!sound_started)
+	if (!SNDDMA_Init())
+	{
+		sound_started = false;
 		return;
-
-	if (!snd_initialized) {
-		snd_initialized = true;
-
-		SND_InitScaletable ();
-
-		num_sfx = 0;
-
-		Com_Printf ("Sound sampling rate: %i\n", dma.speed);
-
-		ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
-		ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
-
 	}
+	sound_started = true;
 
 	S_StopAllSounds (true);
 }
@@ -378,50 +348,36 @@ SND_Spatialize
 */
 void SND_Spatialize (channel_t *ch)
 {
-    vec_t dot;
-    vec_t dist;
-    vec_t lscale, rscale, scale;
+	vec_t dist, scale, pan;
     vec3_t source_vec;
-	sfx_t *snd;
 
-// anything coming from the view entity will always be full volume
-	if (ch->entnum == cl.playernum+1)
+	// anything coming from the view entity will always be full volume
+	// also make sounds with ATTN_NONE have no spatialization
+	if (ch->entnum == cl.playernum+1 || ch->dist_mult == 0)
 	{
 		ch->leftvol = ch->master_vol;
 		ch->rightvol = ch->master_vol;
-		return;
-	}
-
-// calculate stereo seperation and distance attenuation
-
-	snd = ch->sfx;
-	VectorSubtract(ch->origin, listener_origin, source_vec);
-	
-	dist = VectorNormalize(source_vec) * ch->dist_mult;
-	
-	dot = DotProduct(listener_right, source_vec);
-
-	if (dma.channels == 1)
-	{
-		rscale = 1.0;
-		lscale = 1.0;
 	}
 	else
 	{
-		rscale = 1.0 + dot;
-		lscale = 1.0 - dot;
+		// calculate stereo seperation and distance attenuation
+		VectorSubtract(ch->origin, listener_origin, source_vec);
+		dist = VectorNormalize(source_vec);
+
+		// distance
+		scale = ch->master_vol * (1.0 - (dist * ch->dist_mult));
+
+		// panning
+		pan = scale * DotProduct(listener_right, source_vec);
+
+		// calculate the volumes
+		ch->leftvol = (int) (scale - pan);
+		ch->rightvol = (int) (scale + pan);
 	}
 
-// add in distance effect
-	scale = (1.0 - dist) * rscale;
-	ch->rightvol = (int) (ch->master_vol * scale);
-	if (ch->rightvol < 0)
-		ch->rightvol = 0;
-
-	scale = (1.0 - dist) * lscale;
-	ch->leftvol = (int) (ch->master_vol * scale);
-	if (ch->leftvol < 0)
-		ch->leftvol = 0;
+	// clamp volumes
+	ch->leftvol = bound(0, ch->leftvol, 255);
+	ch->rightvol = bound(0, ch->rightvol, 255);
 }           
 
 
@@ -486,14 +442,15 @@ void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float 
 			continue;
 		if (check->sfx == sfx && !check->pos)
 		{
-			skip = rand () % (int)(0.1*dma.speed);
-			if (skip >= target_chan->end)
-				skip = target_chan->end - 1;
+			skip = 0.1 * sc->speed;
+			if (skip > sc->length)
+				skip = sc->length;
+			if (skip > 0)
+				skip = rand() % skip;
 			target_chan->pos += skip;
 			target_chan->end -= skip;
 			break;
 		}
-		
 	}
 }
 
@@ -863,9 +820,7 @@ void S_Update (vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 				}
 				continue;
 			}
-		}
-		
-		
+		}		
 	}
 
 //
@@ -917,15 +872,6 @@ void GetSoundtime (void)
 
 	soundtime = buffers*fullsamples + samplepos/dma.channels;
 }
-
-void S_ExtraUpdate (void)
-{
-	if (s_noextraupdate.value)
-		return;		// don't pollute timings
-	S_Update_();
-}
-
-
 
 void S_Update_ (void)
 {
@@ -1062,20 +1008,5 @@ void S_LocalSound (char *sound)
 		return;
 	}
 	S_StartSound (cl.playernum+1, -1, sfx, vec3_origin, 1, 0);
-}
-
-
-void S_ClearPrecache (void)
-{
-}
-
-
-void S_BeginPrecaching (void)
-{
-}
-
-
-void S_EndPrecaching (void)
-{
 }
 

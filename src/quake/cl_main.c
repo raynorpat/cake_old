@@ -850,7 +850,6 @@ void CL_Init (void)
 	R_Init ();
 
 	S_Init ();
-	CDAudio_Init ();
 
 	CL_InitLocal ();
 	CL_FixupModelNames ();
