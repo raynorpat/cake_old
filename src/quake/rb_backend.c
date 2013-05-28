@@ -87,6 +87,8 @@ void RB_EndFrame (void)
 	}
 }
 
+// ===================================================================
+
 void RB_Finish(void)
 {
 	switch(vid.renderpath)

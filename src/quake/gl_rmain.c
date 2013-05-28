@@ -22,16 +22,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_local.h"
 #include "sound.h"
 
-model_t		*r_worldmodel;
-entity_t	r_worldentity;
+model_t	*r_worldmodel;
+entity_t r_worldentity;
 
-vec3_t		modelorg, r_entorigin;
-entity_t	*currententity;
+vec3_t	modelorg, r_entorigin;
+entity_t *currententity;
 
-int			r_visframecount;	// bumped when going to a new PVS
-int			r_framecount;		// used for dlight push checking
+int		r_visframecount;	// bumped when going to a new PVS
+int		r_framecount;		// used for dlight push checking
 
-mplane_t	frustum[4];
+mplane_t frustum[4];
 
 //
 // view origin
@@ -44,10 +44,10 @@ vec3_t	r_origin;
 //
 // screen size info
 //
-refdef2_t	r_refdef2;
+refdef2_t r_refdef2;
 
-mleaf_t		*r_viewleaf, *r_oldviewleaf;
-mleaf_t		*r_viewleaf2, *r_oldviewleaf2;	// for watervis hack
+mleaf_t	*r_viewleaf, *r_oldviewleaf;
+mleaf_t	*r_viewleaf2, *r_oldviewleaf2;	// for watervis hack
 
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
@@ -289,6 +289,7 @@ void R_SetupView (void)
 	// use wateralpha only if the server allows
 	wateralpha = r_refdef2.watervis ? r_wateralpha.value : 1;
 
+	// setup fog values for this frame
 	Fog_SetupFrame ();
 
 	// build the transformation matrix for the given view angles
@@ -349,10 +350,10 @@ void R_SetupView (void)
 
 	R_SetFrustum (r_fovx, r_fovy);
 
-	R_MarkSurfaces (); // create texture chains from PVS
-	R_CullSurfaces (); // do after R_SetFrustum and R_MarkSurfaces
+	R_MarkSurfaces ();			// create texture chains from PVS
+	R_CullSurfaces ();			// do after R_SetFrustum and R_MarkSurfaces
 
-	R_UpdateWarpTextures (); // do this before RB_Clear
+	R_UpdateWarpTextures ();	// do this before RB_Clear
 
 	RB_Clear ();
 }

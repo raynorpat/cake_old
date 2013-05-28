@@ -901,7 +901,7 @@ texture_t *R_TextureAnimation (texture_t *base, int frame);
 
 void R_UpdateWarpTextures (void);
 void Sky_DrawSky (void);			// skybox or classic sky
-void Sky_LoadTexture (texture_t *mt);	// classic Quake sky
+void Sky_LoadTexture (texture_t *mt, byte *data);	// classic Quake sky
 void Sky_NewMap (void);
 
 float *Fog_GetColor (void);

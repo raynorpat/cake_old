@@ -378,7 +378,7 @@ Mod_LoadTextures
 */
 void Mod_LoadTextures (lump_t *l)
 {
-	int		i, j, pixels, num, max, altmax;
+	int		i, j, num, max, altmax;
 	miptex_t	*mt;
 	texture_t	*tx, *tx2;
 	texture_t	*anims[10];
@@ -416,8 +416,8 @@ void Mod_LoadTextures (lump_t *l)
 
 		if ( (mt->width & 15) || (mt->height & 15) )
 			Host_Error ("Texture %s is not 16 aligned", mt->name);
-		pixels = mt->width*mt->height;
-		tx = (texture_t *) Hunk_AllocName (sizeof(texture_t) + pixels, loadname);
+
+		tx = (texture_t *) Hunk_AllocName (sizeof(texture_t), loadname);
 		loadmodel->textures[i] = tx;
 
 		memcpy (tx->name, mt->name, sizeof(tx->name));
@@ -426,16 +426,13 @@ void Mod_LoadTextures (lump_t *l)
 		for (j = 0; j < MIPLEVELS; j++)
 			tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
 
-		// the pixels immediately follow the structures
-		memcpy (tx+1, mt+1, pixels);
-
 		tx->update_warp = false;
 		tx->warpimage = NULL;
 		tx->fb_texture = NULL;
 
 		if (!strncmp(mt->name,"sky",3)) // sky texture
 		{
-			Sky_LoadTexture (tx);
+			Sky_LoadTexture (tx, (byte *) (mt + 1));
 		}
 		else if (tx->name[0] == '*') // warping texture
 		{
@@ -450,7 +447,7 @@ void Mod_LoadTextures (lump_t *l)
 			// now load the water texture itself
 			sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
 			offset = (unsigned)(mt+1) - (unsigned)mod_base;
-			tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
+			tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(mt+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 
 			tx->update_warp = true;
 
@@ -460,15 +457,15 @@ void Mod_LoadTextures (lump_t *l)
 		{
 			sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
 			offset = (unsigned)(mt+1) - (unsigned)mod_base;
-			if (Mod_CheckFullbrights ((byte *)(tx+1), pixels))
+			if (Mod_CheckFullbrights ((byte *)(mt+1), (tx->width * tx->height)))
 			{
-				tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT);
+				tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(mt+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT);
 				sprintf (texturename, "%s:%s_glow", loadmodel->name, tx->name);
-				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT);
+				tx->fb_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(mt+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT);
 			}
 			else
 			{
-				tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP);
+				tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(mt+1), loadmodel->name, offset, TEXPREF_MIPMAP);
 			}
 		}
 	}
@@ -837,7 +834,7 @@ void CalcSurfaceExtents (msurface_t *s)
 		s->texturemins[i] = bmins[i] * 16;
 		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
 
-//		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 2000 )
+//		if (!(tex->flags & TEX_SPECIAL) && s->extents[i] > 8176)
 //			Host_Error ("Bad surface extents");
 	}
 }
@@ -1191,7 +1188,7 @@ void Mod_LoadPlanes (lump_t *l)
 	if (l->filelen % sizeof(*in))
 		Host_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
 	count = l->filelen / sizeof(*in);
-	out = (mplane_t *) Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = (mplane_t *) Hunk_AllocName ( count * sizeof(*out), loadname);
 	
 	loadmodel->planes = out;
 	loadmodel->numplanes = count;
@@ -1253,7 +1250,8 @@ void Mod_LoadSubmodels (lump_t *l)
 	for (i = 0; i < count; i++, in++, out++)
 	{
 		for (j = 0; j < 3; j++)
-		{	// spread the mins / maxs by a pixel
+		{
+			// spread the mins / maxs by a pixel
 			out->mins[j] = LittleFloat (in->mins[j]) - 1;
 			out->maxs[j] = LittleFloat (in->maxs[j]) + 1;
 			out->origin[j] = LittleFloat (in->origin[j]);
