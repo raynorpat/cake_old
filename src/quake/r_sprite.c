@@ -89,7 +89,7 @@ void R_DrawSpriteModel (entity_t *e)
 	//TODO: frustum cull it?
 
 	frame = R_GetSpriteFrame (e);
-	psprite = currententity->model->cache.data;
+	psprite = (msprite_t *) currententity->model->cache.data;
 
 	switch(psprite->type)
 	{
