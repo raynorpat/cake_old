@@ -844,7 +844,7 @@ void CalcSurfaceExtents (msurface_t *s)
 Mod_PolyForUnlitSurface
 
 creates polys for unlightmapped surfaces (sky and water)
-TODO: merge this into BuildSurfaceDisplayList?
+TODO: merge this into GL_BuildPolygonForSurface?
 ================
 */
 void Mod_PolyForUnlitSurface (msurface_t *fa)

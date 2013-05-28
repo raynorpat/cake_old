@@ -630,12 +630,12 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 
 /*
 ================
-BuildSurfaceDisplayList
+GL_BuildPolygonForSurface
 
 called at level load time
 ================
 */
-void BuildSurfaceDisplayList (msurface_t *fa)
+void GL_BuildPolygonForSurface (msurface_t *fa)
 {
 	int			i, lindex, lnumverts;
 	medge_t		*pedges, *r_pedge;
@@ -734,7 +734,7 @@ void GL_BuildLightmaps (void)
 			if ( m->surfaces[i].flags & SURF_DRAWTILED )
 				continue;
 			GL_CreateSurfaceLightmap (m->surfaces + i);
-			BuildSurfaceDisplayList (m->surfaces + i);
+			GL_BuildPolygonForSurface (m->surfaces + i);
 		}
 	}
 
