@@ -114,8 +114,6 @@ typedef struct cachepic_s
 cachepic_t	menu_cachepics[MAX_CACHED_PICS];
 int			menu_numcachepics;
 
-byte		menuplyr_pixels[4096];
-
 extern byte	*wad_base;
 
 /*
@@ -175,12 +173,6 @@ qpic_t *R_CachePic (char *path)
 	if (!dat)
 		Sys_Error ("Draw_CachePic: failed to load %s", path);
 	SwapPic (dat);
-
-	// HACK HACK HACK --- we need to keep the bytes for
-	// the translatable player picture just for the menu
-	// configuration dialog
-	if (!strcmp (path, "gfx/menuplyr.lmp"))
-		memcpy (menuplyr_pixels, dat->data, dat->width*dat->height);
 
 	pic->pic.width = dat->width;
 	pic->pic.height = dat->height;
@@ -298,7 +290,6 @@ static void Draw_StretchPic ( int x, int y, int w, int h, float s1, float t1, fl
 	qglVertex2f (x, y + h);
 	qglEnd ();
 }
-
 
 /*
 ================
