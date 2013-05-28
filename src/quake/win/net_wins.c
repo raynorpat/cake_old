@@ -484,7 +484,7 @@ void NET_Init (void)
 	//
 	SZ_Init (&net_message, net_message_buffer, sizeof(net_message_buffer));
 
-	Com_Printf ("Winsock initialized.\n");
+	Com_DPrintf ("Winsock initialized.\n");
 }
 
 /*

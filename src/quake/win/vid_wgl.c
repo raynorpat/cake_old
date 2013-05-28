@@ -337,11 +337,11 @@ static HINSTANCE gldll;
 
 int GL_OpenLibrary(const char *name)
 {
-	Com_Printf("Loading GL driver %s\n", name);
+	Com_DPrintf("Loading GL driver %s\n", name);
 	GL_CloseLibrary();
 	if (!(gldll = LoadLibrary(name)))
 	{
-		Com_Printf("Unable to LoadLibrary %s\n", name);
+		Com_DPrintf("Unable to LoadLibrary %s\n", name);
 		return false;
 	}
 	strcpy(gl_driver, name);

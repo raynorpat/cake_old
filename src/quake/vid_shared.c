@@ -113,7 +113,6 @@ void (GLAPIENTRY *qglLockArraysEXT) (GLint first, GLint count);
 void (GLAPIENTRY *qglUnlockArraysEXT) (void);
 
 // general GL functions
-
 void (GLAPIENTRY *qglClearColor)(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
 
 void (GLAPIENTRY *qglClear)(GLbitfield mask);
@@ -352,9 +351,9 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 	if (!silent)
 	{
 		if (ext)
-			Com_Printf("checking for %s...  ", minglver_or_ext);
+			Com_DPrintf("checking for %s...  ", minglver_or_ext);
 		else
-			Com_Printf("checking for OpenGL %s core features...  ", minglver_or_ext);
+			Com_DPrintf("checking for OpenGL %s core features...  ", minglver_or_ext);
 	}
 
 	for (func = funcs; func && func->name; func++)
@@ -363,7 +362,7 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 	if (disableparm && COM_CheckParm(disableparm))
 	{
 		if (!silent)
-			Com_Printf("disabled by commandline\n");
+			Com_DPrintf("disabled by commandline\n");
 		return false;
 	}
 
@@ -372,7 +371,7 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 		if (!strstr(gl_extensions ? gl_extensions : "", minglver_or_ext) && !strstr(gl_platformextensions ? gl_platformextensions : "", minglver_or_ext))
 		{
 			if (!silent)
-				Com_Printf("not detected\n");
+				Com_DPrintf("not detected\n");
 			return false;
 		}
 	}
@@ -395,7 +394,7 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 		if (!(*func->funcvariable = (void *) GL_GetProcAddress(func->name)))
 		{
 			if (!silent)
-				Com_Printf("missing function \"%s\" - broken driver!\n", func->name);
+				Com_DPrintf("missing function \"%s\" - broken driver!\n", func->name);
 			failed = true;
 		}
 	}
@@ -405,7 +404,7 @@ int GL_CheckExtension(const char *minglver_or_ext, const dllfunction_t *funcs, c
 		return false;
 	
 	if (!silent)
-		Com_Printf("enabled\n");
+		Com_DPrintf("enabled\n");
 	return true;
 }
 
@@ -665,7 +664,7 @@ void VID_CheckExtensions(void)
 	gl_support_arb_occlusion_query = false;
 
 	if (!GL_CheckExtension("glbase", opengl110funcs, NULL, false))
-		Sys_Error("OpenGL 1.1.0 functions not found");
+		Sys_Error("OpenGL 1.1 functions not found");
 
 	Com_DPrintf ("GL_VENDOR: %s\n", gl_vendor);
 	Com_DPrintf ("GL_RENDERER: %s\n", gl_renderer);
@@ -679,11 +678,6 @@ void VID_CheckExtensions(void)
 		qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_maxtexturesize);
 	}
 
-	if (GL_CheckExtension("gl3.0", opengl30funcs, NULL, false))
-	{
-		// todo: grab shader limits, etc...
-	}
-
 	gl_supportslockarrays = GL_CheckExtension("GL_EXT_compiled_vertex_array", compiledvertexarrayfuncs, "-nocva", false);
 	gl_support_clamptoedge = GL_CheckExtension("GL_EXT_texture_edge_clamp", NULL, "-noedgeclamp", false) || GL_CheckExtension("GL_SGIS_texture_edge_clamp", NULL, "-noedgeclamp", false);
 	gl_support_texture_combine = GL_CheckExtension("GL_ARB_texture_env_combine", NULL, "-notexcombine", false) || GL_CheckExtension("GL_EXT_texture_env_combine", NULL, "-notexcombine", false);
@@ -695,6 +689,9 @@ void VID_CheckExtensions(void)
 			if ((gl_support_vertex_shader = GL_CheckExtension("GL_ARB_vertex_shader", vertexshaderfuncs, "-novertexshader", false)))
 				gl_support_fragment_shader = GL_CheckExtension("GL_ARB_fragment_shader", NULL, "-nofragmentshader", false);
 	gl_support_arb_occlusion_query = GL_CheckExtension("GL_ARB_occlusion_query", occlusionqueryfuncs, "-noocclusionquery", false);
+
+	if (GL_CheckExtension("gl3.0", opengl30funcs, NULL, false) && gl_support_fragment_shader && gl_support_arb_vertex_buffer_object && gl_support_arb_occlusion_query)
+		vid.renderpath = RENDERPATH_GL30;
 }
 
 static void BuildGammaTable16(float prescale, float gamma, float scale, float base, unsigned short *out)
@@ -877,7 +874,7 @@ void VID_Restart_f(void)
 // this is only called once by Host_StartVideo
 void VID_Start(void)
 {
-	Com_Printf("Starting video system\n");
+	Com_DPrintf("Starting video system\n");
 	if (!VID_Mode(vid_fullscreen.value, vid_width.value, vid_height.value, vid_refreshrate.value))
 	{
 		Com_Printf("Desired video mode failed, trying fallbacks...\n");

@@ -26,7 +26,6 @@ typedef enum renderpath_e
 	RENDERPATH_GL11,
 	RENDERPATH_GLES,
 	RENDERPATH_GL30,
-	RENDERPATH_D3D,
 } renderpath_t;
 
 #define VID_CBITS	6
