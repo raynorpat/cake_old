@@ -71,14 +71,9 @@ typedef struct entity_s
 	float					alpha;
 
 	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
-	int						visframe;		// last frame this entity was
-											// found in an active leaf
-											// only used for static objects
+	int						visframe;		// last frame this entity was found in an active leaf (only used for static objects)
 
-// FIXME: could turn these into a union
-	int						trivial_accept;
-	struct mnode_s			*topnode;		// for bmodels, first world node
-											//  that splits bmodel, or NULL if not split
+	struct mnode_s			*topnode;		// for bmodels, first world node that splits bmodel, or NULL if not split
 } entity_t;
 
 
@@ -135,7 +130,6 @@ void R_InitTextures (void);
 void R_InitEfrags (void);
 void R_RenderView (void);		// must set r_refdef first
 void Sky_LoadSkyBox (char *name); // Quake2 skybox
-// called whenever r_refdef or vid change
 
 void R_AddEfrags (entity_t *ent);
 void R_RemoveEfrags (entity_t *ent);
@@ -147,9 +141,6 @@ void R_PushDlights (void);
 // memory pointed to by pcxdata is allocated using Hunk_TempAlloc
 // never store this pointer for later use!
 void R_RSShot (byte **pcxdata, int *pcxsize);
-
-// surface cache related
-extern qbool	r_cache_thrash;	// set if thrashing the surface cache
 
 void R_SetPalette ( unsigned char *palette );
 

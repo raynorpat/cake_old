@@ -91,7 +91,6 @@ cvar_t		scr_consize = {"scr_consize","0.5"};
 cvar_t		scr_conspeed = {"scr_conspeed","1000"};
 cvar_t		scr_conalpha = {"scr_conalpha", "0.7"};
 cvar_t		scr_centertime = {"scr_centertime","2"};
-cvar_t		scr_showram = {"showram","1"};
 cvar_t		scr_showturtle = {"showturtle","0"};
 cvar_t		scr_showpause = {"showpause","1"};
 cvar_t		scr_printspeed = {"scr_printspeed","8"};
@@ -101,7 +100,6 @@ cvar_t		show_fps = {"show_fps", "0"};
 
 qbool		scr_initialized;		// ready to draw
 
-qpic_t		*scr_ram;
 qpic_t		*scr_net;
 qpic_t		*scr_turtle;
 
@@ -378,7 +376,6 @@ void SCR_SizeDown_f (void)
 
 static void scr_start (void)
 {
-	scr_ram = R_CacheWadPic ("ram");
 	scr_net = R_CacheWadPic ("net");
 	scr_turtle = R_CacheWadPic ("turtle");
 }
@@ -405,7 +402,6 @@ void SCR_Init (void)
 	Cvar_Register (&scr_consize);
 	Cvar_Register (&scr_conspeed);
 	Cvar_Register (&scr_conalpha);
-	Cvar_Register (&scr_showram);
 	Cvar_Register (&scr_showturtle);
 	Cvar_Register (&scr_showpause);
 	Cvar_Register (&scr_centertime);
@@ -425,24 +421,6 @@ void SCR_Init (void)
 	scr_initialized = true;
 }
 
-
-/*
-==============
-SCR_DrawRam
-==============
-*/
-void SCR_DrawRam (void)
-{
-	if (!scr_showram.value)
-		return;
-
-	if (!r_cache_thrash)
-		return;
-
-	GL_SetCanvas (CANVAS_DEFAULT);
-
-	R_DrawPic (scr_vrect.x+32, scr_vrect.y, scr_ram);
-}
 
 /*
 ==============
@@ -788,7 +766,6 @@ void SCR_UpdateScreen (void)
 		
 		if (cls.state == ca_active)
 		{
-			SCR_DrawRam ();
 			SCR_DrawNet ();
 			SCR_DrawTurtle ();
 			SCR_DrawPause ();

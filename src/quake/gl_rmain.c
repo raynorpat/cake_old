@@ -25,8 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 model_t		*r_worldmodel;
 entity_t	r_worldentity;
 
-qbool		r_cache_thrash;		// compatability
-
 vec3_t		modelorg, r_entorigin;
 entity_t	*currententity;
 
@@ -34,8 +32,6 @@ int			r_visframecount;	// bumped when going to a new PVS
 int			r_framecount;		// used for dlight push checking
 
 mplane_t	frustum[4];
-
-int			c_brush_polys, c_brush_passes, c_alias_polys;
 
 //
 // view origin
@@ -433,8 +429,6 @@ void R_SetupView (void)
 
 	V_SetContentsColor (r_viewleaf->contents);
 	V_PrepBlend ();
-
-	r_cache_thrash = false;
 
 	// the overbright scale needs to retain 1 in the alpha channel
 	if (gl_overbright.value >= 1)

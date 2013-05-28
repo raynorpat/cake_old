@@ -2,10 +2,6 @@
 
 #include "gl_local.h"
 
-extern vec2_t		coordsArray[MAX_ARRAY_TEX_COORDS];
-extern vec2_t		coordsArrayMtex[MAX_ARRAY_TEX_COORDS];
-extern byte_vec4_t	colorArray[MAX_ARRAY_COLORS];
-
 /*
 ===============
 RB_GL11_Init
@@ -22,8 +18,7 @@ void RB_GL11_Init (void)
 	qglEnable(GL_ALPHA_TEST);
 	qglAlphaFunc(GL_GREATER, 0.666);
 
-//	glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-//	glShadeModel (GL_FLAT);
+	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
 
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -36,16 +31,6 @@ void RB_GL11_Init (void)
 
 	qglDepthFunc (GL_LEQUAL);
 	qglDepthRange (0, 1);
-
-	GL_SelectTexture ( GL_TEXTURE1_ARB );
-	qglTexCoordPointer( 2, GL_FLOAT, 0, coordsArrayMtex );
-
-	GL_SelectTexture ( GL_TEXTURE0_ARB );
-	qglVertexPointer( 3, GL_FLOAT, 16, vertexArray );	// padded for SIMD
-	qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, colorArray );
-	qglTexCoordPointer( 2, GL_FLOAT, 0, coordsArray );
-
-	qglEnableClientState( GL_VERTEX_ARRAY );
 }
 
 
