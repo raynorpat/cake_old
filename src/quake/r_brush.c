@@ -53,6 +53,7 @@ Returns the proper texture for a given time and base texture
 */
 texture_t *R_TextureAnimation (texture_t *base, int frame)
 {
+	texture_t *saved = base;
 	int		relative;
 	int		count;
 
@@ -71,10 +72,11 @@ texture_t *R_TextureAnimation (texture_t *base, int frame)
 	while (base->anim_min > relative || base->anim_max <= relative)
 	{
 		base = base->anim_next;
+
 		if (!base)
-			Host_Error ("R_TextureAnimation: broken cycle");
+			return saved;
 		if (++count > 100)
-			Host_Error ("R_TextureAnimation: infinite cycle");
+			return saved;
 	}
 
 	return base;
