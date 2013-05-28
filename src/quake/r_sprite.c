@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 R_GetSpriteFrame
 ================
 */
-mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
+static mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 {
 	msprite_t		*psprite;
 	mspritegroup_t	*pspritegroup;
@@ -76,7 +76,6 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 /*
 =================
 R_DrawSpriteModel
-
 =================
 */
 void R_DrawSpriteModel (entity_t *e)
