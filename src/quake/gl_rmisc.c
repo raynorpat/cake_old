@@ -24,8 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <time.h>
 
-int     playertextures; // up to 32 color translated skins
-int     playerfbtextures[MAX_CLIENTS];
+unsigned int playertextures; // up to 32 color translated skins
+unsigned int playerfbtextures[MAX_CLIENTS];
 
 /*
 =============================================================
@@ -199,7 +199,7 @@ void R_TranslatePlayerSkin (int playernum, byte *original)
 	*/
 }
 
-void R_GetTranslatedPlayerSkin (int colormap, int *texture, int *fb_texture)
+void R_GetTranslatedPlayerSkin (int colormap, unsigned int *texture, unsigned int *fb_texture)
 {
 	struct skin_s *skin;
 	byte *data;
