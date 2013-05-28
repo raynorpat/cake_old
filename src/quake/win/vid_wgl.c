@@ -1065,7 +1065,7 @@ static qbool IN_InitDInput (void)
 
 		if (hInstDI == NULL)
 		{
-			Com_Printf ("Couldn't load dinput.dll\n");
+			Com_DPrintf ("Couldn't load dinput.dll\n");
 			return false;
 		}
 	}
@@ -1076,7 +1076,7 @@ static qbool IN_InitDInput (void)
 
 		if (!pDirectInputCreate)
 		{
-			Com_Printf ("Couldn't get DI proc addr\n");
+			Com_DPrintf ("Couldn't get DI proc addr\n");
 			return false;
 		}
 	}
@@ -1086,7 +1086,7 @@ static qbool IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Com_Printf ("DirectInputCreate failed\n");
+		Com_DPrintf ("DirectInputCreate failed\n");
 		return false;
 	}
 
@@ -1095,7 +1095,7 @@ static qbool IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Com_Printf ("Couldn't open DI mouse device\n");
+		Com_DPrintf ("Couldn't open DI mouse device\n");
 		return false;
 	}
 
@@ -1114,7 +1114,7 @@ static qbool IN_InitDInput (void)
 
 		if (FAILED(hr))
 		{
-			Com_Printf ("Couldn't set DI mouse format\n");
+			Com_DPrintf ("Couldn't set DI mouse format\n");
 			return false;
 		}
 
@@ -1127,7 +1127,7 @@ static qbool IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Com_Printf ("Couldn't set DI coop level\n");
+		Com_DPrintf ("Couldn't set DI coop level\n");
 		return false;
 	}
 
@@ -1138,7 +1138,7 @@ static qbool IN_InitDInput (void)
 
 	if (FAILED(hr))
 	{
-		Com_Printf ("Couldn't set DI buffersize\n");
+		Com_DPrintf ("Couldn't set DI buffersize\n");
 		return false;
 	}
 
@@ -1168,9 +1168,9 @@ static void IN_StartupMouse (void)
 		dinput = IN_InitDInput ();
 
 		if (dinput)
-			Com_Printf ("DirectInput initialized\n");
+			Com_DPrintf ("DirectInput initialized\n");
 		else
-			Com_Printf ("DirectInput not initialized\n");
+			Com_DPrintf ("DirectInput not initialized\n");
 	}
 
 	if (!dinput)
