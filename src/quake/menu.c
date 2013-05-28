@@ -2865,7 +2865,7 @@ void M_Draw (void)
 	if (scr_con_current != vid.height)
 		R_FadeScreen ();
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 	switch (m_state)
 	{

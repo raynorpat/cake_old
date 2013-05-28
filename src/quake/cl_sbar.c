@@ -833,7 +833,7 @@ void Sbar_Draw (void)
 
 	scr_copyeverything = 1;
 
-	GL_SetCanvas (CANVAS_SBAR);
+	RB_SetCanvas (CANVAS_SBAR);
 	
 // inventory
 	if (sb_drawinventory) {
@@ -926,7 +926,7 @@ static void Sbar_TeamOverlay (int start)
 		return;
 	}
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 	SCR_InvalidateScreen ();
 
@@ -1022,7 +1022,7 @@ static void Sbar_DeathmatchOverlay (int start)
 	if (cl.gametype == GAME_COOP && (cl.maxclients == 1 || cls.nqdemoplayback))
 		return;
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 	// request new ping times every two second
 	if (cls.realtime - cl.last_ping_request > 2)
@@ -1192,7 +1192,7 @@ static void Sbar_DeathmatchOverlay (int start)
 		y += skip;
 	}
 
-	GL_SetCanvas (CANVAS_SBAR);
+	RB_SetCanvas (CANVAS_SBAR);
 }
 
 /*
@@ -1216,7 +1216,7 @@ void Sbar_IntermissionOverlay (void)
 		return;
 	}
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 	pic = R_CachePic ("gfx/complete.lmp");
 	R_DrawPic (64, 24, pic);
@@ -1266,7 +1266,7 @@ void Sbar_FinaleOverlay (void)
 {
 	qpic_t	*pic;
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 	pic = R_CachePic ("gfx/finale.lmp");
 	R_DrawPic ((320 - GetPicWidth(pic))/2, 16, R_CachePic ("gfx/finale.lmp"));

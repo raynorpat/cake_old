@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"		// FIXME
 #include "gl_model.h"
-#include "rb_backend.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -823,7 +822,6 @@ extern	cvar_t	r_sky_quality;
 extern	cvar_t	r_skyalpha;
 extern	cvar_t	r_skyfog;
 
-extern	cvar_t	gl_cull;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
 extern	cvar_t	gl_fullbrights;

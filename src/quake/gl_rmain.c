@@ -41,8 +41,6 @@ vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
 
-float 	r_fovx, r_fovy; // rendering fov may be different becuase of r_waterwarp and r_stereo
-
 //
 // screen size info
 //
@@ -75,7 +73,6 @@ cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
 cvar_t	r_showtris = {"r_showtris","0"};
 
-cvar_t	gl_cull = {"gl_cull","1"};
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fullbrights = {"gl_fullbrights","1"};
@@ -263,7 +260,7 @@ to turn away from side, use a negative angle
 ===============
 */
 #define DEG2RAD( a ) ( (a) * M_PI/180 )
-void TurnVector (vec3_t out, const vec3_t forward, const vec3_t side, float angle)
+static void TurnVector (vec3_t out, const vec3_t forward, const vec3_t side, float angle)
 {
 	float scale_forward, scale_side;
 
@@ -280,7 +277,7 @@ void TurnVector (vec3_t out, const vec3_t forward, const vec3_t side, float angl
 R_SetFrustum
 ===============
 */
-void R_SetFrustum (float fovx, float fovy)
+static void R_SetFrustum (float fovx, float fovy)
 {
 	int		i;
 
@@ -301,70 +298,6 @@ void R_SetFrustum (float fovx, float fovy)
 }
 
 /*
-=============
-GL_SetFrustum
-=============
-*/
-#define NEARCLIP 4
-float frustum_skew = 0.0; // used by r_stereo
-void GL_SetFrustum(float fovx, float fovy)
-{
-	float xmax, ymax;
-	xmax = NEARCLIP * tan( fovx * M_PI / 360.0 );
-	ymax = NEARCLIP * tan( fovy * M_PI / 360.0 );
-	qglFrustum(-xmax + frustum_skew, xmax + frustum_skew, -ymax, ymax, NEARCLIP, gl_farclip.value);
-}
-
-/*
-=============
-R_SetupGL
-=============
-*/
-void R_SetupGL (void)
-{
-	qglMatrixMode(GL_PROJECTION);
-    qglLoadIdentity ();
-	qglViewport (r_refdef2.vrect.x,
-				vid.height - r_refdef2.vrect.y - r_refdef2.vrect.height,
-				r_refdef2.vrect.width,
-				r_refdef2.vrect.height);
-
-	GL_SetFrustum (r_fovx, r_fovy);
-
-	qglMatrixMode(GL_MODELVIEW);
-	qglLoadIdentity ();
-
-	qglRotatef (-90,  1, 0, 0);		// put Z going up
-	qglRotatef (90,	0, 0, 1);		// put Z going up
-	qglRotatef (-r_refdef2.viewangles[2],  1, 0, 0);
-	qglRotatef (-r_refdef2.viewangles[0],  0, 1, 0);
-	qglRotatef (-r_refdef2.viewangles[1],  0, 0, 1);
-	qglTranslatef (-r_refdef2.vieworg[0], -r_refdef2.vieworg[1], -r_refdef2.vieworg[2]);
-
-	//
-	// set drawing parms
-	//
-	if (gl_cull.value)
-		qglEnable(GL_CULL_FACE);
-	else
-		qglDisable(GL_CULL_FACE);
-
-	qglDisable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable(GL_DEPTH_TEST);
-}
-
-/*
-=============
-R_Clear
-=============
-*/
-void R_Clear (void)
-{
-	qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-}
-
-/*
 ===============
 R_SetupScene
 
@@ -375,8 +308,10 @@ void R_SetupScene (void)
 {
 	R_PushDlights ();
 	R_AnimateLight ();
+
 	r_framecount++;
-	R_SetupGL ();
+
+	RB_Set3DMatrix ();
 }
 
 /*
@@ -458,9 +393,9 @@ void R_SetupView (void)
 	R_MarkSurfaces (); // create texture chains from PVS
 	R_CullSurfaces (); // do after R_SetFrustum and R_MarkSurfaces
 
-	R_UpdateWarpTextures (); // do this before R_Clear
+	R_UpdateWarpTextures (); // do this before RB_Clear
 
-	R_Clear ();
+	RB_Clear ();
 }
 
 //==============================================================================
@@ -626,7 +561,7 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
-	R_SetupScene (); 	// this does everything that should be done once per call to RenderScene
+	R_SetupScene (); 				// this does everything that should be done once per call to RenderScene
 
 	Fog_EnableGFog ();
 
@@ -634,11 +569,11 @@ void R_RenderScene (void)
 
 	R_DrawWorld ();
 
-	R_DrawShadows ();	// render entity shadows
+	R_DrawShadows ();				// render entity shadows
 
 	R_DrawEntitiesOnList ();
 
-	R_DrawTextureChains_Water (); // drawn here since they might have transparency
+	R_DrawTextureChains_Water ();	// drawn here since they might have transparency
 
 	R_DrawParticles ();
 
@@ -671,6 +606,7 @@ void R_RenderView (void)
 	{
 		float eyesep = clamp(-8.0f, r_stereo.value, 8.0f);
 		float fdepth = clamp(32.0f, r_stereodepth.value, 1024.0f);
+		extern float frustum_skew;
 
 		AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
 
@@ -749,7 +685,6 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
 
-	Cvar_Register (&gl_cull);
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);
 	Cvar_Register (&gl_fullbrights);

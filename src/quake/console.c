@@ -495,7 +495,7 @@ void Con_DrawNotify (void)
 	if (maxlines < 0)
 		maxlines = 0;
 
-	GL_SetCanvas (CANVAS_CONSOLE);
+	RB_SetCanvas (CANVAS_CONSOLE);
 	v = vid.height;
 
 	for (i = con.current-maxlines+1 ; i<=con.current ; i++)

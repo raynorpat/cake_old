@@ -160,7 +160,7 @@ void SCR_DrawCenterString (void)
 	int		x, y;
 	int		remaining;
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 // the finale prints the characters one at a time
 	if (cl.intermission)
@@ -444,7 +444,7 @@ void SCR_DrawTurtle (void)
 	if (count < 3)
 		return;
 
-	GL_SetCanvas (CANVAS_DEFAULT);
+	RB_SetCanvas (CANVAS_DEFAULT);
 
 	R_DrawPic (scr_vrect.x, scr_vrect.y, scr_turtle);
 }
@@ -461,7 +461,7 @@ void SCR_DrawNet (void)
 	if (cls.demoplayback)
 		return;
 
-	GL_SetCanvas (CANVAS_DEFAULT);
+	RB_SetCanvas (CANVAS_DEFAULT);
 
 	R_DrawPic (scr_vrect.x+64, scr_vrect.y, scr_net);
 }
@@ -478,7 +478,7 @@ void SCR_DrawFPS (void)
 	if (!show_fps.value)
 		return;
 
-	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
+	RB_SetCanvas (CANVAS_BOTTOMRIGHT);
 
 	t = Sys_DoubleTime();
 	if ((t - lastframetime) >= 1.0) {
@@ -506,7 +506,7 @@ void SCR_DrawSpeed (void)
 	if (!show_speed.value)
 		return;
 
-	GL_SetCanvas (CANVAS_BOTTOMRIGHT);
+	RB_SetCanvas (CANVAS_BOTTOMRIGHT);
 
 	if (lastrealtime > cls.realtime)
 	{
@@ -564,7 +564,7 @@ void SCR_DrawPause (void)
 		return;		// auto-paused in single player
 #endif
 
-	GL_SetCanvas (CANVAS_MENU);
+	RB_SetCanvas (CANVAS_MENU);
 
 	pic = R_CachePic ("gfx/pause.lmp");
 	R_DrawPic ( (320 - pic->width)/2, (240 - 48 - pic->height)/2, pic);
@@ -674,7 +674,7 @@ void SCR_DrawConsole (void)
 	else
 		alpha = bound (0.0f, scr_conalpha.value, 1.0f);
 
-	GL_SetCanvas (CANVAS_CONSOLE);
+	RB_SetCanvas (CANVAS_CONSOLE);
 
 	conback = R_CachePic ("gfx/conback.lmp");
 	R_DrawStretchPic (0, 0, vid.width, vid.height, conback, alpha);
@@ -745,7 +745,7 @@ void SCR_UpdateScreen (void)
 	
 		V_RenderView ();
 
-		RB_Set2DProjections ();
+		RB_SetDefaultCanvas ();
 
 		R_PolyBlend ();
 	

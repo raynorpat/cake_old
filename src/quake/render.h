@@ -28,9 +28,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_PARTICLES			4096	// default max # of particles at one time
 
 // entity->renderfx
-#define RF_WEAPONMODEL	1
-#define RF_PLAYERMODEL	2
-#define RF_TRANSLUCENT	4
+#define RF_WEAPONMODEL			1
+#define RF_PLAYERMODEL			2
+#define RF_TRANSLUCENT			4
+
+#define NEARCLIP				4
 
 //=============================================================================
 
@@ -117,6 +119,8 @@ typedef struct {
 
 //====================================================
 
+#include "rb_backend.h"
+
 #include "rc_wad.h"
 #include "rc_modules.h"
 
@@ -162,21 +166,6 @@ void R_DrawNetGraph (void);
 
 #define GetPicWidth(pic) (pic->width)
 #define GetPicHeight(pic) (pic->height)
-
-typedef enum {
-	CANVAS_INVALID = -1,
-	CANVAS_NONE,
-	CANVAS_DEFAULT,
-	CANVAS_CONSOLE,
-	CANVAS_MENU,
-	CANVAS_SBAR,
-	CANVAS_WARPIMAGE,
-	CANVAS_CROSSHAIR,
-	CANVAS_BOTTOMLEFT,
-	CANVAS_BOTTOMRIGHT,
-} canvastype;
-
-void GL_SetCanvas (int canvastype);
 
 // model flags
 #define	MF_ROCKET	1			// leave a trail
