@@ -287,35 +287,16 @@ void R_Draw_Init (void)
 
 static void Draw_StretchPic ( int x, int y, int w, int h, float s1, float t1, float s2, float t2 )
 {
-	float v[3], tc[2];
-
-	R_PushElems ( quad_elems, 6 );
-
-	VectorSet (v, x, y, 0);
-	tc[0] = s1; tc[1] = t1;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	VectorSet (v, x+w, y, 0);
-	tc[0] = s2; tc[1] = t1;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	VectorSet (v, x+w, y+h, 0);
-	tc[0] = s2; tc[1] = t2;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	VectorSet (v, x, y+h, 0);
-	tc[0] = s1; tc[1] = t2;
-	R_PushCoord (tc);
-	R_PushVertex (v);
-
-	R_VertexTCBase ( 0, false );
-	R_LockArrays ();
-	R_FlushArrays ();
-	R_UnlockArrays ();
-	R_ClearArrays ();
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (s1, t1);
+	qglVertex2f (x, y);
+	qglTexCoord2f (s2, t1);
+	qglVertex2f (x + w, y);
+	qglTexCoord2f (s2, t2);
+	qglVertex2f (x + w, y + h);
+	qglTexCoord2f (s1, t2);
+	qglVertex2f (x, y + h);
+	qglEnd ();
 }
 
 
