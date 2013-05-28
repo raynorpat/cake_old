@@ -157,7 +157,8 @@ lumpinfo_t *W_GetLumpinfo (char *name, qbool crash)
 			return lump_p;
 	}
 	
-	Sys_Error ("W_GetLumpinfo: %s not found", name);
+	if(crash)
+		Sys_Error ("W_GetLumpinfo: %s not found", name);
 	return NULL;
 }
 
