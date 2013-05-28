@@ -35,7 +35,7 @@ typedef struct
 	FILE		*cinematic_file;
 	int			cinematictime;		// cls.realtime for first cinematic frame
 	int			cinematicframe;
-	char		cinematicpalette[768];
+	byte		cinematicpalette[768];
 	qbool		cinematicpalette_active;
 
 	int			s_rate;
