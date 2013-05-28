@@ -140,7 +140,7 @@ void R_DrawSpriteModel (entity_t *e)
 	}
 
 	if (psprite->type == SPR_ORIENTED)
-		GL_PolygonOffset (OFFSET_DECAL);
+		RB_PolygonOffset (OFFSET_DECAL);
 
 	qglColor4f (1,1,1,1);
 
@@ -177,6 +177,6 @@ void R_DrawSpriteModel (entity_t *e)
 	qglDisable (GL_ALPHA_TEST);
 
 	if (psprite->type == SPR_ORIENTED)
-		GL_PolygonOffset (OFFSET_NONE);
+		RB_PolygonOffset (OFFSET_NONE);
 }
 

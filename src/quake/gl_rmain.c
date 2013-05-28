@@ -188,47 +188,6 @@ qbool R_CullSphere (vec3_t centre, float radius)
 	return false;
 }
 
-/*
-===============
-R_RotateForEntity
-===============
-*/
-void R_RotateForEntity (vec3_t origin, vec3_t angles)
-{
-	qglTranslatef (origin[0],  origin[1],  origin[2]);
-	qglRotatef (angles[1],  0, 0, 1);
-	qglRotatef (-angles[0],  0, 1, 0);
-	qglRotatef (angles[2],  1, 0, 0);
-}
-
-/*
-=============
-GL_PolygonOffset
-
-negative offset moves polygon closer to camera
-=============
-*/
-void GL_PolygonOffset (int offset)
-{
-	if (offset > 0)
-	{
-		qglEnable (GL_POLYGON_OFFSET_FILL);
-		qglEnable (GL_POLYGON_OFFSET_LINE);
-		qglPolygonOffset(1, offset);
-	}
-	else if (offset < 0)
-	{
-		qglEnable (GL_POLYGON_OFFSET_FILL);
-		qglEnable (GL_POLYGON_OFFSET_LINE);
-		qglPolygonOffset(-1, offset);
-	}
-	else
-	{
-		qglDisable (GL_POLYGON_OFFSET_FILL);
-		qglDisable (GL_POLYGON_OFFSET_LINE);
-	}
-}
-
 //==============================================================================
 //
 // SETUP FRAME
@@ -455,7 +414,7 @@ void R_ShowTris (void)
 	if (r_showtris.value == 1)
 		qglDisable (GL_DEPTH_TEST);
 	qglPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
-	GL_PolygonOffset (OFFSET_SHOWTRIS);
+	RB_PolygonOffset (OFFSET_SHOWTRIS);
 	qglDisable (GL_TEXTURE_2D);
 	qglColor3f (1,1,1);
 //	qglEnable (GL_BLEND);
@@ -494,7 +453,7 @@ void R_ShowTris (void)
 	qglColor3f (1,1,1);
 	qglEnable (GL_TEXTURE_2D);
 	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-	GL_PolygonOffset (OFFSET_NONE);
+	RB_PolygonOffset (OFFSET_NONE);
 	if (r_showtris.value == 1)
 		qglEnable (GL_DEPTH_TEST);
 }

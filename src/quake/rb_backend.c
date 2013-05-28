@@ -7,11 +7,12 @@ int			c_brush_polys, c_brush_passes, c_alias_polys;
 float		r_fovx, r_fovy; // rendering fov may be different becuase of r_waterwarp and r_stereo
 
 // rb_backend_gl11.c
-extern void RB_GL11_Init (void);
+extern void RB_GL11_SetDefaultState (void);
 
 extern void RB_GL11_SetDefaultCanvas (void);
 extern void RB_GL11_SetCanvas (canvastype canvastype);
 extern void RB_GL11_Set3DMatrix (void);
+extern void RB_GL11_RotateMatrixForEntity (vec3_t origin, vec3_t angles);
 
 // ===================================================================
 
@@ -31,13 +32,13 @@ static void rb_backend_start(void)
 			break;
 	}
 
-	// do specific renderpath init here
+	// make sure we set the default state
 	switch (vid.renderpath)
 	{
 		case RENDERPATH_GL11:
 		case RENDERPATH_GLES:
 		case RENDERPATH_GL30:
-			RB_GL11_Init ();
+			RB_GL11_SetDefaultState ();
 			break;
 	}
 }
@@ -110,6 +111,43 @@ void RB_Clear (void)
 	}
 }
 
+/*
+=============
+RB_PolygonOffset
+
+negative offset moves polygon closer to camera
+=============
+*/
+void RB_PolygonOffset (int offset)
+{
+	switch(vid.renderpath)
+	{
+	case RENDERPATH_GL11:
+	case RENDERPATH_GLES:
+	case RENDERPATH_GL30:
+		{
+			if (offset > 0)
+			{
+				qglEnable (GL_POLYGON_OFFSET_FILL);
+				qglEnable (GL_POLYGON_OFFSET_LINE);
+				qglPolygonOffset(1, offset);
+			}
+			else if (offset < 0)
+			{
+				qglEnable (GL_POLYGON_OFFSET_FILL);
+				qglEnable (GL_POLYGON_OFFSET_LINE);
+				qglPolygonOffset(-1, offset);
+			}
+			else
+			{
+				qglDisable (GL_POLYGON_OFFSET_FILL);
+				qglDisable (GL_POLYGON_OFFSET_LINE);
+			}
+		}
+		break;
+	}
+}
+
 
 /*
 
@@ -149,6 +187,18 @@ void RB_Set3DMatrix (void)
 	case RENDERPATH_GLES:
 	case RENDERPATH_GL30:
 		RB_GL11_Set3DMatrix();
+		break;
+	}
+}
+
+void RB_RotateMatrixForEntity (vec3_t origin, vec3_t angles)
+{
+	switch(vid.renderpath)
+	{
+	case RENDERPATH_GL11:
+	case RENDERPATH_GLES:
+	case RENDERPATH_GL30:
+		RB_GL11_RotateMatrixForEntity(origin, angles);
 		break;
 	}
 }

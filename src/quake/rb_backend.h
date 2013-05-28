@@ -10,6 +10,13 @@ void RB_EndFrame (void);
 void RB_Finish (void);
 void RB_Clear (void);
 
+#define OFFSET_BMODEL	1
+#define OFFSET_NONE		0
+#define OFFSET_DECAL	-1
+#define OFFSET_FOG		-2
+#define OFFSET_SHOWTRIS -3
+void RB_PolygonOffset (int);
+
 typedef enum {
 	CANVAS_INVALID = -1,
 	CANVAS_NONE,
@@ -26,3 +33,4 @@ typedef enum {
 void RB_SetDefaultCanvas (void);
 void RB_SetCanvas (canvastype canvastype);
 void RB_Set3DMatrix (void);
+void RB_RotateMatrixForEntity (vec3_t origin, vec3_t angles);

@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-// r_surf.c: brush model rendering.
+// r_brush.c: brush model rendering.
 
 #include "gl_local.h"
 
@@ -410,7 +410,7 @@ void R_DrawBrushModel (entity_t *e)
 
     qglPushMatrix ();
 	e->angles[0] = -e->angles[0];	// stupid quake bug
-	R_RotateForEntity (e->origin, e->angles);
+	RB_RotateMatrixForEntity (e->origin, e->angles);
 	e->angles[0] = -e->angles[0];	// stupid quake bug
 
 	// draw it
@@ -468,7 +468,7 @@ void R_DrawBrushModel_ShowTris (entity_t *e)
 
 	qglPushMatrix ();
 	e->angles[0] = -e->angles[0];	// stupid quake bug
-	R_RotateForEntity (e->origin, e->angles);
+	RB_RotateMatrixForEntity (e->origin, e->angles);
 	e->angles[0] = -e->angles[0];	// stupid quake bug
 
 	//

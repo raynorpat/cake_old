@@ -836,13 +836,6 @@ void GL_SelectTexture ( GLenum target );
 void GL_EnableMultitexture(void);
 void GL_DisableMultitexture(void);
 
-#define OFFSET_BMODEL 1
-#define OFFSET_NONE 0
-#define OFFSET_DECAL -1
-#define OFFSET_FOG -2
-#define OFFSET_SHOWTRIS -3
-void GL_PolygonOffset (int);
-
 #define TEXPREF_NONE			0x0000
 #define TEXPREF_MIPMAP			0x0001	// generate mipmaps
 #define TEXPREF_LINEAR			0x0002	// force linear
@@ -925,8 +918,9 @@ void Fog_NewMap (void);
 qbool R_CullBox (vec3_t mins, vec3_t maxs);
 qbool R_CullSphere (vec3_t centre, float radius);
 qbool R_CullModelForEntity (entity_t *e);
-void R_RotateForEntity (vec3_t origin, vec3_t angles);
+
 void R_PolyBlend (void);
+
 void R_MarkSurfaces (void);
 void R_CullSurfaces (void);
 

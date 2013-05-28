@@ -4,10 +4,10 @@
 
 /*
 ===============
-RB_GL11_Init
+RB_GL11_SetDefaultState
 ===============
 */
-void RB_GL11_Init (void)
+void RB_GL11_SetDefaultState (void)
 {
 	qglClearColor (1,0,0,0);
 
@@ -170,4 +170,18 @@ void RB_GL11_Set3DMatrix (void)
 	qglDisable(GL_BLEND);
 	qglDisable(GL_ALPHA_TEST);
 	qglEnable(GL_DEPTH_TEST);
+}
+
+/*
+===============
+RB_GL11_RotateMatrixForEntity
+===============
+*/
+void RB_GL11_RotateMatrixForEntity (vec3_t origin, vec3_t angles)
+{
+	qglTranslatef (origin[0],  origin[1],  origin[2]);
+
+	qglRotatef (angles[1],  0, 0, 1);
+	qglRotatef (-angles[0],  0, 1, 0);
+	qglRotatef (angles[2],  1, 0, 0);
 }

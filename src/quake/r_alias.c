@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-// gl_ralias.c - GL rendering of alias models (*.mdl)
+// r_alias.c - rendering of alias models (*.mdl)
 
 #include "gl_local.h"
 
@@ -50,7 +50,7 @@ qbool	shading = true;
 GL_DrawAliasFrame
 =============
 */
-void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
+static void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 {
 	float 	vertcolor[4];
 	trivertx_t	*verts;
@@ -125,7 +125,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, int posenum)
 R_SetupAliasFrame
 =================
 */
-void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr)
+static void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr)
 {
 	int				pose, numposes;
 	float			interval;
@@ -153,7 +153,7 @@ void R_SetupAliasFrame (int frame, aliashdr_t *paliashdr)
 R_SetupAliasLighting
 =================
 */
-void R_SetupAliasLighting (entity_t	*e)
+static void R_SetupAliasLighting (entity_t	*e)
 {
 	vec3_t		dist;
 	float		add;
@@ -246,7 +246,7 @@ void R_DrawAliasModel (entity_t *ent)
 	// transform it
 	//
 	qglPushMatrix ();
-	R_RotateForEntity (ent->origin, ent->angles);
+	RB_RotateMatrixForEntity (ent->origin, ent->angles);
 
 	if (clmodel->modhint == MOD_EYES) {
 		qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2] - (22 + 8));
@@ -562,7 +562,7 @@ void R_DrawAliasModel_ShowTris (entity_t *e)
 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
 
     qglPushMatrix ();
-	R_RotateForEntity (e->origin, e->angles);
+	RB_RotateMatrixForEntity (e->origin, e->angles);
 	qglTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
 	qglScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
 
