@@ -102,8 +102,5 @@ void Draw_Crosshair (void)
 {
 	extern cvar_t crosshair, cl_crossx, cl_crossy;
 
-	if (!crosshair.value)
-		return;
-
 	R_DrawCrosshair (crosshair.value, cl_crossx.value, cl_crossy.value);
 }

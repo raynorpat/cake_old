@@ -512,7 +512,29 @@ void R_DrawString (int x, int y, const char *str)
 
 void R_DrawCrosshair (int num, int crossx, int crossy)
 {
-//	R_DrawChar (-4 + crossx, -4 + crossy, '+');
+	extern cvar_t crosshair;
+	extern cvar_t scr_crosshairscale;
+	extern cvar_t scr_sbarscale;
+	float s = clamp (1.0, scr_crosshairscale.value, 10.0);
+
+	if (!crosshair.value)
+		return;
+
+	crossx = ((vid.width / 2) - (4.0f * s)) / s;
+	crossy = (((vid.height - 48 * scr_sbarscale.value) / 2) - (4.0f * s)) / s;
+
+	RB_SetCanvas (CANVAS_DEFAULT);
+
+	if (s != 1)
+	{
+		qglPushMatrix ();
+		qglScalef (s, s, 1);
+	}
+
+	R_DrawChar (crossx, crossy, '+');
+
+	if (s != 1)
+		qglPopMatrix ();
 }
 
 void Draw_ColoredPic (int x, int y, qpic_t *pic, byte *color)
