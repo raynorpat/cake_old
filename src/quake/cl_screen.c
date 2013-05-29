@@ -169,18 +169,15 @@ void SCR_DrawCenterString (void)
 	scr_erase_center = 0;
 	start = scr_centerstring;
 
-	if (scr_center_lines <= 4)
-		y = 200*0.35;
-	else
-		y = 48;
+	y = (200 - scr_center_lines * 8) * 0.10;
 
 	do	
 	{
-	// scan the width of the line
+		// scan the width of the line
 		for (l=0 ; l<40 ; l++)
 			if (start[l] == '\n' || !start[l])
 				break;
-		x = (320 - l*8)/2;
+		x = (320 - l * 8) / 2;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
 			R_DrawChar (x, y, start[j]);	
@@ -650,7 +647,8 @@ SCR_DrawConsole
 void SCR_DrawConsole (void)
 {
 	float	alpha;
-	qpic_t	*conback;
+
+	RB_SetCanvas (CANVAS_CONSOLE);
 
 	if (!scr_con_current)
 	{
@@ -671,10 +669,7 @@ void SCR_DrawConsole (void)
 	else
 		alpha = bound (0.0f, scr_conalpha.value, 1.0f);
 
-	RB_SetCanvas (CANVAS_CONSOLE);
-
-	conback = R_CachePic ("gfx/conback.lmp");
-	R_DrawStretchPic (0, 0, vid.width, vid.height, conback, alpha);
+	R_DrawConsoleBackground (alpha);
 	
 	// draw console text
 	if (key_dest != key_menu)

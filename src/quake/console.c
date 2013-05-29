@@ -161,7 +161,7 @@ void Con_CheckResize (void)
 	int		i, j, width, oldwidth, oldtotallines, numlines, numchars;
 	char	tbuf[CON_TEXTSIZE];
 
-	width = (vid.width >> 3) - 2;
+	width = ((int)vid_conwidth.value >> 3) - 2;
 
 	if (width == con_linewidth)
 		return;
@@ -468,7 +468,8 @@ void Con_DrawInput (void)
 	if (key_linepos >= con_linewidth)
 		text += 1 + key_linepos - con_linewidth;
 
-	R_DrawString (8, vid.height - 16, text);
+	// draw input string
+	R_DrawString (8, vid_conheight.value - 16, text);
 }
 
 
@@ -495,8 +496,7 @@ void Con_DrawNotify (void)
 	if (maxlines < 0)
 		maxlines = 0;
 
-	RB_SetCanvas (CANVAS_CONSOLE);
-	v = vid.height;
+	v = vid_conheight.value;
 
 	for (i = con.current-maxlines+1 ; i<=con.current ; i++)
 	{
@@ -582,8 +582,8 @@ void Con_DrawConsole (int lines)
 
 // draw the buffer text
 	rows = (con_vislines +7)/8;
-	y = vid.height - rows*8;
-	rows -= 2; //for input and version lines
+	y = vid_conheight.value - rows*8;
+	rows -= 2; // for input and version lines
 	sb = (con.backscroll) ? 2 : 0;
 
 	for (i = con.current - rows + 1; i <= con.current - sb; i++, y += 8)

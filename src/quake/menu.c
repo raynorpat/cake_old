@@ -93,7 +93,7 @@ int		m_topmenu;			// set if a submenu was entered via a
 //=============================================================================
 /* Support Routines */
 
-cvar_t	scr_menuscale = {"scr_menuscale", "2", CVAR_ARCHIVE};
+cvar_t	scr_menuscale = {"scr_menuscale", "4", CVAR_ARCHIVE};
 
 void M_DrawChar (int cx, int line, int num)
 {
@@ -102,20 +102,30 @@ void M_DrawChar (int cx, int line, int num)
 
 void M_Print (int cx, int cy, char *str)
 {
-	Draw_Alt_String (cx, cy, str);
+	while (*str)
+	{
+		M_DrawChar (cx, cy, (*str) + 128);
+		str++;
+		cx += 8;
+	}
 }
 
 void M_PrintWhite (int cx, int cy, char *str)
 {
-	R_DrawString (cx, cy, str);
+	while (*str)
+	{
+		M_DrawChar (cx, cy, *str);
+		str++;
+		cx += 8;
+	}
 }
 
 static void M_ItemPrint(int cx, int cy, char *str, int unghosted)
 {
 	if (unghosted)
-		Draw_Alt_String (cx, cy, str);
+		M_Print (cx, cy, str);
 	else
-		R_DrawString (cx, cy, str);
+		M_PrintWhite (cx, cy, str);
 }
 
 void M_DrawPic (int x, int y, qpic_t *pic)
@@ -1191,9 +1201,9 @@ void M_Video_Key (int key)
 				case (VIDEO_ITEMS - 1):
 					Cvar_SetValue (&vid_width, video_resolutions[video_resolution].width);
 					Cvar_SetValue (&vid_height, video_resolutions[video_resolution].height);
-					//Cvar_SetValue (&vid_conwidth, video_resolutions[video_resolution].conwidth);
-					//Cvar_SetValue (&vid_conheight, video_resolutions[video_resolution].conheight);
-					//Cvar_SetValue (&vid_pixelheight, video_resolutions[video_resolution].pixelheight);
+					Cvar_SetValue (&vid_conwidth, video_resolutions[video_resolution].conwidth);
+					Cvar_SetValue (&vid_conheight, video_resolutions[video_resolution].conheight);
+					Cvar_SetValue (&vid_pixelheight, video_resolutions[video_resolution].pixelheight);
 					Cbuf_AddText ("vid_restart\n");
 					M_Menu_Options_f ();
 					break;
