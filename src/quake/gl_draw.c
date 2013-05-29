@@ -95,6 +95,8 @@ typedef struct
 	float		sl, tl, sh, th;
 } glpic_t;
 
+canvastype currentcanvas = CANVAS_NONE; // for RB_SetCanvas
+
 //==============================================================================
 //
 //  PIC CACHING
@@ -144,6 +146,8 @@ qpic_t *R_CacheWadPic (char *name)
 	return p;
 }
 
+void Draw_InvalidateState (void);
+
 /*
 ================
 R_CachePic
@@ -155,6 +159,8 @@ qpic_t *R_CachePic (char *path)
 	int			i;
 	qpic_t		*dat;
 	glpic_t		*gl;
+
+	Draw_InvalidateState ();
 
 	for (pic = menu_cachepics, i = 0; i < menu_numcachepics; pic++, i++)
 	{
@@ -169,7 +175,7 @@ qpic_t *R_CachePic (char *path)
 	// load the pic from disk
 	dat = (qpic_t *)FS_LoadTempFile (path);
 	if (!dat)
-		Sys_Error ("Draw_CachePic: failed to load %s", path);
+		Sys_Error ("R_CachePic: failed to load %s", path);
 	SwapPic (dat);
 
 	pic->pic.width = dat->width;
@@ -222,6 +228,11 @@ static void gl_draw_start(void)
 	cachepic_t	*pic;
 	int			i;
 
+	// empty lmp cache
+	for (pic = menu_cachepics, i = 0; i < menu_numcachepics; pic++, i++)
+		pic->name[0] = 0;
+	menu_numcachepics = 0;
+
 	// load wad file
 	W_LoadWadFile ("gfx.wad");
 
@@ -237,10 +248,61 @@ static void gl_draw_start(void)
 	pic_ovr = Draw_MakePic ("ovr", 8, 8, &pic_ovr_data[0][0]);
 	pic_nul = Draw_MakePic ("nul", 8, 8, &pic_nul_data[0][0]);
 
-	// empty lmp cache
-	for (pic = menu_cachepics, i = 0; i < menu_numcachepics; pic++, i++)
-		pic->name[0] = 0;
-	menu_numcachepics = 0;
+	// precache all of our menu pics so that they're valid when we come to use them, otherwise we get weirdness
+	// when they're cached on-demand with the new renderer code.
+	R_CachePic ("gfx/bigbox.lmp");
+	R_CachePic ("gfx/box_bl.lmp");
+	R_CachePic ("gfx/box_bm.lmp");
+	R_CachePic ("gfx/box_br.lmp");
+	R_CachePic ("gfx/box_ml.lmp");
+	R_CachePic ("gfx/box_mm.lmp");
+	R_CachePic ("gfx/box_mm2.lmp");
+	R_CachePic ("gfx/box_mr.lmp");
+	R_CachePic ("gfx/box_tl.lmp");
+	R_CachePic ("gfx/box_tm.lmp");
+	R_CachePic ("gfx/box_tr.lmp");
+	R_CachePic ("gfx/complete.lmp");
+	R_CachePic ("gfx/conback.lmp");
+	R_CachePic ("gfx/dim_drct.lmp");
+	R_CachePic ("gfx/dim_ipx.lmp");
+	R_CachePic ("gfx/dim_modm.lmp");
+	R_CachePic ("gfx/dim_mult.lmp");
+	R_CachePic ("gfx/dim_tcp.lmp");
+	R_CachePic ("gfx/finale.lmp");
+	R_CachePic ("gfx/help0.lmp");
+	R_CachePic ("gfx/help1.lmp");
+	R_CachePic ("gfx/help2.lmp");
+	R_CachePic ("gfx/help3.lmp");
+	R_CachePic ("gfx/help4.lmp");
+	R_CachePic ("gfx/help5.lmp");
+	R_CachePic ("gfx/inter.lmp");
+	R_CachePic ("gfx/loading.lmp");
+	R_CachePic ("gfx/mainmenu.lmp");
+	R_CachePic ("gfx/menudot1.lmp");
+	R_CachePic ("gfx/menudot2.lmp");
+	R_CachePic ("gfx/menudot3.lmp");
+	R_CachePic ("gfx/menudot4.lmp");
+	R_CachePic ("gfx/menudot5.lmp");
+	R_CachePic ("gfx/menudot6.lmp");
+	R_CachePic ("gfx/menuplyr.lmp");
+	R_CachePic ("gfx/mp_menu.lmp");
+	R_CachePic ("gfx/netmen1.lmp");
+	R_CachePic ("gfx/netmen2.lmp");
+	R_CachePic ("gfx/netmen3.lmp");
+	R_CachePic ("gfx/netmen4.lmp");
+	R_CachePic ("gfx/netmen5.lmp");
+	R_CachePic ("gfx/pause.lmp");
+	R_CachePic ("gfx/p_load.lmp");
+	R_CachePic ("gfx/p_multi.lmp");
+	R_CachePic ("gfx/p_option.lmp");
+	R_CachePic ("gfx/p_save.lmp");
+	R_CachePic ("gfx/qplaque.lmp");
+	R_CachePic ("gfx/ranking.lmp");
+	R_CachePic ("gfx/sp_menu.lmp");
+	R_CachePic ("gfx/ttl_cstm.lmp");
+	R_CachePic ("gfx/ttl_main.lmp");
+	R_CachePic ("gfx/ttl_sgl.lmp");
+	R_CachePic ("gfx/vidmodes.lmp");
 }
 
 static void gl_draw_shutdown(void)
@@ -269,98 +331,204 @@ void R_Draw_Init (void)
 	R_RegisterModule("GL_Draw", gl_draw_start, gl_draw_shutdown, gl_draw_newmap);
 }
 
+
 //==============================================================================
 //
 //  2D DRAWING
 //
 //==============================================================================
 
-static void Draw_StretchPic ( int x, int y, int w, int h, float s1, float t1, float s2, float t2 )
+
+float xofs_2d = 0;
+float yofs_2d = 0;
+float xscale_2d = 1;
+float yscale_2d = 1;
+
+// note - this just needs to be set to an invalid pointer here; it can't be NULL because NULL is a valid test
+gltexture_t *draw_lasttexture = (gltexture_t *) 0xffffffff;
+r_defaultquad_t *r_draw_quads = NULL;
+
+void Draw_EndBatching (void)
 {
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (s1, t1);
-	qglVertex2f (x, y);
-	qglTexCoord2f (s2, t1);
-	qglVertex2f (x + w, y);
-	qglTexCoord2f (s2, t2);
-	qglVertex2f (x + w, y + h);
-	qglTexCoord2f (s1, t2);
-	qglVertex2f (x, y + h);
-	qglEnd ();
+	if (r_num_quads)
+		R_DrawArrays (GL_QUADS, 0, r_num_quads * 4);
+
+	r_draw_quads = r_default_quads;
+	r_num_quads = 0;
 }
+
+
+void Draw_Vertex (r_defaultquad_t *rdq, float x, float y, unsigned int *color, float s, float t)
+{
+	rdq->xyz[0] = x;
+	rdq->xyz[1] = y;
+	rdq->xyz[2] = 0;
+
+	rdq->rgba = color[0];
+
+	rdq->st[0] = s;
+	rdq->st[1] = t;
+}
+
+
+void Draw_Textured2DQuad (float x, float y, float w, float h, float sl, float tl, float sh, float th, byte *color)
+{
+	r_defaultquad_t *dst = NULL;	// this might change below so we can't set it here
+	byte defaultcolor[4] = {255, 255, 255, 255};
+	byte *realcolor = color ? color : defaultcolor;
+
+	x *= xscale_2d;
+	y *= yscale_2d;
+	x += xofs_2d;
+	y += yofs_2d;
+	w *= xscale_2d;
+	h *= yscale_2d;
+
+	if (r_num_quads + 4 >= r_max_quads)
+		Draw_EndBatching ();
+
+	// now we can safely set the dst pointer
+	dst = (r_defaultquad_t *) r_draw_quads;
+	r_draw_quads += 4;
+	r_num_quads++;
+
+	Draw_Vertex (&dst[0], x, y, (unsigned int *) realcolor, sl, tl);
+	Draw_Vertex (&dst[1], x + w, y, (unsigned int *) realcolor, sh, tl);
+	Draw_Vertex (&dst[2], x + w, y + h, (unsigned int *) realcolor, sh, th);
+	Draw_Vertex (&dst[3], x, y + h, (unsigned int *) realcolor, sl, th);
+}
+
+
+void Draw_Colored2DQuad (float x, float y, float w, float h, byte *color)
+{
+	Draw_Textured2DQuad (x, y, w, h, 0, 0, 0, 0, color);
+}
+
+
+void Draw_InvalidateState (void)
+{
+	Draw_EndBatching ();
+
+	// note again - not NULL because NULL is a valid state
+	draw_lasttexture = (gltexture_t *) 0xffffffff;
+}
+
+
+void Draw_DisableTexture (void)
+{
+	Draw_EndBatching ();
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_NONE);
+}
+
+
+void Draw_EnableTexture (void)
+{
+	Draw_EndBatching ();
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
+}
+
+
+void Draw_TestState (gltexture_t *texture)
+{
+	if (texture != draw_lasttexture)
+	{
+		Draw_EndBatching ();
+
+		if (texture)
+		{
+			R_EnableVertexArrays (r_default_quads->xyz, r_default_quads->color, r_default_quads->st, NULL, NULL, sizeof (r_defaultquad_t));
+			GL_BindTexture (GL_TEXTURE0_ARB, texture);
+		}
+		else R_EnableVertexArrays (r_default_quads->xyz, r_default_quads->color, NULL, NULL, NULL, sizeof (r_defaultquad_t));
+
+		draw_lasttexture = texture;
+	}
+}
+
+
+/*
+================
+Draw_CharacterQuad
+================
+*/
+void Draw_CharacterQuad (int x, int y, char num, byte *color)
+{
+	if (num != 32)
+	{
+		int				row, col;
+		float			frow, fcol, size;
+
+		row = num >> 4;
+		col = num & 15;
+
+		frow = row * 0.0625;
+		fcol = col * 0.0625;
+		size = 0.0625;
+
+		Draw_Textured2DQuad (x, y, 8, 8, fcol, frow, fcol + size, frow + size, color);
+	}
+}
+
 
 /*
 ================
 R_DrawChar
-
-Draws one 8*8 graphics character with 0 being transparent.
-It can be clipped to the top of the screen to allow the console to be
-smoothly scrolled off.
 ================
 */
 void R_DrawChar (int x, int y, int num)
 {
-	float frow, fcol;
+	unsigned int rgba = 0xffffffff;
 
-	if (y <= -8)
-		return;			// totally off screen
-
-	if (num == 32)
-		return;		// space
-
-	num &= 255;
-
-	frow = (num>>4)*0.0625;
-	fcol = (num&15)*0.0625;
-
-	GL_Bind (char_texture->texnum);
-
-	Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.0625 );
+	Draw_TestState (char_texture);
+	Draw_CharacterQuad (x, y, (num & 255), (byte *) &rgba);
 }
 
+void Draw_ColoredCharacter (int x, int y, int num, unsigned int color)
+{
+	Draw_TestState (char_texture);
+	Draw_CharacterQuad (x, y, (num & 255), (byte *) color);
+}
+
+/*
+================
+Draw_String
+================
+*/
 void R_DrawString (int x, int y, const char *str)
 {
-	float frow, fcol;
-	int num;
+	unsigned int rgba = 0xffffffff;
 
-	if (y <= -8)
-		return;			// totally off screen
-	if (!*str)
-		return;
-
-	GL_Bind (char_texture->texnum);
+	Draw_TestState (char_texture);
 	
-	while (*str) // stop rendering when out of characters
+	while (*str)
 	{
-		if ((num = *str++) != 32) // skip spaces
-		{
-			frow = (float) (num >> 4)*0.0625;
-			fcol = (float) (num & 15)*0.0625;
+		if (*str != 32) // don't waste verts on spaces
+			Draw_CharacterQuad (x, y, ((*str) & 255), (byte *) &rgba);
 
-			Draw_StretchPic( x, y, 8, 8, fcol, frow, fcol + 0.0625, frow + 0.0625 );
-		}
-
+		str++;
 		x += 8;
 	}
 }
 
 void R_DrawCrosshair (int num, int crossx, int crossy)
 {
-	RB_SetCanvas (CANVAS_CROSSHAIR);
-
-	R_DrawChar (-4 + crossx, -4 + crossy, '+');
+//	R_DrawChar (-4 + crossx, -4 + crossy, '+');
 }
+
+void Draw_ColoredPic (int x, int y, qpic_t *pic, byte *color)
+{
+	glpic_t			*gl;
+
+	gl = (glpic_t *) pic->data;
+
+	Draw_TestState (gl->gltexture);
+	Draw_Textured2DQuad (x, y, pic->width, pic->height, gl->sl, gl->tl, gl->sh, gl->th, color);
+}
+
 
 void R_DrawPic (int x, int y, qpic_t *pic)
 {
-	glpic_t *glpic = (glpic_t *) pic->data;
-
-	if (!pic)
-		return;
-
-	GL_Bind (glpic->gltexture->texnum);
-
-	Draw_StretchPic( x, y, pic->width, pic->height, 0, 0, 1, 1 );
+	Draw_ColoredPic (x, y, pic, NULL);
 }
 
 
@@ -376,46 +544,41 @@ void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom)
 	static int oldtop = -2;
 	static int oldbottom = -2;
 	gltexture_t *glt;
+	glpic_t *glp;
 
 	if (top != oldtop || bottom != oldbottom)
 	{
 		oldtop = top;
 		oldbottom = bottom;
-		glt = ((glpic_t *)pic->data)->gltexture;
+		glp = (glpic_t *) pic->data;
+		glt = glp->gltexture;
 		TexMgr_ReloadImage (glt, top, bottom);
 	}
 
+	Draw_EndBatching ();
 	R_DrawPic (x, y, pic);
 }
 
 
-void R_DrawStretchPic (int x, int y, int width, int height, qpic_t *pic, float alpha)
+/*
+================
+R_DrawConsoleBackground
+================
+*/
+void R_DrawConsoleBackground (float alpha)
 {
-	glpic_t *glpic = (glpic_t *) pic->data;
+	qpic_t *pic;
 
-	if (!pic)
-		return;
+	pic = R_CachePic ("gfx/conback.lmp");
+	pic->width = vid_conwidth.value;
+	pic->height = vid_conheight.value;
 
 	if (alpha > 0.0)
 	{
-		if (alpha < 1.0)
-		{
-			qglEnable (GL_BLEND);
-			qglColor4f (1,1,1,alpha);
-			qglDisable (GL_ALPHA_TEST);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		}
+		byte color[4] = {255, 255, 255, 255};
+		color[3] = BYTE_CLAMPF (alpha);
 
-		GL_Bind (glpic->gltexture->texnum);
-		Draw_StretchPic (x, y, width, height, 0, 0, 1, 1);
-
-		if (alpha < 1.0)
-		{
-			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			qglEnable (GL_ALPHA_TEST);
-			qglDisable (GL_BLEND);
-			qglColor4f (1,1,1,1);
-		}
+		Draw_ColoredPic (0, 0, pic, color);
 	}
 }
 
@@ -429,24 +592,13 @@ Fills a box of pixels with a single indexed color
 */
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha)
 {
-	byte *pal = (byte *)d_8to24table;
+	byte *fillcolor = (byte *) &d_8to24table_rgba[c];
+	fillcolor[3] = BYTE_CLAMPF (alpha);
 
-	qglDisable (GL_TEXTURE_2D);
-	qglEnable (GL_BLEND);
-	qglDisable (GL_ALPHA_TEST);
-	qglColor4f (pal[c*4]/255.0, pal[c*4+1]/255.0, pal[c*4+2]/255.0, alpha);
-
-	qglBegin (GL_QUADS);
-	qglVertex2f (x,y);
-	qglVertex2f (x+w, y);
-	qglVertex2f (x+w, y+h);
-	qglVertex2f (x, y+h);
-	qglEnd ();
-
-	qglColor4f (1, 1, 1, 1);
-	qglDisable (GL_BLEND);
-	qglEnable (GL_ALPHA_TEST);
-	qglEnable (GL_TEXTURE_2D);
+	Draw_TestState (NULL);
+	Draw_DisableTexture ();
+	Draw_Colored2DQuad (x, y, w, h, fillcolor);
+	Draw_EnableTexture ();
 }
 
 //=============================================================================
@@ -466,7 +618,7 @@ void R_LoadingScreen (void)
 	pic = R_CachePic("gfx/loading.lmp");
 	x = (320 - pic->width) / 2;
 	y = (200 - pic->height) / 2;
-	R_DrawPic ( x, y, pic );
+	R_DrawPic (x, y, pic);
 
 	// refresh
 	VID_Finish();
@@ -474,24 +626,90 @@ void R_LoadingScreen (void)
 
 void R_FadeScreen (void)
 {
+	byte fadecolor[4] = {0, 0, 0, 160};
+
 	RB_SetCanvas (CANVAS_DEFAULT);
 
-	qglEnable (GL_BLEND);
-	qglDisable (GL_ALPHA_TEST);
-	qglDisable (GL_TEXTURE_2D);
-	qglColor4f (0, 0, 0, 0.5);
+	Draw_TestState (NULL);
+	Draw_DisableTexture ();
+	Draw_Colored2DQuad (0, 0, vid.width, vid.height, fadecolor);
+	Draw_EnableTexture ();
+}
 
-	qglBegin (GL_QUADS);
-	qglVertex2f (0,0);
-	qglVertex2f (vid.width, 0);
-	qglVertex2f (vid.width, vid.height);
-	qglVertex2f (0, vid.height);
-	qglEnd ();
+//====================================================================
 
-	qglColor4f (1,1,1,1);
-	qglEnable (GL_TEXTURE_2D);
-	qglEnable (GL_ALPHA_TEST);
-	qglDisable (GL_BLEND);
+void RB_SetCanvas (canvastype newcanvas)
+{
+	extern cvar_t scr_menuscale;
+	extern cvar_t scr_sbarscale;
+	extern cvar_t scr_crosshairscale;
+	float s;
+	int lines;
+
+	if (newcanvas == currentcanvas)
+		return;
+
+	currentcanvas = newcanvas;
+
+	// enforce defaults
+	xofs_2d = 0;
+	yofs_2d = 0;
+	xscale_2d = 1;
+	yscale_2d = 1;
+
+	switch(newcanvas)
+	{
+	default:
+	case CANVAS_DEFAULT:
+		// just use default values from above
+		break;
+	case CANVAS_CONSOLE:
+		lines = vid.height - (scr_con_current * vid.height / vid_conheight.value);
+
+		xofs_2d = 0;
+		yofs_2d = scr_con_current - vid.height;
+
+		xscale_2d = (float) vid.width / (float) vid_conwidth.value;
+		yscale_2d = (float) vid.height / (float) vid_conheight.value;
+		break;
+	case CANVAS_MENU:
+		s = min ((float) vid.width / 320.0, (float) vid.height / 200.0);
+		s = clamp (1.0, scr_menuscale.value, s);
+
+		xofs_2d = (vid.width - (320 * s)) / 2;
+		yofs_2d = (vid.height - (200 * s)) / 2;
+
+		xscale_2d = s;
+		yscale_2d = s;
+		break;
+	case CANVAS_SBAR:
+		s = clamp (1.0, scr_sbarscale.value, (float)vid.width / 320.0);
+
+		xofs_2d = (vid.width - (320.0f * s)) / 2;
+		yofs_2d = vid.height - 48 * scr_sbarscale.value;
+
+		xscale_2d = s;
+		yscale_2d = s;
+		break;
+	case CANVAS_BOTTOMLEFT: // used by devstats
+		s = (float) vid.width / (float) vid_conwidth.value; // use console scale
+
+		xofs_2d = 0;
+		yofs_2d = vid.height - (200.0f * s);
+
+		xscale_2d = s;
+		yscale_2d = s;
+		break;
+	case CANVAS_BOTTOMRIGHT: // used by fps
+		s = (float) vid.width / (float) vid_conwidth.value; // use console scale
+
+		xofs_2d = vid.width - (320.0f * s);
+		yofs_2d = vid.height - (200.0f * s);
+
+		xscale_2d = s;
+		yscale_2d = s;
+		break;
+	}
 }
 
 //====================================================================

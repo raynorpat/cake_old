@@ -22,6 +22,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_local.h"
 #include "sound.h"
 
+r_defaultquad_t *r_default_quads = (r_defaultquad_t *) scratchbuf;
+int r_max_quads = SCRATCHBUF_SIZE / (sizeof (r_defaultquad_t) * 4);
+int r_num_quads = 0;
+unsigned short *r_quad_indexes = NULL;
+
+
+void R_InitQuads (void)
+{
+	int i;
+	unsigned short *ndx;
+	unsigned int pquad;
+
+	// clamp to shorts
+	if (r_max_quads >= 16384) r_max_quads = 16384;
+
+	r_quad_indexes = (unsigned short *) Hunk_Alloc (r_max_quads * sizeof (unsigned short) * 6);
+	ndx = r_quad_indexes;
+
+	// set up the indexes one time only
+	for (i = 0, pquad = 0; i < r_max_quads; i++, ndx += 6, pquad += 4)
+	{
+		ndx[0] = pquad + 0;
+		ndx[1] = pquad + 1;
+		ndx[2] = pquad + 2;
+
+		ndx[3] = pquad + 0;
+		ndx[4] = pquad + 2;
+		ndx[5] = pquad + 3;
+	}
+}
+
 model_t	*r_worldmodel;
 entity_t r_worldentity;
 
@@ -620,6 +651,8 @@ void gl_main_newmap(void)
 
 void GL_Main_Init(void)
 {
+	R_InitQuads ();
+
 	Cmd_AddCommand ("screenshot", R_ScreenShot_f);
 	Cmd_AddCommand ("loadsky", R_LoadSky_f);
 
@@ -644,6 +677,7 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_stereo);
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
+	Cvar_Register (&r_primitives);
 
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);

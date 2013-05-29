@@ -227,7 +227,6 @@ void R_UpdateWarpTextures (void)
 			continue;
 
 		// render warp
-		RB_SetCanvas (CANVAS_WARPIMAGE);
 		GL_Bind (tx->gl_texture->texnum);
 		for (x=0.0; x<128.0; x=x2)
 		{

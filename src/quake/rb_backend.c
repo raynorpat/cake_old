@@ -2,7 +2,8 @@
 
 #include "gl_local.h"
 
-int			c_brush_polys, c_brush_passes, c_alias_polys;
+int			rs_brushpolys, rs_aliaspolys, rs_drawelements;
+int			rs_dynamiclightmaps;
 
 float		r_fovx, r_fovy; // rendering fov may be different becuase of r_waterwarp and r_stereo
 
@@ -64,8 +65,7 @@ double	time1, time2;
 void RB_StartFrame (void)
 {
 	// reset counters
-	c_brush_polys = c_brush_passes = 0;
-	c_alias_polys = 0;
+	rs_brushpolys = rs_aliaspolys = rs_drawelements = rs_dynamiclightmaps = 0;
 
 	if (r_speeds.value)
 	{
@@ -79,11 +79,12 @@ void RB_EndFrame (void)
 	if (r_speeds.value)
 	{
 		time2 = Sys_DoubleTime ();
-		Com_Printf( "%3i ms  - %4i/%4i wpoly %4i epoly\n",
-			(int)((time2-time1)*1000),
-			c_brush_polys,
-			c_brush_passes,
-			c_alias_polys );
+		Com_Printf ("%3i ms  %4i wpoly   %4i epoly   %4i draw   %3i lmap\n",
+			(int) ((time2 - time1) * 1000),
+			rs_brushpolys,
+			rs_aliaspolys,
+			rs_drawelements,
+			rs_dynamiclightmaps);
 	}
 }
 
@@ -108,8 +109,17 @@ void RB_Clear (void)
 	case RENDERPATH_GL11:
 	case RENDERPATH_GLES:
 	case RENDERPATH_GL30:
-		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		break;
+		{	
+			// partition the depth range for 3D/2D stuff
+			qglDepthRange (QGL_DEPTH_3D_BEGIN, QGL_DEPTH_3D_END);
+
+			// set a black clear color
+			qglClearColor (0, 0, 0, 1);
+
+			// clear
+			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+			break;
+		}
 	}
 }
 
@@ -165,18 +175,6 @@ void RB_SetDefaultCanvas( void )
 	case RENDERPATH_GLES:
 	case RENDERPATH_GL30:
 		RB_GL11_SetDefaultCanvas();
-		break;
-	}
-}
-
-void RB_SetCanvas (canvastype newcanvas)
-{
-	switch(vid.renderpath)
-	{
-	case RENDERPATH_GL11:
-	case RENDERPATH_GLES:
-	case RENDERPATH_GL30:
-		RB_GL11_SetCanvas(newcanvas);
 		break;
 	}
 }

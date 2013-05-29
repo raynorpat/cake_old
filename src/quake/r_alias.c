@@ -265,7 +265,7 @@ void R_DrawAliasModel (entity_t *ent)
 	//
 	// set up lighting
 	//
-	c_alias_polys += paliashdr->numtris;
+	rs_aliaspolys += paliashdr->numtris;
 	R_SetupAliasLighting(ent);
 
 	//
@@ -292,7 +292,7 @@ void R_DrawAliasModel (entity_t *ent)
 
 	// hack the depth range to prevent view model from poking into walls
 	if (ent->renderfx & RF_WEAPONMODEL)
-		qglDepthRange (0, 0.3);
+		qglDepthRange (QGL_DEPTH_3D_BEGIN, QGL_DEPTH_VM_END);
 
 	if (r_fullbright.value)
 	{
@@ -473,7 +473,7 @@ void R_DrawAliasModel (entity_t *ent)
 
 	// restore normal depth range
 	if (ent->renderfx & RF_WEAPONMODEL)
-		qglDepthRange (0, 1);
+		qglDepthRange (QGL_DEPTH_3D_BEGIN, QGL_DEPTH_3D_END);
 
 	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 	qglColor4f (1, 1, 1, 1);

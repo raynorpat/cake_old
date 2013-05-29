@@ -831,6 +831,7 @@ extern	cvar_t	r_fastsky;
 extern	cvar_t	r_sky_quality;
 extern	cvar_t	r_skyalpha;
 extern	cvar_t	r_skyfog;
+extern	cvar_t	r_primitives;
 
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
@@ -887,7 +888,7 @@ typedef struct gltexture_s
 	char				pants; // 0-13 pants color, or -1 if never colormapped
 } gltexture_t;
 
-gltexture_t *notexture, *particletexture;
+extern gltexture_t *notexture, *particletexture;
 
 extern int	gl_warpimagesize;
 
@@ -908,6 +909,12 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants);
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS];
 
 texture_t *R_TextureAnimation (texture_t *base, int frame);
+
+
+
+void GL_BindTexture (GLenum tmu, gltexture_t *texture);
+
+
 
 void R_UpdateWarpTextures (void);
 void Sky_DrawSky (void);			// skybox or classic sky
@@ -983,6 +990,46 @@ typedef struct skin_s {
 void Skin_Find (char *skinname, struct skin_s **sk);
 byte *Skin_Cache (struct skin_s *skin);
 void Skin_Flush (void);
+
+void GL_PixelStore (int rowalign, int rowlen);
+
+#define BYTE_CLAMP(a) ((a)>255?255:((a)<0?0:(a)))
+#define BYTE_CLAMPF(a) ((a)>1?255:((a)<0?0:(a) * 255.0f))
+
+
+
+
+void R_AddEntityToAlphaList (entity_t *ent);
+
+void R_EnableVertexArrays (float *v, byte *c, float *st1, float *st2, float *st3, int vertexsize);
+void R_DisableVertexArrays (void);
+unsigned short *R_TransferIndexes (unsigned short *src, unsigned short *dst, int numindexes, int offset);
+void R_DrawElements (int numIndexes, int numVertexes, const unsigned short *indexes);
+void R_DrawArrays (GLenum mode, int firstvert, int numverts);
+void R_DrawBufferElements (int firstIndex, int numIndexes, int indexBuffer);
+
+void R_ShowTrisBegin (void);
+void R_ShowTrisEnd (void);
+extern cvar_t r_showtris;
+
+// this order matches a d3d fvf order which may therefore be assumed to be more optimal for hardware
+typedef struct r_defaultquad_s
+{
+	float xyz[3];
+
+	union
+	{
+		byte color[4];
+		unsigned int rgba;
+	};
+
+	float st[2];
+} r_defaultquad_t;
+
+extern r_defaultquad_t *r_default_quads;
+extern int r_max_quads;
+extern int r_num_quads;
+extern unsigned short *r_quad_indexes;
 
 #endif /* _GL_LOCAL_H_ */
 

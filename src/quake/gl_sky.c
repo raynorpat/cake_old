@@ -454,7 +454,6 @@ static void Sky_ProcessPoly (glpoly_t	*p)
 
 	// draw it
 	DrawGLPoly(p);
-	c_brush_passes++;
 
 	// update sky bounds
 	if (!r_fastsky.value)

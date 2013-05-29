@@ -1,4 +1,5 @@
-extern int c_brush_polys, c_brush_passes, c_alias_polys;
+extern int rs_brushpolys, rs_aliaspolys, rs_drawelements;
+extern int rs_dynamiclightmaps;
 
 extern float r_fovx, r_fovy; // rendering fov may be different becuase of r_waterwarp and r_stereo
 
@@ -24,8 +25,6 @@ typedef enum {
 	CANVAS_CONSOLE,
 	CANVAS_MENU,
 	CANVAS_SBAR,
-	CANVAS_WARPIMAGE,
-	CANVAS_CROSSHAIR,
 	CANVAS_BOTTOMLEFT,
 	CANVAS_BOTTOMRIGHT,
 } canvastype;

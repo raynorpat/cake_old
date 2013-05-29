@@ -150,7 +150,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 	{
 		GL_Bind (t->gl_texture->texnum);
 		DrawGLPoly (s->polys);
-		c_brush_passes++;
 		goto fullbrights;
 	}
 
@@ -162,7 +161,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglDisable (GL_TEXTURE_2D);
 			DrawGLPoly (s->polys);
 			qglEnable (GL_TEXTURE_2D);
-			c_brush_passes++;
 			return;
 		}
 
@@ -187,7 +185,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglColor4f(1,1,1,1);
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		}
-		c_brush_passes++;
 		return;
 	}
 
@@ -212,16 +209,13 @@ void R_DrawSequentialPoly (msurface_t *s)
 			for (p = s->polys->next; p; p = p->next)
 			{
 				DrawWaterPoly (p);
-				c_brush_passes++;
 			}
-			c_brush_passes++;
 		}
 		else
 		{
 			GL_Bind (s->texinfo->texture->warpimage->texnum);
 			s->texinfo->texture->update_warp = true; // FIXME: one frame too late!
 			DrawGLPoly (s->polys);
-			c_brush_passes++;
 		}
 
 		if (r_wateralpha.value < 1)
@@ -239,7 +233,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 	{
 		GL_Bind (t->gl_texture->texnum);
 		DrawGLPoly (s->polys);
-		c_brush_passes++;
 		return;
 	}
 
@@ -276,16 +269,12 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1.0f);
 			qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			GL_DisableMultitexture ();
-
-			c_brush_passes++;
 		}
 		else // case 2: texture in one pass, lightmap in second pass using 2x modulation blend func
 		{
 			// first pass -- texture
 			GL_Bind (t->gl_texture->texnum);
 			DrawGLPoly (s->polys);
-			
-			c_brush_passes++;
 
 			// second pass -- lightmap modulate blended
 			R_RenderDynamicLightmaps (s);
@@ -307,8 +296,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			qglDisable (GL_BLEND);
 			qglDepthMask (GL_TRUE);
-
-			c_brush_passes++;
 		}
 	}
 	else // case 3: texture and lightmap in one pass, regular modulation
@@ -334,7 +321,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 		qglEnd ();
 	
 		GL_DisableMultitexture ();
-		c_brush_passes++;
 	}
 
 // fullbrights
@@ -359,8 +345,6 @@ fullbrights:
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		qglDisable (GL_BLEND);
 		qglDepthMask (GL_TRUE);
-
-		c_brush_passes++;
 	}
 }
 
@@ -424,7 +408,7 @@ void R_DrawBrushModel (entity_t *e)
 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
 			R_DrawSequentialPoly (psurf);
-			c_brush_polys++;
+			rs_brushpolys++;
 		}
 	}
 
@@ -965,5 +949,5 @@ void R_UploadLightmap (int lmap)
 	theRect->h = 0;
 	theRect->w = 0;
 
-	//rs_dynamiclightmaps++;
+	rs_dynamiclightmaps++;
 }

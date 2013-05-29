@@ -691,8 +691,14 @@ WARNING: be very careful calling this from elsewhere, because the refresh
 needs almost the entire 256k of stack space!
 ==================
 */
+void Draw_EndBatching (void);
+void R_GetPrimitiveType (void);
+
 void SCR_UpdateScreen (void)
 {
+	// decode the primitive type
+	R_GetPrimitiveType ();
+
 	VID_UpdateGamma(false);
 
 	if (!scr_initialized)
@@ -762,6 +768,9 @@ void SCR_UpdateScreen (void)
 		SCR_DrawConsole ();	
 		M_Draw ();
 	}
+
+	Draw_EndBatching ();
+	R_DisableVertexArrays ();
 
 	VID_Finish ();
 }

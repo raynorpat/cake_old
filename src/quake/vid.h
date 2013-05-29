@@ -54,7 +54,8 @@ typedef struct
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state
-extern	unsigned	d_8to24table[256];
+extern	unsigned int d_8to24table[256];
+extern	unsigned int d_8to24table_rgba[256];
 
 extern qbool vid_hidden;
 extern qbool vid_activewindow;

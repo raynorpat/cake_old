@@ -199,7 +199,7 @@ void R_CullSurfaces (void)
 			else
 			{
 				s->culled = false;
-				c_brush_polys++; // count wpolys here
+				rs_brushpolys++; // count wpolys here
 				if (s->texinfo->texture->warpimage)
 					s->texinfo->texture->update_warp = true;
 			}
@@ -312,8 +312,6 @@ void R_DrawTextureChains_Glow (void)
 				}
 
 				DrawGLPoly (s->polys);
-
-				c_brush_passes++;
 			}
 		}
 	}
@@ -362,8 +360,6 @@ void R_DrawTextureChains_Multitexture (void)
 					qglVertex3fv (v);
 				}
 				qglEnd ();
-
-				c_brush_passes++;
 			}
 		}
 
@@ -404,7 +400,6 @@ void R_DrawTextureChains_NoTexture (void)
 					bound = true;
 				}
 				DrawGLPoly (s->polys);
-				c_brush_passes++;
 			}
 		}
 	}
@@ -443,8 +438,6 @@ void R_DrawTextureChains_TextureOnly (void)
 				R_RenderDynamicLightmaps (s); // adds to lightmap chain
 
 				DrawGLPoly (s->polys);
-
-				c_brush_passes++;
 			}
 		}
 	}
@@ -494,7 +487,6 @@ void R_DrawTextureChains_Water (void)
 					for (p = s->polys->next; p; p = p->next)
 					{
 						DrawWaterPoly (p);
-						c_brush_passes++;
 					}
 				}
 			}
@@ -518,7 +510,6 @@ void R_DrawTextureChains_Water (void)
 						bound = true;
 					}
 					DrawGLPoly (s->polys);
-					c_brush_passes++;
 				}
 			}
 		}
@@ -559,7 +550,6 @@ void R_DrawTextureChains_White (void)
 			if (!s->culled)
 			{
 				DrawGLPoly (s->polys);
-				c_brush_passes++;
 			}
 		}
 	}
@@ -594,8 +584,6 @@ void R_DrawLightmapChains (void)
 				qglVertex3fv (v);
 			}
 			qglEnd ();
-
-			c_brush_passes++;
 		}
 	}
 }

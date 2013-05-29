@@ -98,7 +98,7 @@ void R_TranslatePlayerSkin (int playernum, byte *original)
 	}
 
 	for (i=0 ; i<256 ; i++)
-		translate32[i] = d_8to24table[translate[i]];
+		translate32[i] = d_8to24table_rgba[translate[i]];
 
 
 	//

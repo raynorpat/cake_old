@@ -57,7 +57,7 @@ void R_DrawParticles (void)
 
 		scale /= 2.0; // quad is half the size of triangle
 
-		*(int *)color = d_8to24table[p->color];
+		*(int *)color = d_8to24table_rgba[p->color];
 		color[3] = p->alpha * 255;
 
 		qglColor4ubv (color);

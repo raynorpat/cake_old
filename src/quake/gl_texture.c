@@ -32,11 +32,12 @@ cvar_t	r_upscale_textures = {"r_upscale_textures", "0"};
 gltexture_t	*active_gltextures, *free_gltextures;
 int			numgltextures;
 
-gltexture_t *particletexture;
+gltexture_t *notexture, *nulltexture, *particletexture;
 
 int			gl_warpimagesize = 0;
 
 unsigned int d_8to24table[256];
+unsigned int d_8to24table_rgba[256];
 unsigned int d_8to24table_fbright[256];
 unsigned int d_8to24table_nobright[256];
 unsigned int d_8to24table_conchars[256];
@@ -133,6 +134,25 @@ glmode_t modes[] = {
 #define NUM_GLMODES 6
 int gl_texturemode = 2;
 
+void GL_PixelStore (int rowalign, int rowlen)
+{
+	static int oldrowalign = -1;
+	static int oldrowlen = -1;
+
+	if (oldrowalign != rowalign)
+	{
+		qglPixelStorei (GL_UNPACK_ALIGNMENT, rowalign);
+		oldrowalign = rowalign;
+	}
+
+	if (oldrowlen != rowlen)
+	{
+		qglPixelStorei (GL_UNPACK_ROW_LENGTH, rowlen);
+		oldrowlen = rowlen;
+	}
+}
+
+
 /*
 ===============
 TexMgr_SetFilterModes
@@ -169,6 +189,7 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 		}
 	}
 
+	/*
 	if (glt->flags & TEXPREF_MIPMAP || glt->flags & TEXPREF_REPEAT)
 	{
         qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -187,6 +208,7 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 		}
     }
+	*/
 }
 
 /*
@@ -573,8 +595,10 @@ void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
     }
 
 	// upload
-	GL_Bind (glt->texnum);
-	qglTexImage2D (GL_TEXTURE_2D, glt->baselevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+	GL_BindTexture (GL_TEXTURE0_ARB, glt);
+	GL_PixelStore (4, 0);
+	//qglTexImage2D (GL_TEXTURE_2D, glt->baselevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, scaled);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
@@ -742,7 +766,7 @@ void TexMgr_LoadLightmap (gltexture_t *glt, byte *data)
 	GL_Bind (glt->texnum);
 
 	// internal format can't be bgra but format can be
-//	GL_PixelStore (4, 0);
+	GL_PixelStore (4, 0);
 //	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB10_A2, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_2_10_10_10_REV, data);
 
@@ -761,14 +785,13 @@ the one entry point for loading all textures
 gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height, enum srcformat format,
 							   byte *data, char *source_file, unsigned source_offset, unsigned flags)
 {
-	unsigned short crc;
+	unsigned short crc = 0;
 	gltexture_t *glt = NULL;
-	int mark;
+	int mark = 0;
 
 	// cache check
 	switch (format)
 	{
-		default:
 		case SRC_INDEXED:
 			crc = CRC_Block(data, width * height);
 			break;
@@ -967,8 +990,6 @@ TexMgr_LoadPalette
 */
 static void TexMgr_LoadPalette (void)
 {
-	byte mask[] = {255,255,255,0};
-	byte black[] = {0,0,0,255};
 	byte *pal, *src, *dst;
 	int i, mark;
 	FILE *f;
@@ -983,46 +1004,92 @@ static void TexMgr_LoadPalette (void)
 	fclose(f);
 
 	// standard palette, 255 is transparent
-	dst = (byte *)d_8to24table;
+	dst = (byte *) d_8to24table;
 	src = pal;
-	for (i=0; i<256; i++)
+
+	for (i = 0; i < 256; i++)
 	{
-		*dst++ = *src++;
-		*dst++ = *src++;
-		*dst++ = *src++;
-		*dst++ = 255;
+		dst[2] = *src++;
+		dst[1] = *src++;
+		dst[0] = *src++;
+		dst[3] = 255;
+		dst += 4;
 	}
-	d_8to24table[255] &= *(int *)mask;
+
+	// prevent pink fringes by setting alpha to black
+	d_8to24table[255] = 0;
+
+	// rgba table for particles and anything else that needs to index the palette explicitly
+	dst = (byte *) d_8to24table_rgba;
+	src = pal;
+
+	for (i = 0; i < 256; i++)
+	{
+		dst[0] = *src++;
+		dst[1] = *src++;
+		dst[2] = *src++;
+		dst[3] = 255;
+		dst += 4;
+	}
+
+	// prevent pink fringes by setting alpha to black
+	d_8to24table[255] = 0;
 
 	// fullbright palette, 0-223 are black (for additive blending)
-	src = pal + 224*3;
-	dst = (byte *)(d_8to24table_fbright) + 224*4;
-	for (i=224; i<256; i++)
+	src = pal + 224 * 3;
+	dst = (byte *) (d_8to24table_fbright) + 224 * 4;
+
+	for (i = 224; i < 256; i++)
 	{
-		*dst++ = *src++;
-		*dst++ = *src++;
-		*dst++ = *src++;
-		*dst++ = 255;
+		dst[2] = *src++;
+		dst[1] = *src++;
+		dst[0] = *src++;
+		dst[3] = 255;
+		dst += 4;
 	}
-	for (i=0; i<224; i++)
-		d_8to24table_fbright[i] = *(int *)black;
+
+	for (i = 0; i < 224; i++)
+	{
+		// comply with strict aliasing
+		byte *rgba = (byte *) &d_8to24table_fbright[i];
+
+		rgba[0] = 0;
+		rgba[1] = 0;
+		rgba[2] = 0;
+		rgba[3] = 255;
+	}
 
 	// nobright palette, 224-255 are black (for additive blending)
-	dst = (byte *)d_8to24table_nobright;
+	dst = (byte *) d_8to24table_nobright;
 	src = pal;
-	for (i=0; i<256; i++)
+
+	for (i = 0; i < 256; i++)
 	{
-		*dst++ = *src++;
-		*dst++ = *src++;
-		*dst++ = *src++;
-		*dst++ = 255;
+		dst[2] = *src++;
+		dst[1] = *src++;
+		dst[0] = *src++;
+		dst[3] = 255;
+		dst += 4;
 	}
-	for (i=224; i<256; i++)
-		d_8to24table_nobright[i] = *(int *)black;
+
+	for (i = 224; i < 256; i++)
+	{
+		// comply with strict aliasing
+		byte *rgba = (byte *) &d_8to24table_nobright[i];
+
+		rgba[0] = 0;
+		rgba[1] = 0;
+		rgba[2] = 0;
+		rgba[3] = 255;
+	}
+
+	// correct alpha colour
+	d_8to24table_nobright[255] = 0;
+	d_8to24table_fbright[255] = 0;
 
 	// conchars palette, 0 and 255 are transparent
-	memcpy(d_8to24table_conchars, d_8to24table, 256*4);
-	d_8to24table_conchars[0] &= *(int *)mask;
+	memcpy (d_8to24table_conchars, d_8to24table, 256 * 4);
+	d_8to24table_conchars[0] = 0;
 
 	Hunk_FreeToLowMark (mark);
 }
@@ -1088,16 +1155,186 @@ static void TexMgr_RecalcWarpImageSize (void)
 	free (dummy);
 }
 
+/*
+================================================================================
+
+	TEXTURE BINDING / TEXTURE UNIT SWITCHING
+
+================================================================================
+*/
+
+int	r_currenttexture[3] = {-1, -1, -1}; // to avoid unnecessary texture sets
+
+// default tmu if qglActiveTexture has never been called
+GLenum r_currenttmu = GL_TEXTURE0_ARB;
+static int r_lastmode[3] = {GL_NONE, GL_NONE, GL_NONE};
+static GLenum r_lasttype[3] = {GL_TEXTURE_2D, GL_TEXTURE_2D, GL_TEXTURE_2D};
+static int r_lastscale[3] = {-1, -1, -1};
+
+void GL_ActiveTexture (GLenum tmu)
+{
+	if (r_currenttmu == tmu)
+		return;
+
+	r_currenttmu = tmu;
+	qglActiveTexture (tmu);
+}
+
+
+void GL_TextureType (GLenum tmu, GLenum type)
+{
+	int tmunum = tmu - GL_TEXTURE0_ARB;
+
+	if (type != r_lasttype[tmunum])
+	{
+		GL_ActiveTexture (tmu);
+		qglDisable (r_lasttype[tmunum]);
+		qglEnable (type);
+
+		// update type
+		r_lasttype[tmunum] = type;
+
+		// force a texenv update irrespective of whether or not it's changed
+		r_lastmode[tmunum] = GL_INVALID_VALUE;
+		r_lastscale[tmunum] = -1;
+
+		// likewise a texture update
+		r_currenttexture[tmunum] = -1;
+	}
+}
+
+
+void GL_TexEnv (GLenum tmu, GLenum type, GLenum mode)
+{
+	int scale = 1;
+	int tmunum = (int) tmu - (int) GL_TEXTURE0_ARB;
+
+	// activate the texture unit
+	GL_ActiveTexture (tmu);
+	GL_TextureType (tmu, type);
+
+	if (mode != r_lastmode[tmunum])
+	{
+		// enable texturing if it was previously disabled
+		if (r_lastmode[tmunum] == GL_NONE)
+			qglEnable (GL_TEXTURE_2D);
+
+		if (mode == GL_NONE)
+		{
+			// call recursively to revert tmu to default state
+			GL_TexEnv (tmu, type, GL_REPLACE);
+			qglDisable (GL_TEXTURE_2D);
+			scale = 1;
+		}
+		else if (mode == GL_RGB_SCALE_ARB)
+		{
+			qglTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			scale = 2;
+		}
+		else if (mode == GL_INTERPOLATE_ARB)
+		{
+			qglTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_INTERPOLATE_ARB);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PRIMARY_COLOR_ARB);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE2_RGB_ARB, GL_CONSTANT_ARB);
+			scale = 1;
+		}
+		else
+		{
+			qglTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+			scale = 1;
+		}
+
+		r_lastmode[tmunum] = mode;
+	}
+
+	if (scale != r_lastscale[tmunum])
+	{
+		qglTexEnvf (GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, (float) scale);
+		r_lastscale[tmunum] = scale;
+	}
+}
+
+
+/*
+================
+GL_BindTexture
+
+handles switching textures between different tmus more logically, handles switching between 2D and cubemap textures better
+================
+*/
+void GL_BindTexture (GLenum tmu, gltexture_t *texture)
+{
+	int tmunum = 0;
+	GLenum type;
+
+	if (!texture) texture = nulltexture;
+
+//	if (texture->flags & TEXPREF_CUBEMAP)
+//		type = GL_TEXTURE_CUBE_MAP;
+/*	else*/ type = GL_TEXTURE_2D;
+
+	tmunum = tmu - GL_TEXTURE0_ARB;
+
+	GL_TextureType (tmu, type);
+
+	if (texture->texnum != r_currenttexture[tmunum])
+	{
+		// activate the correct tmu
+		GL_ActiveTexture (tmu);
+
+		r_currenttexture[tmunum] = texture->texnum;
+		qglBindTexture (type, texture->texnum);
+//		texture->visframe = r_framecount;
+	}
+}
+
+
+// convenience; just unbinds from current textures so that the next GL_BindTexture calls will force an update
+// use whenever we want to call glBindTexture ourselves
+void GL_Unbind (void)
+{
+	r_currenttexture[0] = -1;
+	r_currenttexture[1] = -1;
+	r_currenttexture[2] = -1;
+}
+
+
+float r_rcolor = -1;
+float r_gcolor = -1;
+float r_bcolor = -1;
+float r_acolor = -1;
+
+void GL_Color (float r, float g, float b, float a)
+{
+	if (r == r_rcolor && g == r_gcolor && b == r_bcolor && a == r_acolor)
+		return;
+
+	qglColor4f (r, g, b, a);
+
+	r_rcolor = r;
+	r_gcolor = g;
+	r_bcolor = b;
+	r_acolor = a;
+}
+
+
 static void r_textures_start(void)
 {
 	static byte notexture_data[16] = {159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255}; // black and pink checker
+	static byte nulltexture_data[16] = {127, 191, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 127, 191, 255, 255}; // black and blue checker
 	extern texture_t *r_notexture_mip, *r_notexture_mip2;
 
 	// load palette
 	TexMgr_LoadPalette ();
 
-	// load notexture image
-	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST);
+	// load notexture images
+	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+	nulltexture = TexMgr_LoadImage (NULL, "nulltexture", 2, 2, SRC_RGBA, nulltexture_data, "", (unsigned)nulltexture_data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 
 	// have to assign these here becuase Mod_Init is called before TexMgr_Init
 	r_notexture_mip->gl_texture = r_notexture_mip2->gl_texture = notexture;
