@@ -408,66 +408,6 @@ void R_DrawBrushModel (entity_t *e)
 	qglPopMatrix ();
 }
 
-/*
-=================
-R_DrawBrushModel_ShowTris
-=================
-*/
-void R_DrawBrushModel_ShowTris (entity_t *e)
-{
-	int			i;
-	msurface_t	*psurf;
-	float		dot;
-	mplane_t	*pplane;
-	model_t		*clmodel;
-	glpoly_t	*p;
-
-	if (R_CullModelForEntity(e))
-		return;
-
-	currententity = e;
-	clmodel = e->model;
-
-	VectorSubtract (r_refdef2.vieworg, e->origin, modelorg);
-	if (e->angles[0] || e->angles[1] || e->angles[2])
-	{
-		vec3_t	temp;
-		vec3_t	forward, right, up;
-
-		VectorCopy (modelorg, temp);
-		AngleVectors (e->angles, forward, right, up);
-		modelorg[0] = DotProduct (temp, forward);
-		modelorg[1] = -DotProduct (temp, right);
-		modelorg[2] = DotProduct (temp, up);
-	}
-
-	psurf = &clmodel->surfaces[clmodel->firstmodelsurface];
-
-	qglPushMatrix ();
-	e->angles[0] = -e->angles[0];	// stupid quake bug
-	RB_RotateMatrixForEntity (e->origin, e->angles);
-	e->angles[0] = -e->angles[0];	// stupid quake bug
-
-	//
-	// draw it
-	//
-	for (i=0 ; i<clmodel->nummodelsurfaces ; i++, psurf++)
-	{
-		pplane = psurf->plane;
-		dot = DotProduct (modelorg, pplane->normal) - pplane->dist;
-		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
-			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
-		{
-			if ((psurf->flags & SURF_DRAWTURB))
-				for (p = psurf->polys->next; p; p = p->next)
-					DrawGLTriangleFan (p);
-			else
-				DrawGLTriangleFan (psurf->polys);
-		}
-	}
-
-	qglPopMatrix ();
-}
 
 /*
 =============================================================

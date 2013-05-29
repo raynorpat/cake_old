@@ -958,11 +958,6 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
 void R_RenderDynamicLightmaps (msurface_t *fa);
 void R_UploadLightmap (int lmap);
 
-void R_DrawTextureChains_ShowTris (void);
-void R_DrawBrushModel_ShowTris (entity_t *e);
-void R_DrawAliasModel_ShowTris (entity_t *e);
-void R_DrawParticles_ShowTris (void);
-
 void R_DrawAliasShadow (entity_t *e);
 
 void DrawGLTriangleFan (glpoly_t *p);

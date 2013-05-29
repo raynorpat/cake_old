@@ -53,6 +53,50 @@ void R_InitQuads (void)
 	}
 }
 
+
+void R_DrawSpriteModels (void);
+
+void R_ShowTrisBegin (void)
+{
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_NONE);
+	Fog_DisableGFog ();
+
+	if (r_showtris.value < 2)
+	{
+		qglDisable (GL_DEPTH_TEST);
+		qglDepthMask (GL_FALSE);
+	}
+	else
+	{
+		qglEnable (GL_POLYGON_OFFSET_FILL);
+		qglEnable (GL_POLYGON_OFFSET_LINE);
+		qglPolygonOffset (-1, -3);
+	}
+
+	qglPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
+	GL_Color (1, 1, 1, 1);
+}
+
+
+void R_ShowTrisEnd (void)
+{
+	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
+
+	if (r_showtris.value < 2)
+	{
+		qglDepthMask (GL_TRUE);
+		qglEnable (GL_DEPTH_TEST);
+	}
+	else
+	{
+		qglDisable (GL_POLYGON_OFFSET_FILL);
+		qglDisable (GL_POLYGON_OFFSET_LINE);
+	}
+
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
+	Fog_EnableGFog ();
+}
+
 model_t	*r_worldmodel;
 entity_t r_worldentity;
 
@@ -101,6 +145,8 @@ cvar_t	r_skyfog = {"r_skyfog","0.5"};
 cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
 cvar_t	r_showtris = {"r_showtris","0"};
+cvar_t r_lockpvs = {"r_lockpvs", "0"};
+cvar_t r_lockfrustum = {"r_lockfrustum", "0"};
 
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
@@ -109,6 +155,9 @@ cvar_t	gl_overbright = {"gl_overbright","1"};
 cvar_t	gl_farclip = {"gl_farclip", "16384", CVAR_ARCHIVE};
 
 float	r_lightscale = 4.0f; // overbright light scale
+
+void R_AlphaListBeginFrame (void);
+void R_DrawAlphaList (void);
 
 /*
 =================
@@ -269,6 +318,10 @@ static void R_SetFrustum (float fovx, float fovy)
 {
 	int		i;
 
+	// retain the old frustum unless we're in the first few frames in which case we want one to be done as a baseline
+	if (r_framecount > 5 && r_lockfrustum.value)
+		return;
+
 	if (r_stereo.value)
 		fovx += 10; // HACK: so polygons don't drop out becuase of stereo skew
 
@@ -417,73 +470,10 @@ void R_DrawEntitiesOnList (void)
 				R_DrawBrushModel (currententity);
 				break;
 
-			case mod_sprite:
-				R_DrawSpriteModel (currententity);
-				break;
-
 			default:
 				break;
 		}
 	}
-}
-
-/*
-================
-R_ShowTris
-================
-*/
-void R_ShowTris (void)
-{
-	int i;
-
-	if (r_showtris.value < 1 || r_showtris.value > 2)
-		return;
-
-	if (r_showtris.value == 1)
-		qglDisable (GL_DEPTH_TEST);
-	qglPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
-	RB_PolygonOffset (OFFSET_SHOWTRIS);
-	qglDisable (GL_TEXTURE_2D);
-	qglColor3f (1,1,1);
-//	qglEnable (GL_BLEND);
-//	qglBlendFunc (GL_ONE, GL_ONE);
-
-	if (r_drawworld.value)
-		R_DrawTextureChains_ShowTris ();
-
-	if (r_drawentities.value)
-	{
-		for (i=0 ; i<cl_numvisedicts ; i++)
-		{
-			currententity = &cl_visedicts[i];
-
-			switch (currententity->model->type)
-			{
-			case mod_brush:
-				R_DrawBrushModel_ShowTris (currententity);
-				break;
-			case mod_alias:
-				R_DrawAliasModel_ShowTris (currententity);
-				break;
-			case mod_sprite:
-				R_DrawSpriteModel (currententity);
-				break;
-			default:
-				break;
-			}
-		}
-	}
-
-	R_DrawParticles_ShowTris ();
-
-//	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//	qglDisable (GL_BLEND);
-	qglColor3f (1,1,1);
-	qglEnable (GL_TEXTURE_2D);
-	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-	RB_PolygonOffset (OFFSET_NONE);
-	if (r_showtris.value == 1)
-		qglEnable (GL_DEPTH_TEST);
 }
 
 /*
@@ -548,6 +538,8 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
+	R_AlphaListBeginFrame ();
+
 	R_SetupScene (); 				// this does everything that should be done once per call to RenderScene
 
 	Fog_EnableGFog ();
@@ -562,11 +554,11 @@ void R_RenderScene (void)
 
 	R_DrawTextureChains_Water ();	// drawn here since they might have transparency
 
+	R_DrawSpriteModels ();
 	R_DrawParticles ();
+	R_DrawAlphaList ();
 
 	Fog_DisableGFog ();
-
-	R_ShowTris ();
 }
 
 /*
@@ -672,6 +664,8 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
 	Cvar_Register (&r_primitives);
+	Cvar_Register (&r_lockpvs);
+	Cvar_Register (&r_lockfrustum);
 
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);

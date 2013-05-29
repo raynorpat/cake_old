@@ -170,19 +170,6 @@ typedef struct
 	vec3_t			color;
 } cdlight_t;
 
-typedef struct cparticle_s
-{
-	struct cparticle_s *next;
-	vec3_t		org;
-	int			color;
-	float		alpha;
-	float		alphavel;
-	vec3_t		vel;
-	float		ramp;
-	float		die;
-	int			type;
-} cparticle_t;
-
 typedef enum {
 	ca_disconnected, 	// full screen console with no connection
 	ca_demostart,		// starting up a demo
@@ -464,8 +451,8 @@ extern int			cl_entframecount, cl_oldentframecount;
 extern int			cl_numvisedicts;
 extern entity_t		cl_visedicts[MAX_VISEDICTS];
 
-extern int			cl_numvisparticles;
-extern particle_t	*cl_visparticles;	// allocated on hunk
+//extern int			cl_numvisparticles;
+//extern particle_t	*cl_visparticles;	// allocated on hunk
 
 extern int			cl_numvisdlights;
 extern dlight_t		cl_visdlights[MAX_DLIGHTS];
@@ -529,7 +516,6 @@ void CL_NewDlight (int key, vec3_t origin, float radius, float time, vec3_t colo
 void CL_LinkDlights (void);
 void CL_ClearDlights (void);
 
-void CL_InitParticles (void);
 void CL_ClearParticles (void);
 void CL_LinkParticles (void);
 void CL_ReadPointFile_f (void);

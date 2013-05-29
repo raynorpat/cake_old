@@ -47,10 +47,6 @@ BRUSH MODELS
 typedef struct
 {
 	vec3_t		position;
-	vec3_t		normal;
-	vec2_t		tex_st;
-	vec2_t		lm_st;
-	vec4_t		color;
 } mvertex_t;
 
 typedef struct texture_s
@@ -89,6 +85,13 @@ typedef struct
 	texture_t	*texture;
 	int			flags;
 } mtexinfo_t;
+
+typedef struct glvertex_s
+{
+	float v[3];
+	float st1[2];
+	float st2[2];
+} glvertex_t;
 
 #define	VERTEXSIZE	7
 
@@ -283,6 +286,7 @@ typedef struct {
 #define	MAXALIASVERTS	2048
 #define	MAXALIASFRAMES	256
 #define	MAXALIASTRIS	2048
+
 extern	aliashdr_t	*pheader;
 extern	stvert_t	stverts[MAXALIASVERTS];
 extern	mtriangle_t	triangles[MAXALIASTRIS];
@@ -314,16 +318,12 @@ typedef struct model_s
 
 	int			flags;
 
-//
-// volume occupied by the model graphics
-//
+	// volume occupied by the model graphics
 	vec3_t		mins, maxs;
 	vec3_t		ymins, ymaxs; // bounds for entities with nonzero yaw
 	vec3_t		rmins, rmaxs; // bounds for entities with nonzero pitch or roll
 
-//
-// brush model
-//
+	// brush model
 	int			firstmodelsurface, nummodelsurfaces;
 
 	// FIXME, don't really need these two
@@ -365,9 +365,15 @@ typedef struct model_s
 	byte		*lightdata;
 	char		*entities;
 
-//
-// additional model data
-//
+	// these are never overwritten unless the vertex needs regenerating
+	// (e.g. transforms for surfaces, etc)
+	glvertex_t	*glvertexes;
+	int			numglvertexes;
+
+	unsigned short *glindexes;
+	int			numglindexes;
+
+	// additional model data
 	cache_user_t	cache;		// only access through Mod_Extradata
 } model_t;
 

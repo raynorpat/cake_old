@@ -21,6 +21,81 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
+GLuint r_lastspritetexture = 0;
+r_defaultquad_t *r_sprite_quads = NULL;
+
+
+void R_InvalidateSprite (void)
+{
+	// used when we want to force a state update
+	r_lastspritetexture = 0;
+}
+
+
+void R_SpriteBegin (void)
+{
+	r_num_quads = 0;
+	r_sprite_quads = r_default_quads;
+	R_EnableVertexArrays (r_default_quads->xyz, r_default_quads->color, r_default_quads->st, NULL, NULL, sizeof (r_defaultquad_t));
+
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
+}
+
+
+void R_SpriteEnd (void)
+{
+	if (r_num_quads)
+	{
+		R_DrawArrays (GL_QUADS, 0, r_num_quads * 4);
+		r_num_quads = 0;
+		r_sprite_quads = r_default_quads;
+	}
+
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
+}
+
+
+void R_SpriteVertex (r_defaultquad_t *rsq, float *point, float *color, float alpha, float s, float t)
+{
+	rsq->xyz[0] = point[0];
+	rsq->xyz[1] = point[1];
+	rsq->xyz[2] = point[2];
+
+	rsq->color[0] = BYTE_CLAMPF (color[0]);
+	rsq->color[1] = BYTE_CLAMPF (color[1]);
+	rsq->color[2] = BYTE_CLAMPF (color[2]);
+	rsq->color[3] = BYTE_CLAMPF (alpha);
+
+	rsq->st[0] = s;
+	rsq->st[1] = t;
+}
+
+
+void R_RenderSpritePolygon (mspriteframe_t *frame, float *origin, float *up, float *right, float *color, float alpha)
+{
+	float point[3];
+
+	VectorMA (origin, frame->down, up, point);
+	VectorMA (point, frame->left, right, point);
+	R_SpriteVertex (&r_sprite_quads[0], point, color, 1, 0, 1);
+
+	VectorMA (origin, frame->up, up, point);
+	VectorMA (point, frame->left, right, point);
+	R_SpriteVertex (&r_sprite_quads[1], point, color, 1, 0, 0);
+
+	VectorMA (origin, frame->up, up, point);
+	VectorMA (point, frame->right, right, point);
+	R_SpriteVertex (&r_sprite_quads[2], point, color, 1, 1, 0);
+
+	VectorMA (origin, frame->down, up, point);
+	VectorMA (point, frame->right, right, point);
+	R_SpriteVertex (&r_sprite_quads[3], point, color, 1, 1, 1);
+
+	r_sprite_quads += 4;
+	r_num_quads++;
+}
+
+
 /*
 ================
 R_GetSpriteFrame
@@ -80,16 +155,16 @@ R_DrawSpriteModel
 */
 void R_DrawSpriteModel (entity_t *e)
 {
-	vec3_t			point, v_forward, v_right, v_up;
+	vec3_t			v_forward, v_right, v_up;
 	msprite_t		*psprite;
 	mspriteframe_t	*frame;
 	float			*s_up, *s_right;
 	float			angle, sr, cr;
-
-	//TODO: frustum cull it?
+	float			defaultcolor[3] = {1, 1, 1};
+	float			*color = defaultcolor;
 
 	frame = R_GetSpriteFrame (e);
-	psprite = (msprite_t *) currententity->model->cache.data;
+	psprite = (msprite_t *) e->model->cache.data;
 
 	switch(psprite->type)
 	{
@@ -101,7 +176,7 @@ void R_DrawSpriteModel (entity_t *e)
 		s_right = vright;
 		break;
 	case SPR_FACING_UPRIGHT: // faces camera origin, up is towards the heavens
-		VectorSubtract(currententity->origin, r_origin, v_forward);
+		VectorSubtract(e->origin, r_origin, v_forward);
 		v_forward[2] = 0;
 		VectorNormalize(v_forward);
 		v_right[0] = v_forward[1];
@@ -118,12 +193,12 @@ void R_DrawSpriteModel (entity_t *e)
 		s_right = vright;
 		break;
 	case SPR_ORIENTED: // pitch yaw roll are independent of camera
-		AngleVectors (currententity->angles, v_forward, v_right, v_up);
+		AngleVectors (e->angles, v_forward, v_right, v_up);
 		s_up = v_up;
 		s_right = v_right;
 		break;
 	case SPR_VP_PARALLEL_ORIENTED: // faces view plane, but obeys roll value
-		angle = currententity->angles[ROLL] * (M_PI/180);
+		angle = e->angles[ROLL] * (M_PI/180);
 		sr = sin(angle);
 		cr = cos(angle);
 		v_right[0] = vright[0] * cr + vup[0] * sr;
@@ -139,44 +214,46 @@ void R_DrawSpriteModel (entity_t *e)
 		return;
 	}
 
-	if (psprite->type == SPR_ORIENTED)
-		RB_PolygonOffset (OFFSET_DECAL);
+	// if it overflows invalidate the cached state to force a flush and reset
+	if (r_num_quads == r_max_quads)
+		r_lastspritetexture = 0;
 
-	qglColor4f (1,1,1,1);
+	if (frame->gl_texture->texnum != r_lastspritetexture)
+	{
+		if (r_num_quads)
+		{
+			R_DrawArrays (GL_QUADS, 0, r_num_quads * 4);
+			r_num_quads = 0;
+			r_sprite_quads = r_default_quads;
+		}
 
-	GL_DisableMultitexture();
+		// only if it changes
+		GL_BindTexture (GL_TEXTURE0_ARB, frame->gl_texture);
 
-    GL_Bind(frame->gl_texture->texnum);
+		r_lastspritetexture = frame->gl_texture->texnum;
+	}
 
-	qglEnable (GL_ALPHA_TEST);
-
-	qglBegin (GL_TRIANGLE_FAN);
-
-	qglTexCoord2f (0, 1);
-	VectorMA (e->origin, frame->down, s_up, point);
-	VectorMA (point, frame->left, s_right, point);
-	qglVertex3fv (point);
-
-	qglTexCoord2f (0, 0);
-	VectorMA (e->origin, frame->up, s_up, point);
-	VectorMA (point, frame->left, s_right, point);
-	qglVertex3fv (point);
-
-	qglTexCoord2f (1, 0);
-	VectorMA (e->origin, frame->up, s_up, point);
-	VectorMA (point, frame->right, s_right, point);
-	qglVertex3fv (point);
-
-	qglTexCoord2f (1, 1);
-	VectorMA (e->origin, frame->down, s_up, point);
-	VectorMA (point, frame->right, s_right, point);
-	qglVertex3fv (point);
-	
-	qglEnd ();
-
-	qglDisable (GL_ALPHA_TEST);
-
-	if (psprite->type == SPR_ORIENTED)
-		RB_PolygonOffset (OFFSET_NONE);
+	R_RenderSpritePolygon (frame, e->origin, s_up, s_right, color, (float) e->alpha / 255.0f);
 }
 
+
+void R_DrawSpriteModels (void)
+{
+	int i;
+	entity_t *e;
+
+	if (!r_drawentities.value)
+		return;
+
+	// sprites just go onto the alpha list for later drawing
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		e = &cl_visedicts[i];
+
+		if (e->model->type != mod_sprite)
+			continue;
+
+		// we can't sort by texture as sprites may be interleaved with different object types at different depths
+		R_AddEntityToAlphaList (e);
+	}
+}

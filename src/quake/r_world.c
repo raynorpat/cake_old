@@ -235,50 +235,6 @@ void R_BuildLightmapChains (void)
 
 /*
 ================
-R_DrawTextureChains_ShowTris
-================
-*/
-void R_DrawTextureChains_ShowTris (void)
-{
-	int			i;
-	msurface_t	*s;
-	texture_t	*t;
-	glpoly_t	*p;
-
-	for (i=0 ; i<r_worldmodel->numtextures ; i++)
-	{
-		t = r_worldmodel->textures[i];
-		if (!t)
-			continue;
-
-		if (t->texturechain && (t->texturechain->flags & SURF_DRAWTURB))
-		{
-			for (s = t->texturechain; s; s = s->texturechain)
-			{
-				if (!s->culled)
-				{
-					for (p = s->polys->next; p; p = p->next)
-					{
-						DrawGLTriangleFan (p);
-					}
-				}
-			}
-		}
-		else
-		{
-			for (s = t->texturechain; s; s = s->texturechain)
-			{
-				if (!s->culled)
-				{
-					DrawGLTriangleFan (s->polys);
-				}
-			}
-		}
-	}
-}
-
-/*
-================
 R_DrawTextureChains_Glow
 ================
 */

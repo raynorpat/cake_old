@@ -61,11 +61,11 @@ void RB_GL11_SetDefaultCanvas (void)
     qglLoadIdentity ();
 
 	qglDisable (GL_DEPTH_TEST);
+//	qglDepthMask (GL_FALSE);
 	qglDisable (GL_CULL_FACE);
 
 	qglEnable (GL_BLEND);
 	qglDisable (GL_ALPHA_TEST);
-	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 }
 
 float frustum_skew = 0.0; // used by r_stereo
@@ -119,9 +119,10 @@ RB_GL11_RotateMatrixForEntity
 */
 void RB_GL11_RotateMatrixForEntity (vec3_t origin, vec3_t angles)
 {
-	qglTranslatef (origin[0],  origin[1],  origin[2]);
+	if (origin[0] || origin[1] || origin[2])
+		qglTranslatef (origin[0],  origin[1],  origin[2]);
 
-	qglRotatef (angles[1],  0, 0, 1);
-	qglRotatef (-angles[0],  0, 1, 0);
-	qglRotatef (angles[2],  1, 0, 0);
+	if (angles[1]) qglRotatef (angles[1],  0, 0, 1);
+	if (angles[0]) qglRotatef (-angles[0],  0, 1, 0);
+	if (angles[2]) qglRotatef (angles[2],  1, 0, 0);
 }

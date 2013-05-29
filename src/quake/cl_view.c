@@ -825,15 +825,16 @@ V_AddParticle
 */
 void V_AddParticle (vec3_t origin, int color, float alpha)
 {
+/*
 	extern int cl_numparticles;
 
 	if (cl_numvisparticles >= cl_numparticles)
 		return;
 	
 	cl_visparticles[cl_numvisparticles].color = color;
-	cl_visparticles[cl_numvisparticles].alpha = alpha;
 	VectorCopy (origin, cl_visparticles[cl_numvisparticles].org);
 	cl_numvisparticles++;
+*/
 }
 
 /*
@@ -844,7 +845,7 @@ V_ClearScene
 void V_ClearScene (void)
 {
 	cl_numvisedicts = 0;
-	cl_numvisparticles = 0;
+//	cl_numvisparticles = 0;
 	cl_numvisdlights = 0;
 }
 
@@ -895,8 +896,8 @@ cl.simangles[ROLL] = 0;	// FIXME @@@
 	r_refdef2.numDlights = cl_numvisdlights;
 	r_refdef2.dlights = cl_visdlights;
 
-	r_refdef2.numParticles = cl_numvisparticles;
-	r_refdef2.particles = cl_visparticles;
+	r_refdef2.numParticles = 0; //cl_numvisparticles;
+	r_refdef2.particles = NULL;//cl_visparticles;
 
 	for (i = 0; i < MAX_CLIENTS; i++) {
 		translations[i].topcolor = cl.players[i].topcolor;

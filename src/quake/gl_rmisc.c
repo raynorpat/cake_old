@@ -27,6 +27,370 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 unsigned int playertextures; // up to 32 color translated skins
 unsigned int playerfbtextures[MAX_CLIENTS];
 
+#define ALPHATYPE_ALIAS		1
+#define ALPHATYPE_BRUSH		2
+#define ALPHATYPE_SPRITE	3
+#define ALPHATYPE_LIQUID	4
+#define ALPHATYPE_PARTICLE	5
+#define ALPHATYPE_FENCE		6
+#define ALPHATYPE_SURFACE	7
+
+typedef struct alphalist_s
+{
+	union
+	{
+		entity_t *ent;
+		msurface_t *surf;
+		particle_type_t *particles;
+	};
+
+	xcommand_t setupfunc;
+	xcommand_t takedownfunc;
+
+	float *matrix;
+
+	int type;
+	float dist;
+} alphalist_t;
+
+
+#define MAX_ALPHALIST 65536
+
+alphalist_t *r_alphalist[MAX_ALPHALIST] = {NULL};
+int r_numalphalist = 0;
+
+float R_GetDist (float *origin)
+{
+	// no need to sqrt these as all we're concerned about is relative distances
+	// (if x < y then sqrt (x) is also < sqrt (y))
+	return
+	(
+		(origin[0] - r_origin[0]) * (origin[0] - r_origin[0]) +
+		(origin[1] - r_origin[1]) * (origin[1] - r_origin[1]) +
+		(origin[2] - r_origin[2]) * (origin[2] - r_origin[2])
+	);
+}
+
+
+void R_AlphaListBeginMap (void)
+{
+	int i;
+
+	// if we ever move this from Hunk memory we'll need to free it too...
+	for (i = 0; i < MAX_ALPHALIST; i++)
+		r_alphalist[i] = NULL;
+
+	r_numalphalist = 0;
+}
+
+
+void R_AlphaListBeginFrame (void)
+{
+	r_numalphalist = 0;
+}
+
+
+alphalist_t *R_GrabAlphaSlot (void)
+{
+	if (r_numalphalist >= MAX_ALPHALIST)
+		return NULL;
+
+	if (!r_alphalist[r_numalphalist])
+		r_alphalist[r_numalphalist] = (alphalist_t *) Hunk_Alloc (sizeof (alphalist_t));
+
+	if (!r_alphalist[r_numalphalist])
+		return NULL;
+
+	r_alphalist[r_numalphalist]->setupfunc = NULL;
+	r_alphalist[r_numalphalist]->takedownfunc = NULL;
+
+	r_numalphalist++;
+	return r_alphalist[r_numalphalist - 1];
+}
+
+
+void R_ParticlesBegin (void);
+void R_ParticlesEnd (void);
+
+void R_AddParticlesToAlphaList (particle_type_t *pt)
+{
+	alphalist_t *al;
+
+	if (!(al = R_GrabAlphaSlot ()))
+		return;
+
+	al->setupfunc = R_ParticlesBegin;
+	al->takedownfunc = R_ParticlesEnd;
+	al->type = ALPHATYPE_PARTICLE;
+	al->dist = R_GetDist (pt->spawnorg);
+	al->particles = pt;
+}
+
+
+void R_InvalidateFence (void);
+void R_LiquidBegin (void);
+void R_LiquidEnd (void);
+void R_SpriteBegin (void);
+void R_SpriteEnd (void);
+
+float *R_TransformMidPoint (float *midpoint, float *matrix)
+{
+	static float transformed[3] = {0, 0, 0};
+
+	if (matrix)
+	{
+		transformed[0] = midpoint[0] * matrix[0] + midpoint[1] * matrix[4] + midpoint[2] * matrix[8] + matrix[12];
+		transformed[1] = midpoint[0] * matrix[1] + midpoint[1] * matrix[5] + midpoint[2] * matrix[9] + matrix[13];
+		transformed[2] = midpoint[0] * matrix[2] + midpoint[1] * matrix[6] + midpoint[2] * matrix[10] + matrix[14];
+	}
+	else
+	{
+		transformed[0] = midpoint[0];
+		transformed[1] = midpoint[1];
+		transformed[2] = midpoint[2];
+	}
+
+	return transformed;
+}
+
+/*
+void R_AddLiquidToAlphaList (r_modelsurf_t *ms)
+{
+	alphalist_t *al;
+
+	if (!(al = R_GrabAlphaSlot ()))
+		return;
+
+	al->setupfunc = R_LiquidBegin;
+	al->takedownfunc = R_LiquidEnd;
+
+	// to do - translate midpoint by matrix
+	al->type = ALPHATYPE_LIQUID;
+	al->dist = R_GetDist (R_TransformMidPoint (ms->surface->midpoint, ms->matrix));
+	al->surf = ms->surface;
+	al->matrix = ms->matrix;
+}
+*/
+
+void R_ExtraSurfsBegin (void);
+void R_ExtraSurfsEnd (void);
+
+/*
+void R_AddSurfaceToAlphaList (r_modelsurf_t *ms)
+{
+	alphalist_t *al;
+
+	if (!(al = R_GrabAlphaSlot ()))
+		return;
+
+	al->setupfunc = R_ExtraSurfsBegin;
+	al->takedownfunc = R_ExtraSurfsEnd;
+
+	// to do - translate midpoint by matrix
+	al->type = ALPHATYPE_SURFACE;
+	al->dist = R_GetDist (R_TransformMidPoint (ms->surface->midpoint, ms->matrix));
+	al->surf = ms->surface;
+	al->matrix = ms->matrix;
+}
+*/
+
+/*
+void R_AddFenceToAlphaList (r_modelsurf_t *ms)
+{
+/*
+	alphalist_t *al;
+
+	if (!(al = R_GrabAlphaSlot ()))
+		return;
+
+	al->setupfunc = R_ExtraSurfsBegin;
+	al->takedownfunc = R_ExtraSurfsEnd;
+
+	// to do - translate midpoint by matrix
+	al->type = ALPHATYPE_FENCE;
+	al->dist = R_GetDist (R_TransformMidPoint (ms->surface->midpoint, ms->matrix));
+	al->surf = ms->surface;
+	al->matrix = ms->matrix;
+}
+*/
+
+void R_AddEntityToAlphaList (entity_t *ent)
+{
+	alphalist_t *al;
+
+	if (!(al = R_GrabAlphaSlot ()))
+		return;
+
+	switch (ent->model->type)
+	{
+/*
+	case mod_alias:
+		al->type = ALPHATYPE_ALIAS;
+		break;
+
+	case mod_brush:
+		al->type = ALPHATYPE_BRUSH;
+		break;
+*/
+	case mod_sprite:
+		al->type = ALPHATYPE_SPRITE;
+		al->setupfunc = R_SpriteBegin;
+		al->takedownfunc = R_SpriteEnd;
+		break;
+
+	default:
+		Host_Error ("R_AddEntityToAlphaList: unknown model type\n");
+		return;
+	}
+
+	al->dist = R_GetDist (ent->origin);
+	al->ent = ent;
+}
+
+
+int R_AlphaSortFunc (const void *a1, const void *a2)
+{
+	alphalist_t *al1 = *(alphalist_t **) a1;
+	alphalist_t *al2 = *(alphalist_t **) a2;
+
+	// back to front ordering
+	return (int) (al2->dist - al1->dist);
+}
+
+
+void R_InvalidateSprite (void);
+void R_RenderFenceTexture (msurface_t *surf, float *matrix);
+void R_DrawAliasBatches (entity_t **ents, int numents, void *meshbuffer);
+void R_SetupAliasModel (entity_t *e);
+void R_DrawAlphaBModel (entity_t *ent);
+void R_InvalidateLiquid (void);
+void R_InvalidateAlphaSurf (void);
+void R_RenderAlphaSurface (msurface_t *surf, float *m);
+void R_RenderLiquidSurface (msurface_t *surf, float *m);
+
+
+void R_DrawAlphaList (void)
+{
+	int i;
+	alphalist_t *prev;
+	alphalist_t *curr;
+
+	if (!r_numalphalist)
+		return;
+
+	if (r_numalphalist > 1)
+	{
+		qsort
+		(
+			r_alphalist,
+			r_numalphalist,
+			sizeof (alphalist_t *),
+			R_AlphaSortFunc
+		);
+	}
+
+	qglEnable (GL_BLEND);
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDepthMask (GL_FALSE);
+
+	qglEnable (GL_ALPHA_TEST);
+	qglAlphaFunc (GL_GREATER, 0.005);
+
+	prev = NULL;
+
+	// invalidate all cached states
+	R_InvalidateSprite ();
+//	R_InvalidateFence ();
+//	R_InvalidateLiquid ();
+//	R_InvalidateAlphaSurf ();
+
+	for (i = 0; i < r_numalphalist; i++)
+	{
+		qbool newtype = false;
+
+		curr = r_alphalist[i];
+
+		if (!prev)
+			newtype = true;
+		else if (prev->type != curr->type)
+		{
+			// invalidate all cached states
+			R_InvalidateSprite ();
+//			R_InvalidateFence ();
+//			R_InvalidateLiquid ();
+//			R_InvalidateAlphaSurf ();
+
+			// callbacks for state takedown (if needed)
+			if (prev->takedownfunc)
+				prev->takedownfunc ();
+
+			// bring up new (also needed if !prev)
+			newtype = true;
+		}
+		else
+			newtype = false;
+
+		if (newtype && curr->setupfunc)
+			curr->setupfunc ();
+
+		// drawing function
+		switch (curr->type)
+		{
+/*
+		case ALPHATYPE_ALIAS:
+			R_SetupAliasModel (curr->ent);
+
+			if (curr->ent->visframe == r_framecount)
+				R_DrawAliasBatches (&curr->ent, 1, scratchbuf);
+
+			break;
+
+		case ALPHATYPE_BRUSH:
+			R_DrawAlphaBModel (curr->ent);
+			break;
+*/
+		case ALPHATYPE_SPRITE:
+			R_DrawSpriteModel (curr->ent);
+			break;
+
+		case ALPHATYPE_PARTICLE:
+			R_DrawParticlesForType (curr->particles);
+			break;
+/*
+		case ALPHATYPE_FENCE:
+			R_RenderFenceTexture (curr->surf, curr->matrix);
+			break;
+
+		case ALPHATYPE_LIQUID:
+			R_RenderLiquidSurface (curr->surf, curr->matrix);
+			break;
+
+		case ALPHATYPE_SURFACE:
+			R_RenderAlphaSurface (curr->surf, curr->matrix);
+			break;
+*/
+		default:
+			break;
+		}
+
+		prev = curr;
+	}
+
+	if (prev->takedownfunc)
+		prev->takedownfunc ();
+
+	GL_Color (1, 1, 1, 1);	// current color is undefined after vertex arrays so this is always needed
+	qglAlphaFunc (GL_GREATER, 0.666);
+	qglDisable (GL_ALPHA_TEST);
+
+	qglDisable (GL_BLEND);
+	qglDepthMask (GL_TRUE);
+
+	// not strictly speaking necessary but it does the job well enough
+	r_numalphalist = 0;
+}
+
+
 /*
 =============================================================
 
@@ -265,6 +629,9 @@ void R_NewMap (struct model_s *worldmodel)
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
 	r_worldentity.model = r_worldmodel;
+
+	// clear down stuff from the previous map
+	R_AlphaListBeginMap ();
 
 	R_Modules_NewMap();
 

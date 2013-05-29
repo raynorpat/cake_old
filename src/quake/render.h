@@ -79,12 +79,32 @@ typedef struct entity_s
 } entity_t;
 
 
+typedef enum
+{
+	pt_static, pt_grav, pt_slowgrav, pt_fire, pt_explode, pt_explode2, pt_blob, pt_blob2
+} ptype_t;
+
 typedef struct particle_s
 {
 	vec3_t		org;
-	int			color;
-	float		alpha;
+	float		color;
+
+	struct particle_s	*next;
+	vec3_t		vel;
+	float		ramp;
+	float		die;
+	ptype_t		type;
 } particle_t;
+
+// this is needed outside of r_part now...
+// these aren't really "types" but just relate to spawn positions and sorting
+typedef struct particle_type_s
+{
+	particle_t *particles;
+	int numparticles;
+	vec3_t spawnorg;
+	struct particle_type_s *next;
+} particle_type_t;
 
 
 typedef struct translation_info_s {
