@@ -741,16 +741,16 @@ void R_SetPalette ( unsigned char *palette )
 	{
 		for ( i = 0; i < 256; i++ )
 		{
-			rp[i*4+0] = d_8to24table[i] & 0xff;
-			rp[i*4+1] = ( d_8to24table[i] >> 8 ) & 0xff;
-			rp[i*4+2] = ( d_8to24table[i] >> 16 ) & 0xff;
+			rp[i*4+0] = d_8to24table_rgba[i] & 0xff;
+			rp[i*4+1] = ( d_8to24table_rgba[i] >> 8 ) & 0xff;
+			rp[i*4+2] = ( d_8to24table_rgba[i] >> 16 ) & 0xff;
 			rp[i*4+3] = 0xff;
 		}
 	}
 
 	qglClearColor (0,0,0,0);
 	qglClear (GL_COLOR_BUFFER_BIT);
-	qglClearColor (1,0, 0.5 , 0.5);
+	qglClearColor (1,0, 0.5, 0.5);
 }
 
 /*
@@ -769,9 +769,16 @@ void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *dat
 	float		t;
 	unsigned	*dest;
 
-	RB_SetCanvas (CANVAS_DEFAULT);
+	qglViewport (0, 0, vid.width, vid.height);
 
-	GL_Bind (0);
+	qglMatrixMode (GL_PROJECTION);
+    qglLoadIdentity ();
+	qglOrtho (0, vid.width, vid.height, 0, -99999, 99999);
+
+	qglMatrixMode (GL_MODELVIEW);
+    qglLoadIdentity ();
+
+	GL_BindTexture (GL_TEXTURE0_ARB, NULL);
 
 	if (rows<=256)
 	{
@@ -805,7 +812,7 @@ void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *dat
 
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	
+
 	qglBegin (GL_QUADS);
 	qglTexCoord2f (0, 0);
 	qglVertex2f (x, y);
