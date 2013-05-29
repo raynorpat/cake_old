@@ -103,8 +103,6 @@ qbool		scr_initialized;		// ready to draw
 qpic_t		*scr_net;
 qpic_t		*scr_turtle;
 
-static int	scr_fullupdate;		// set to 0 to force full redraw
-
 int			clearconsole;
 int			clearnotify;
 
@@ -162,7 +160,7 @@ void SCR_DrawCenterString (void)
 
 	RB_SetCanvas (CANVAS_MENU);
 
-// the finale prints the characters one at a time
+	// the finale prints the characters one at a time
 	if (cl.intermission)
 		remaining = scr_printspeed.value * (cl.time - scr_centertime_start);
 	else
@@ -371,7 +369,6 @@ Keybinding command
 void SCR_SizeDown_f (void)
 {
 	Cvar_SetValue (&scr_viewsize, scr_viewsize.value-10);
-	scr_fullupdate = 0;
 }
 
 static void scr_start (void)
@@ -685,19 +682,6 @@ void SCR_DrawConsole (void)
 
 	clearconsole = 0;
 	scr_copyeverything = 1;
-}
-
-
-/*
-==================
-SCR_InvalidateScreen
-
-Force full redraw next time SCR_UpdateScreen is called
-==================
-*/
-void SCR_InvalidateScreen (void)
-{
-	scr_fullupdate = 0;
 }
 
 

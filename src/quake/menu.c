@@ -2860,8 +2860,6 @@ void M_Draw (void)
 	if (m_state == m_none || key_dest != key_menu)
 		return;
 
-	SCR_InvalidateScreen ();
-
 	if (scr_con_current != vid.height)
 		R_FadeScreen ();
 

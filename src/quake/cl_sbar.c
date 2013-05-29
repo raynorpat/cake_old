@@ -928,8 +928,6 @@ static void Sbar_TeamOverlay (int start)
 
 	RB_SetCanvas (CANVAS_MENU);
 
-	SCR_InvalidateScreen ();
-
 	if (!start) {
 		pic = R_CachePic ("gfx/ranking.lmp");
 		R_DrawPic ((320 - GetPicWidth(pic))/2, 0, pic);
@@ -1031,8 +1029,6 @@ static void Sbar_DeathmatchOverlay (int start)
 		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 		SZ_Print (&cls.netchan.message, "pings");
 	}
-
-	SCR_InvalidateScreen ();
 	
 	if (!start) {
 		pic = R_CachePic ("gfx/ranking.lmp");
