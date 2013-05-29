@@ -820,8 +820,6 @@ extern	cvar_t	r_speeds;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_shadows;
-extern	cvar_t	r_oldwater;
-extern	cvar_t	r_waterquality;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_dynamic;
@@ -841,7 +839,6 @@ extern	cvar_t	gl_farclip;
 
 extern	float	r_lightscale;	// overbright light scale
 
-void GL_MBind ( GLenum target, int texnum );
 void GL_Bind ( int texnum );
 void GL_SelectTexture ( GLenum target );
 void GL_EnableMultitexture(void);
@@ -857,8 +854,6 @@ void GL_DisableMultitexture(void);
 #define TEXPREF_CONCHARS		0x0040	// use conchar palette
 #define TEXPREF_FULLBRIGHT		0x0080	// use fullbright palette
 #define TEXPREF_NOBRIGHT		0x0100	// use nobright mask palette
-#define TEXPREF_WARPIMAGE		0x0200	// resize this texture when warpimagesize changes
-#define TEXPREF_HQ2X			0x0400	// use HQ2X upscaling
 
 enum srcformat {SRC_INDEXED, SRC_LIGHTMAP, SRC_RGBA};
 
@@ -877,7 +872,6 @@ typedef struct gltexture_s
 	unsigned int		width; // size of image as it exists in opengl
 	unsigned int		height; // size of image as it exists in opengl
 	unsigned int		flags;
-	int					baselevel;
 	char				source_file[MAX_OSPATH]; // filepath to data source, or "" if source is in memory
 	unsigned int		source_offset; // byte offset into file, or memory address
 	enum srcformat		source_format; // format of pixel data (indexed, lightmap, or rgba)
@@ -889,8 +883,6 @@ typedef struct gltexture_s
 } gltexture_t;
 
 extern gltexture_t *notexture, *particletexture;
-
-extern int	gl_warpimagesize;
 
 void TexMgr_Init (void);
 
@@ -916,7 +908,6 @@ void GL_BindTexture (GLenum tmu, gltexture_t *texture);
 
 
 
-void R_UpdateWarpTextures (void);
 void Sky_DrawSky (void);			// skybox or classic sky
 void Sky_LoadTexture (texture_t *mt, byte *data);	// classic Quake sky
 void Sky_NewMap (void);

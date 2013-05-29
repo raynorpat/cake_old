@@ -203,19 +203,10 @@ void R_DrawSequentialPoly (msurface_t *s)
 			qglColor4f(1, 1, 1, r_wateralpha.value);
 		}
 
-		if (r_oldwater.value)
+		GL_Bind (s->texinfo->texture->gl_texture->texnum);
+		for (p = s->polys->next; p; p = p->next)
 		{
-			GL_Bind (s->texinfo->texture->gl_texture->texnum);
-			for (p = s->polys->next; p; p = p->next)
-			{
-				DrawWaterPoly (p);
-			}
-		}
-		else
-		{
-			GL_Bind (s->texinfo->texture->warpimage->texnum);
-			s->texinfo->texture->update_warp = true; // FIXME: one frame too late!
-			DrawGLPoly (s->polys);
+			DrawWaterPoly (p);
 		}
 
 		if (r_wateralpha.value < 1)
@@ -467,7 +458,7 @@ void R_DrawBrushModel_ShowTris (entity_t *e)
 		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
-			if ((psurf->flags & SURF_DRAWTURB) && r_oldwater.value)
+			if ((psurf->flags & SURF_DRAWTURB))
 				for (p = psurf->polys->next; p; p = p->next)
 					DrawGLTriangleFan (p);
 			else

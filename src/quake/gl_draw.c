@@ -137,7 +137,7 @@ qpic_t *R_CacheWadPic (char *name)
 
 	offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
 
-	gl->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx", offset, TEXPREF_NOPICMIP | TEXPREF_HQ2X);
+	gl->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx", offset, TEXPREF_NOPICMIP);
 	gl->sl = 0;
 	gl->sh = 1;
 	gl->tl = 0;
@@ -182,7 +182,7 @@ qpic_t *R_CachePic (char *path)
 	pic->pic.height = dat->height;
 
 	gl = (glpic_t *)pic->pic.data;
-	gl->gltexture = TexMgr_LoadImage (NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path, sizeof(int)*2, TEXPREF_NOPICMIP | TEXPREF_HQ2X);
+	gl->gltexture = TexMgr_LoadImage (NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path, sizeof(int)*2, TEXPREF_NOPICMIP);
 	gl->sl = 0;
 	gl->sh = 1;
 	gl->tl = 0;

@@ -25,7 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 
 cvar_t	gl_picmip = {"gl_picmip", "0"};
-cvar_t	r_upscale_textures = {"r_upscale_textures", "0"};
 
 #define MAX_STACK_PIXELS (256 * 256)
 
@@ -33,8 +32,6 @@ gltexture_t	*active_gltextures, *free_gltextures;
 int			numgltextures;
 
 gltexture_t *notexture, *nulltexture, *particletexture;
-
-int			gl_warpimagesize = 0;
 
 unsigned int d_8to24table[256];
 unsigned int d_8to24table_rgba[256];
@@ -78,12 +75,6 @@ void GL_Bind ( int texnum )
 
 	currenttexture = texnum;
 	qglBindTexture (GL_TEXTURE_2D, texnum);
-}
-
-void GL_MBind( GLenum target, int texnum )
-{
-	GL_SelectTexture( target );
-	GL_Bind( texnum );
 }
 
 qbool mtexenabled = false;
@@ -167,12 +158,7 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 	}
 	else
 	{
-		if (r_upscale_textures.value && (glt->flags & TEXPREF_HQ2X))
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		}
-		else if (glt->flags & TEXPREF_NEAREST)
+		if (glt->flags & TEXPREF_NEAREST)
 		{
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -188,27 +174,6 @@ static void TexMgr_SetFilterModes (gltexture_t *glt)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
 		}
 	}
-
-	/*
-	if (glt->flags & TEXPREF_MIPMAP || glt->flags & TEXPREF_REPEAT)
-	{
-        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    }
-	else
-	{
-		if (gl_support_clamptoedge)
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		}
-		else
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-		}
-    }
-	*/
 }
 
 /*
@@ -597,7 +562,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
 	// upload
 	GL_BindTexture (GL_TEXTURE0_ARB, glt);
 	GL_PixelStore (4, 0);
-	//qglTexImage2D (GL_TEXTURE_2D, glt->baselevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+	//qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, scaled);
 
 	// upload mipmaps
@@ -650,11 +615,6 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 		// They are invisible in software, but look really ugly in GL. So we just copy
 		// 32 pixels from the bottom to make it look nice.
 		memcpy (data, data + 32*31, 32);
-	}
-
-	// HACK HACK: don't upscale the player menu
-	if (strstr(glt->name, "menuplyr") && glt->flags & TEXPREF_HQ2X)
-	{
 	}
 
 	// choose palette and padbyte
@@ -725,36 +685,6 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 
 /*
 ================
-TexMgr_LoadUpscaledImage8 
-
-handles 8bit source data, then passes it to LoadImage32
-================
-*/
-void TexMgr_LoadUpscaledImage8 (gltexture_t *glt, byte *data)
-{
-	byte *buffer;
-
-	buffer = malloc(glt->width * glt->height * 16);
-
-	// send it through hq2x
-	HQ2x_Render((unsigned long int *)buffer, data, glt->width, glt->height);
-
-	// upload scaled image
-	glt->width *= 2;
-	glt->height *= 2;
-	TexMgr_LoadImage32 (glt, buffer);
-    free(buffer);
-
-	// upload original as mipmap level 1
-	glt->baselevel = 1;
-	glt->width /= 2;
-	glt->height /= 2;
-	TexMgr_LoadImage8(glt, data);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1);
-}
-
-/*
-================
 TexMgr_LoadLightmap
 
 handles lightmap data
@@ -818,7 +748,6 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	glt->width = width;
 	glt->height = height;
 	glt->flags = flags;
-	glt->baselevel = 0;
 	strncpy (glt->source_file, source_file, sizeof(glt->source_file));
 	glt->source_offset = source_offset;
 	glt->source_format = format;
@@ -834,10 +763,7 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, char *name, int width, int height
 	switch (glt->source_format)
 	{
 		case SRC_INDEXED:
-			if(r_upscale_textures.value && (flags & TEXPREF_HQ2X))
-				TexMgr_LoadUpscaledImage8 (glt, data);
-			else
-				TexMgr_LoadImage8 (glt, data);
+			TexMgr_LoadImage8 (glt, data);
 			break;
 		case SRC_LIGHTMAP:
 			TexMgr_LoadLightmap (glt, data);
@@ -957,10 +883,7 @@ invalid:
 	switch (glt->source_format)
 	{
 	case SRC_INDEXED:
-		if(r_upscale_textures.value && (glt->flags & TEXPREF_HQ2X))
-			TexMgr_LoadUpscaledImage8 (glt, data);
-		else
-			TexMgr_LoadImage8 (glt, data);
+		TexMgr_LoadImage8 (glt, data);
 		break;
 	case SRC_LIGHTMAP:
 		TexMgr_LoadLightmap (glt, data);
@@ -1113,46 +1036,6 @@ static void TexMgr_InitParticleTexture (void)
 	}
 
 	particletexture = TexMgr_LoadImage (NULL, "particle", 2, 2, SRC_RGBA, data, "", (unsigned)data, TEXPREF_NEAREST);
-}
-
-/*
-=============
-TexMgr_RecalcWarpImageSize 
-
-called during init, and after a vid_restart
-choose safe warpimage size and resize existing warpimage textures
-=============
-*/
-static void TexMgr_RecalcWarpImageSize (void)
-{
-	int	maxwarp;
-	gltexture_t *glt;
-	byte *dummy;
-
-	// figure the size to create the texture at
-	qglGetIntegerv (GL_MAX_TEXTURE_SIZE, &maxwarp);
-
-	// never create larger than this
-	if (maxwarp > 1024)
-		maxwarp = 1024;
-
-	// scale and clamp to max
-	gl_warpimagesize = npot32(maxwarp);
-
-	// resize the textures in opengl
-	dummy = malloc (gl_warpimagesize*gl_warpimagesize*4);
-
-	for (glt=active_gltextures; glt; glt=glt->next)
-	{
-		if (glt->flags & TEXPREF_WARPIMAGE)
-		{
-			GL_Bind (glt->texnum);
-			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, gl_warpimagesize, gl_warpimagesize, 0, GL_RGBA, GL_UNSIGNED_BYTE, dummy);
-			glt->width = glt->height = gl_warpimagesize;
-		}
-	}
-
-	free (dummy);
 }
 
 /*
@@ -1341,9 +1224,6 @@ static void r_textures_start(void)
 
 	// generate particle images
 	TexMgr_InitParticleTexture ();
-
-	// set safe size for warpimages
-	TexMgr_RecalcWarpImageSize ();
 }
 
 static void r_textures_shutdown(void)
@@ -1380,12 +1260,9 @@ void TexMgr_Init (void)
 	int i;
 
 	Cvar_Register (&gl_picmip);
-	Cvar_Register (&r_upscale_textures);
 
 	Cmd_AddCommand ("gl_texturemode", &TexMgr_TextureMode_f);
 	Cmd_AddCommand ("imagelist", &TexMgr_Imagelist_f);
-
-	HQ2x_Init();
 
 	// init texture list
 	free_gltextures = (gltexture_t *) Hunk_AllocName (MAX_GLTEXTURES * sizeof(gltexture_t), "gltextures");

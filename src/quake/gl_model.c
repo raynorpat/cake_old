@@ -259,7 +259,6 @@ Loads a model into the cache
 */
 model_t *Mod_LoadModel (model_t *mod, qbool crash)
 {
-	void	*d;
 	unsigned *buf;
 	byte	stackbuf[1024];		// avoid dirtying the cache heap
 
@@ -267,25 +266,19 @@ model_t *Mod_LoadModel (model_t *mod, qbool crash)
 	{
 		if (mod->type == mod_alias)
 		{
-			d = Cache_Check (&mod->cache);
-			if (d)
+			if (Cache_Check (&mod->cache))
+			{
 				return mod;
+			}
 		}
 		else
-			return mod;		// not cached at all
+		{
+			return mod; // not cached at all
+		}
 	}
 
-//
 // because the world is so huge, load it one piece at a time
-//
-	if (!crash)
-	{
-	
-	}
-
-//
 // load the file
-//
 	buf = (unsigned *)FS_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 	if (!buf)
 	{
@@ -294,17 +287,12 @@ model_t *Mod_LoadModel (model_t *mod, qbool crash)
 		return NULL;
 	}
 
-//
 // allocate a new model
-//
 	COM_FileBase (mod->name, loadname);
 
 	loadmodel = mod;
 
-//
 // fill it in
-//
-
 // call the apropriate loader
 	mod->needload = false;
 	
@@ -426,8 +414,6 @@ void Mod_LoadTextures (lump_t *l)
 		for (j = 0; j < MIPLEVELS; j++)
 			tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
 
-		tx->update_warp = false;
-		tx->warpimage = NULL;
 		tx->fb_texture = NULL;
 
 		if (!strncmp(mt->name,"sky",3)) // sky texture
@@ -436,22 +422,10 @@ void Mod_LoadTextures (lump_t *l)
 		}
 		else if (tx->name[0] == '*') // warping texture
 		{
-			byte *img;
-
-			img = malloc (gl_warpimagesize*gl_warpimagesize*4);
-
-			// load warpimage
-			sprintf (texturename, "%s:%s_warp", loadmodel->name, tx->name);
-			tx->warpimage = TexMgr_LoadImage (loadmodel, texturename, gl_warpimagesize, gl_warpimagesize, SRC_RGBA, img, "", (unsigned)img, TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE);
-
-			// now load the water texture itself
+			// load the water texture
 			sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
 			offset = (unsigned)(mt+1) - (unsigned)mod_base;
 			tx->gl_texture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height, SRC_INDEXED, (byte *)(mt+1), loadmodel->name, offset, TEXPREF_MIPMAP);
-
-			tx->update_warp = true;
-
-			free (img);
 		}
 		else // regular texture
 		{
@@ -953,14 +927,14 @@ void Mod_LoadFaces (lump_t *l)
 		out->numedges = LittleShort(in->numedges);		
 		out->flags = 0;
 
+		out->texinfo = loadmodel->texinfo + LittleShort (in->texinfo);
+
 		planenum = LittleShort(in->planenum);
 		side = LittleShort(in->side);
 		if (side)
 			out->flags |= SURF_PLANEBACK;			
 
 		out->plane = loadmodel->planes + planenum;
-
-		out->texinfo = loadmodel->texinfo + LittleShort (in->texinfo);
 
 		CalcSurfaceExtents (out);
 

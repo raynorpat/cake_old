@@ -59,8 +59,6 @@ typedef struct texture_s
 	unsigned	width, height;
 	struct gltexture_s *gl_texture;		// pointer to gltexture
 	struct gltexture_s *fb_texture;		// fullbright mask texture
-	struct gltexture_s *warpimage;		// for water animation
-	qbool		update_warp;			// update warp this frame
 	struct msurface_s *texturechain;	// for texture chains
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max

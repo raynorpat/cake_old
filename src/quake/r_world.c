@@ -200,8 +200,6 @@ void R_CullSurfaces (void)
 			{
 				s->culled = false;
 				rs_brushpolys++; // count wpolys here
-				if (s->texinfo->texture->warpimage)
-					s->texinfo->texture->update_warp = true;
 			}
 		}
 	}
@@ -253,7 +251,7 @@ void R_DrawTextureChains_ShowTris (void)
 		if (!t)
 			continue;
 
-		if (r_oldwater.value && t->texturechain && (t->texturechain->flags & SURF_DRAWTURB))
+		if (t->texturechain && (t->texturechain->flags & SURF_DRAWTURB))
 		{
 			for (s = t->texturechain; s; s = s->texturechain)
 			{
@@ -467,49 +465,24 @@ void R_DrawTextureChains_Water (void)
 		qglColor4f (1,1,1,r_wateralpha.value);
 	}
 
-	if (r_oldwater.value)
+	for (i=0 ; i<r_worldmodel->numtextures ; i++)
 	{
-		for (i=0 ; i<r_worldmodel->numtextures ; i++)
+		t = r_worldmodel->textures[i];
+		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWTURB))
+			continue;
+		bound = false;
+		for (s = t->texturechain; s; s = s->texturechain)
 		{
-			t = r_worldmodel->textures[i];
-			if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWTURB))
-				continue;
-			bound = false;
-			for (s = t->texturechain; s; s = s->texturechain)
+			if (!s->culled)
 			{
-				if (!s->culled)
+				if (!bound) // only bind once we are sure we need this texture
 				{
-					if (!bound) // only bind once we are sure we need this texture
-					{
-						GL_Bind (t->gl_texture->texnum);
-						bound = true;
-					}
-					for (p = s->polys->next; p; p = p->next)
-					{
-						DrawWaterPoly (p);
-					}
+					GL_Bind (t->gl_texture->texnum);
+					bound = true;
 				}
-			}
-		}
-	}
-	else
-	{
-		for (i=0 ; i<r_worldmodel->numtextures ; i++)
-		{
-			t = r_worldmodel->textures[i];
-			if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWTURB))
-				continue;
-			bound = false;
-			for (s = t->texturechain; s; s = s->texturechain)
-			{
-				if (!s->culled)
+				for (p = s->polys->next; p; p = p->next)
 				{
-					if (!bound) // only bind once we are sure we need this texture
-					{
-						GL_Bind (t->warpimage->texnum);
-						bound = true;
-					}
-					DrawGLPoly (s->polys);
+					DrawWaterPoly (p);
 				}
 			}
 		}
