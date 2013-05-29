@@ -87,6 +87,9 @@ typedef enum {false, true} qbool;
 #define	ON_EPSILON			0.1			// point on plane side epsilon
 #define BACKFACE_EPSILON	0.01
 
+extern byte scratchbuf[];
+#define SCRATCHBUF_SIZE 1048576
+
 //============================================================================
 
 typedef struct sizebuf_s
