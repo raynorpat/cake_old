@@ -121,6 +121,7 @@ typedef ptrdiff_t GLsizeiptrARB;
 #define GL_TEXTURE_MIN_FILTER			0x2801
 #define GL_PACK_ALIGNMENT			0x0D05
 #define GL_UNPACK_ALIGNMENT			0x0CF5
+#define GL_UNPACK_ROW_LENGTH		0x0CF2
 #define GL_TEXTURE_BINDING_1D                   0x8068
 #define GL_TEXTURE_BINDING_2D                   0x8069
 
@@ -484,7 +485,7 @@ extern void (GLAPIENTRY *qglDepthMask)(GLboolean flag);
 extern void (GLAPIENTRY *qglDepthRange)(GLclampd near_val, GLclampd far_val);
 extern void (GLAPIENTRY *qglColorMask)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
 
-extern void (GLAPIENTRY *qglDrawRangeElements)(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices);
+extern void (GLAPIENTRY *qglDrawArrays)(GLenum mode, GLint first, GLsizei count);
 extern void (GLAPIENTRY *qglDrawElements)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 extern void (GLAPIENTRY *qglVertexPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
 extern void (GLAPIENTRY *qglNormalPointer)(GLenum type, GLsizei stride, const GLvoid *ptr);
@@ -498,6 +499,8 @@ extern void (GLAPIENTRY *qglColor4ubv)(const GLubyte* v);
 extern void (GLAPIENTRY *qglColor4f)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 extern void (GLAPIENTRY *qglColor4fv)(const GLfloat* v);
 extern void (GLAPIENTRY *qglTexCoord2f)(GLfloat s, GLfloat t);
+extern void (GLAPIENTRY *qglTexCoord2fv)(const GLfloat *v);
+extern void (GLAPIENTRY *qglTexCoord3fv)(const GLfloat *v);
 extern void (GLAPIENTRY *qglVertex2f)(GLfloat x, GLfloat y);
 extern void (GLAPIENTRY *qglVertex3f)(GLfloat x, GLfloat y, GLfloat z);
 extern void (GLAPIENTRY *qglVertex3fv)(const GLfloat* v);
@@ -773,6 +776,13 @@ extern BOOL (WINAPI *qwglSwapIntervalEXT)(int interval);
 
 // OpenGL 3.0 core functions
 extern void (GLAPIENTRY *qglGenerateMipmap)(GLenum target);
+
+// partitioned depth range slices for 2d/3d stuff
+#define QGL_DEPTH_2D_BEGIN		0.0f
+#define QGL_DEPTH_2D_END		0.005f
+#define QGL_DEPTH_3D_BEGIN		QGL_DEPTH_2D_END
+#define QGL_DEPTH_3D_END		1.0f
+#define QGL_DEPTH_VM_END		0.3f
 
 //====================================================
 

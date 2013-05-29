@@ -143,7 +143,7 @@ void (GLAPIENTRY *qglDepthMask)(GLboolean flag);
 void (GLAPIENTRY *qglDepthRange)(GLclampd near_val, GLclampd far_val);
 void (GLAPIENTRY *qglColorMask)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
 
-void (GLAPIENTRY *qglDrawRangeElements)(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices);
+void (GLAPIENTRY *qglDrawArrays)(GLenum mode, GLint first, GLsizei count);
 void (GLAPIENTRY *qglDrawElements)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 void (GLAPIENTRY *qglVertexPointer)(GLint size, GLenum type, GLsizei stride, const GLvoid *ptr);
 void (GLAPIENTRY *qglNormalPointer)(GLenum type, GLsizei stride, const GLvoid *ptr);
@@ -157,6 +157,8 @@ void (GLAPIENTRY *qglColor4ubv)(const GLubyte* v);
 void (GLAPIENTRY *qglColor4f)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 void (GLAPIENTRY *qglColor4fv)(const GLfloat* v);
 void (GLAPIENTRY *qglTexCoord2f)(GLfloat s, GLfloat t);
+void (GLAPIENTRY *qglTexCoord2fv)(const GLfloat *v);
+void (GLAPIENTRY *qglTexCoord3fv)(const GLfloat *v);
 void (GLAPIENTRY *qglVertex2f)(GLfloat x, GLfloat y);
 void (GLAPIENTRY *qglVertex3f)(GLfloat x, GLfloat y, GLfloat z);
 void (GLAPIENTRY *qglVertex3fv)(const GLfloat* v);
@@ -431,6 +433,7 @@ static dllfunction_t opengl110funcs[] =
 	{"glDepthFunc", (void **) &qglDepthFunc},
 	{"glDepthMask", (void **) &qglDepthMask},
 	{"glDepthRange", (void **) &qglDepthRange},
+	{"glDrawArrays", (void **) &qglDrawArrays},
 	{"glDrawElements", (void **) &qglDrawElements},
 	{"glColorMask", (void **) &qglColorMask},
 	{"glVertexPointer", (void **) &qglVertexPointer},
@@ -444,6 +447,8 @@ static dllfunction_t opengl110funcs[] =
 	{"glColor4f", (void **) &qglColor4f},
 	{"glColor4fv", (void **) &qglColor4fv},
 	{"glTexCoord2f", (void **) &qglTexCoord2f},
+	{"glTexCoord2fv", (void **) &qglTexCoord2fv},
+	{"glTexCoord3fv", (void **) &qglTexCoord3fv},
 	{"glVertex2f", (void **) &qglVertex2f},
 	{"glVertex3f", (void **) &qglVertex3f},
 	{"glVertex3fv", (void **) &qglVertex3fv},
