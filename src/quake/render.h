@@ -146,23 +146,25 @@ void R_PushDlights (void);
 // never store this pointer for later use!
 void R_RSShot (byte **pcxdata, int *pcxsize);
 
-void R_SetPalette ( unsigned char *palette );
+void R_SetPalette (unsigned char *palette);
 
 // 2D drawing functions
 void R_DrawChar (int x, int y, int num);
+void R_DrawColoredChar (int x, int y, int num, unsigned int color);
 void R_DrawString (int x, int y, const char *str);
 void R_DrawPic (int x, int y, qpic_t *pic);
 void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom);
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha);
-void R_LoadingScreen (void);
-void R_FadeScreen (void);
-qpic_t *R_CachePic (char *path);
-qpic_t *R_CacheWadPic (char *name);
-void R_DrawConsoleBackground (float alpha);
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);
 void R_DrawCrosshair (int num, int crossx, int crossy);
-
 void R_DrawNetGraph (void);
+void R_DrawConsoleBackground (float alpha);
+
+void R_LoadingScreen (void);
+void R_FadeScreen (void);
+
+qpic_t *R_CachePic (char *path);
+qpic_t *R_CacheWadPic (char *name);
 
 #define GetPicWidth(pic) (pic->width)
 #define GetPicHeight(pic) (pic->height)

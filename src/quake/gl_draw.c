@@ -483,7 +483,7 @@ void R_DrawChar (int x, int y, int num)
 	Draw_CharacterQuad (x, y, (num & 255), (byte *) &rgba);
 }
 
-void Draw_ColoredCharacter (int x, int y, int num, unsigned int color)
+void R_DrawColoredChar (int x, int y, int num, unsigned int color)
 {
 	Draw_TestState (char_texture);
 	Draw_CharacterQuad (x, y, (num & 255), (byte *) color);
