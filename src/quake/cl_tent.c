@@ -177,13 +177,6 @@ void CL_ParseBeam (int type)
 	end[1] = MSG_ReadCoord ();
 	end[2] = MSG_ReadCoord ();
 
-	// an experimental protocol extension:
-	// TE_LIGHTNING1 with entity num in -1024..-1 range is a rail trail
-	if (type == 1 && (ent >= -1024 && ent <= -1)) {
-		CL_RailTrail (start, end, 208);
-		return;
-	}
-
 	switch (type) {
 	case 1:
 		if (!cl_bolt1_mod)
