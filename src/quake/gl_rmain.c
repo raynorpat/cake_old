@@ -54,6 +54,7 @@ void R_InitQuads (void)
 }
 
 
+void R_DrawAliasModels (void);
 void R_DrawSpriteModels (void);
 
 void R_ShowTrisBegin (void)
@@ -145,8 +146,11 @@ cvar_t	r_skyfog = {"r_skyfog","0.5"};
 cvar_t	r_stereo = {"r_stereo","0"};
 cvar_t	r_stereodepth = {"r_stereodepth","128"};
 cvar_t	r_showtris = {"r_showtris","0"};
-cvar_t r_lockpvs = {"r_lockpvs", "0"};
-cvar_t r_lockfrustum = {"r_lockfrustum", "0"};
+cvar_t	r_lockpvs = {"r_lockpvs", "0"};
+cvar_t	r_lockfrustum = {"r_lockfrustum", "0"};
+cvar_t	r_lerpmodels = {"r_lerpmodels", "0"};
+cvar_t	r_lerpmove = {"r_lerpmove", "1"};
+cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs/braztall.mdl,progs/brazshrt.mdl,progs/longtrch.mdl,progs/flame_pyre.mdl,progs/v_saw.mdl,progs/v_xfist.mdl,progs/h2stuff/newfire.mdl"};
 
 cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
@@ -462,10 +466,6 @@ void R_DrawEntitiesOnList (void)
 
 		switch (currententity->model->type)
 		{
-			case mod_alias:
-				R_DrawAliasModel (currententity);
-				break;
-
 			case mod_brush:
 				R_DrawBrushModel (currententity);
 				break;
@@ -473,29 +473,6 @@ void R_DrawEntitiesOnList (void)
 			default:
 				break;
 		}
-	}
-}
-
-/*
-================
-R_DrawShadows
-================
-*/
-void R_DrawShadows (void)
-{
-	int i;
-
-	if (!r_shadows.value || !r_drawentities.value || r_lightmap.value)
-		return;
-
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		currententity = &cl_visedicts[i];
-
-		if (currententity->model->type != mod_alias)
-			continue;
-
-		R_DrawAliasShadow (currententity);
 	}
 }
 
@@ -555,12 +532,11 @@ void R_RenderScene (void)
 
 	R_DrawWorld ();
 
-	R_DrawShadows ();				// render entity shadows
-
 	R_DrawEntitiesOnList ();
 
 	R_DrawTextureChains_Water ();	// drawn here since they might have transparency
 
+	R_DrawAliasModels ();
 	R_DrawSpriteModels ();
 	R_DrawParticles ();
 	R_DrawAlphaList ();
@@ -673,6 +649,9 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
 	Cvar_Register (&r_primitives);
+	Cvar_Register (&r_lerpmodels);
+	Cvar_Register (&r_lerpmove);
+	Cvar_Register (&r_nolerp_list);
 	Cvar_Register (&r_lockpvs);
 	Cvar_Register (&r_lockfrustum);
 

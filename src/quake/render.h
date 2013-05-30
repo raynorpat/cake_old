@@ -61,21 +61,65 @@ typedef struct efrag_s
 	struct efrag_s		*entnext;
 } efrag_t;
 
+// for lerping
+#define LERP_MOVESTEP	(1<<0) // this is a MOVETYPE_STEP entity, enable movement lerp
+#define LERP_RESETANIM	(1<<1) // disable anim lerping until next anim frame
+#define LERP_RESETANIM2	(1<<2) // set this and previous flag to disable anim lerping for two anim frames
+#define LERP_RESETMOVE	(1<<3) // disable movement lerping until next origin/angles change
+#define LERP_FINISH		(1<<4) // use lerpfinish time from server update instead of assuming interval of 0.1
+
+// stores current info about an alias model entity
+typedef struct aliasstate_s
+{
+	struct gltexture_s *tx;
+	struct gltexture_s *fb;
+
+	float shadelight[4];
+	float *shadedots;
+	vec3_t lightspot;
+
+	short pose1;
+	short pose2;
+	float blend;
+
+	vec3_t origin;
+	vec3_t angles;
+} aliasstate_t;
+
+
 typedef struct entity_s
 {
+	// need to store the entity matrix for bmodel transforms
+	float					matrix[16];
+
+	aliasstate_t			aliasstate;
+
 	vec3_t					origin;
 	vec3_t					angles;
 	struct model_s			*model;			// NULL = no model
+	struct efrag_s			*efrag;			// linked list of efrags
 	int						frame;
 	int						colormap;
 	int						skinnum;		// for alias models
 	int						renderfx;		// RF_WEAPONMODEL, etc
 	float					alpha;
 
-	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
 	int						visframe;		// last frame this entity was found in an active leaf (only used for static objects)
 
 	struct mnode_s			*topnode;		// for bmodels, first world node that splits bmodel, or NULL if not split
+
+	// animation lerping
+	byte					lerpflags;
+	float					lerpstart;
+	float					lerptime;
+	float					lerpfinish;
+	short					previouspose;
+	short					currentpose;
+	float					movelerpstart;
+	vec3_t					previousorigin;
+	vec3_t					currentorigin;
+	vec3_t					previousangles;
+	vec3_t					currentangles;
 } entity_t;
 
 

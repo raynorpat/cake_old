@@ -21,289 +21,143 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
-/*
-=================================================================
+static int r_nummeshindexes = 0;
+int r_meshindexbuffer = 0;
 
-ALIAS MODEL DISPLAY LIST GENERATION
-
-=================================================================
-*/
-
-model_t		*aliasmodel;
-aliashdr_t	*paliashdr;
-
-qbool		used[8192];
-
-// the command list holds counts and s/t values that are valid for
-// every frame
-int		commands[8192];
-int		numcommands;
-
-// all frames will have their vertexes rearranged and expanded
-// so they are in the order expected by the command list
-int		vertexorder[8192];
-int		numorder;
-
-int		allverts, alltris;
-
-int		stripverts[128];
-int		striptris[128];
-int		stripcount;
-
-/*
-================
-StripLength
-================
-*/
-int	StripLength (int starttri, int startv)
+void GL_MakeAliasModelDisplayLists (stvert_t *stverts, dtriangle_t *triangles)
 {
-	int			m1, m2;
-	int			j;
-	mtriangle_t	*last, *check;
-	int			k;
+	int i, j;
+	meshdesc_t *hunkdesc;
 
-	used[starttri] = 2;
+	// there can never be more than this number of verts
+	meshdesc_t *desc = (meshdesc_t *) malloc (sizeof (meshdesc_t) * pheader->numverts);
 
-	last = &triangles[starttri];
+	// there will always be this number of indexes
+	unsigned short *indexes = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * pheader->numtris * 3);
 
-	stripverts[0] = last->vertindex[(startv)%3];
-	stripverts[1] = last->vertindex[(startv+1)%3];
-	stripverts[2] = last->vertindex[(startv+2)%3];
+	pheader->indexes = (int) indexes - (int) pheader;
+	pheader->numindexes = 0;
+	pheader->numverts = 0;
 
-	striptris[0] = starttri;
-	stripcount = 1;
-
-	m1 = last->vertindex[(startv+2)%3];
-	m2 = last->vertindex[(startv+1)%3];
-
-	// look for a matching triangle
-nexttri:
-	for (j=starttri+1, check=&triangles[starttri+1] ; j<pheader->numtris ; j++, check++)
+	for (i = 0; i < pheader->numtris; i++)
 	{
-		if (check->facesfront != last->facesfront)
-			continue;
-		for (k=0 ; k<3 ; k++)
+		for (j = 0; j < 3; j++)
 		{
-			if (check->vertindex[k] != m1)
-				continue;
-			if (check->vertindex[ (k+1)%3 ] != m2)
-				continue;
+			int v;
 
-			// this is the next part of the fan
+			// index into hdr->vertexes
+			unsigned short vertindex = triangles[i].vertindex[j];
 
-			// if we can't use this triangle, this tristrip is done
-			if (used[j])
-				goto done;
+			// basic s/t coords
+			int s = stverts[vertindex].s;
+			int t = stverts[vertindex].t;
 
-			// the new edge
-			if (stripcount & 1)
-				m2 = check->vertindex[ (k+2)%3 ];
-			else
-				m1 = check->vertindex[ (k+2)%3 ];
+			// check for back side and adjust texcoord s
+			if (!triangles[i].facesfront && stverts[vertindex].onseam)
+				s += pheader->skinwidth / 2;
 
-			stripverts[stripcount+2] = check->vertindex[ (k+2)%3 ];
-			striptris[stripcount] = j;
-			stripcount++;
-
-			used[j] = 2;
-			goto nexttri;
-		}
-	}
-done:
-
-	// clear the temp used flags
-	for (j=starttri+1 ; j<pheader->numtris ; j++)
-		if (used[j] == 2)
-			used[j] = 0;
-
-	return stripcount;
-}
-
-/*
-===========
-FanLength
-===========
-*/
-int	FanLength (int starttri, int startv)
-{
-	int		m1, m2;
-	int		j;
-	mtriangle_t	*last, *check;
-	int		k;
-
-	used[starttri] = 2;
-
-	last = &triangles[starttri];
-
-	stripverts[0] = last->vertindex[(startv)%3];
-	stripverts[1] = last->vertindex[(startv+1)%3];
-	stripverts[2] = last->vertindex[(startv+2)%3];
-
-	striptris[0] = starttri;
-	stripcount = 1;
-
-	m1 = last->vertindex[(startv+0)%3];
-	m2 = last->vertindex[(startv+2)%3];
-
-
-	// look for a matching triangle
-nexttri:
-	for (j=starttri+1, check=&triangles[starttri+1] ; j<pheader->numtris ; j++, check++)
-	{
-		if (check->facesfront != last->facesfront)
-			continue;
-		for (k=0 ; k<3 ; k++)
-		{
-			if (check->vertindex[k] != m1)
-				continue;
-			if (check->vertindex[ (k+1)%3 ] != m2)
-				continue;
-
-			// this is the next part of the fan
-
-			// if we can't use this triangle, this tristrip is done
-			if (used[j])
-				goto done;
-
-			// the new edge
-			m2 = check->vertindex[ (k+2)%3 ];
-
-			stripverts[stripcount+2] = m2;
-			striptris[stripcount] = j;
-			stripcount++;
-
-			used[j] = 2;
-			goto nexttri;
-		}
-	}
-done:
-
-	// clear the temp used flags
-	for (j=starttri+1 ; j<pheader->numtris ; j++)
-		if (used[j] == 2)
-			used[j] = 0;
-
-	return stripcount;
-}
-
-
-/*
-================
-BuildTris
-
-Generate a list of trifans or strips
-for the model, which holds for all frames
-================
-*/
-void BuildTris (void)
-{
-	int		i, j, k;
-	int		startv;
-	float	s, t;
-	int		len, bestlen, besttype = 0;
-	int		bestverts[1024];
-	int		besttris[1024];
-	int		type;
-
-	//
-	// build tristrips
-	//
-	numorder = 0;
-	numcommands = 0;
-	memset (used, 0, sizeof(used));
-	for (i=0 ; i<pheader->numtris ; i++)
-	{
-		// pick an unused triangle and start the trifan
-		if (used[i])
-			continue;
-
-		bestlen = 0;
-		for (type = 0 ; type < 2 ; type++)
-//	type = 1;
-		{
-			for (startv =0 ; startv < 3 ; startv++)
+			// see does this vert already exist
+			for (v = 0; v < pheader->numverts; v++)
 			{
-				if (type == 1)
-					len = StripLength (i, startv);
-				else
-					len = FanLength (i, startv);
-				if (len > bestlen)
+				// it could use the same xyz but have different s and t
+				if (desc[v].vertindex == vertindex && (int) desc[v].st[0] == s && (int) desc[v].st[1] == t)
 				{
-					besttype = type;
-					bestlen = len;
-					for (j=0 ; j<bestlen+2 ; j++)
-						bestverts[j] = stripverts[j];
-					for (j=0 ; j<bestlen ; j++)
-						besttris[j] = striptris[j];
+					// exists; emit an index for it
+					indexes[pheader->numindexes++] = v;
+
+					// no need to check any more
+					break;
 				}
 			}
-		}
 
-		// mark the tris on the best strip as used
-		for (j=0 ; j<bestlen ; j++)
-			used[besttris[j]] = 1;
+			if (v == pheader->numverts)
+			{
+				// doesn't exist; emit a new vert and index
+				indexes[pheader->numindexes++] = pheader->numverts;
 
-		if (besttype == 1)
-			commands[numcommands++] = (bestlen+2);
-		else
-			commands[numcommands++] = -(bestlen+2);
-
-		for (j=0 ; j<bestlen+2 ; j++)
-		{
-			// emit a vertex into the reorder buffer
-			k = bestverts[j];
-			vertexorder[numorder++] = k;
-
-			// emit s/t coords into the commands stream
-			s = stverts[k].s;
-			t = stverts[k].t;
-			if (!triangles[besttris[0]].facesfront && stverts[k].onseam)
-				s += pheader->skinwidth / 2;	// on back side
-			s = (s + 0.5) / pheader->skinwidth;
-			t = (t + 0.5) / pheader->skinheight;
-
-			*(float *)&commands[numcommands++] = s;
-			*(float *)&commands[numcommands++] = t;
+				desc[pheader->numverts].vertindex = vertindex;
+				desc[pheader->numverts].st[0] = s;
+				desc[pheader->numverts++].st[1] = t;
+			}
 		}
 	}
 
-	commands[numcommands++] = 0;		// end of list marker
+	// create a hunk buffer for the final mesh we'll actually use
+	hunkdesc = (meshdesc_t *) Hunk_Alloc (sizeof (meshdesc_t) * pheader->numverts);
+	pheader->meshdescs = (int) hunkdesc - (int) pheader;
 
-	Com_DPrintf ("%3i tri %3i vert %3i cmd\n", pheader->numtris, numorder, numcommands);
+	// tidy up the verts by calculating final s and t and copying out to the hunk
+	for (i = 0; i < pheader->numverts; i++)
+	{
+		hunkdesc[i].vertindex = desc[i].vertindex;
+		hunkdesc[i].st[0] = (((float) desc[i].st[0] + 0.5f) / (float) pheader->skinwidth);
+		hunkdesc[i].st[1] = (((float) desc[i].st[1] + 0.5f) / (float) pheader->skinheight);
+	}
 
-	allverts += numorder;
-	alltris += pheader->numtris;
+	// don't forget!!!
+	free (desc);
 }
 
 
-/*
-================
-GL_MakeAliasModelDisplayLists
-================
-*/
-void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr)
+void R_CreateMeshIndexBuffer (void)
 {
-	int		i, j;
-	int			*cmds;
-	trivertx_t	*verts;
+	if (gl_support_arb_vertex_buffer_object)
+	{
+		int i;
+		model_t *m;
+		aliashdr_t *hdr;
+		unsigned short *ndx;
 
-	aliasmodel = m;
-	paliashdr = hdr;
+		if (r_meshindexbuffer)
+		{
+			qglDeleteBuffersARB (1, &r_meshindexbuffer);
+			r_meshindexbuffer = 0;
+		}
 
-	Com_DPrintf ("meshing %s...\n",m->name);
-	BuildTris ();		// trifans or lists
+		// count the indexes used
+		// this can't be done at load time owing to the caching system meaning that some models may not be loaded for a new map!!!
+		r_nummeshindexes = 0;
 
-	// save the data out
-	paliashdr->poseverts = numorder;
+		// fill in indexes for the alias models
+		for (i = 1; i < MAX_MODELS; i++)
+		{
+			if (!(m = cl.model_precache[i])) break;
+			if (m->type != mod_alias) continue;
 
-	cmds = (int *) Hunk_Alloc (numcommands * 4);
-	paliashdr->commands = (byte *)cmds - (byte *)paliashdr;
-	memcpy (cmds, commands, numcommands * 4);
+			hdr = (aliashdr_t *) Mod_Extradata (m);
+			r_nummeshindexes += hdr->numindexes;
+		}
 
-	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->poseverts * sizeof(trivertx_t) );
-	paliashdr->posedata = (byte *)verts - (byte *)paliashdr;
-	for (i=0 ; i<paliashdr->numposes ; i++)
-		for (j=0 ; j<numorder ; j++)
-			*verts++ = poseverts[i][vertexorder[j]];
+		qglGenBuffersARB (1, &r_meshindexbuffer);
+		qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, r_meshindexbuffer);
+		qglBufferDataARB (GL_ELEMENT_ARRAY_BUFFER_ARB, r_nummeshindexes * sizeof (unsigned short), NULL, GL_STATIC_DRAW_ARB);
+
+		// begin counting again for offsets
+		r_nummeshindexes = 0;
+
+		// fill in indexes for the alias models
+		for (i = 1; i < MAX_MODELS; i++)
+		{
+			if (!(m = cl.model_precache[i]))
+				break;
+			if (m->type != mod_alias)
+				continue;
+
+			hdr = (aliashdr_t *) Mod_Extradata (m);
+
+			// this stores the offset to the index, not the index of it (fixme; rename it)
+			hdr->firstindex = r_nummeshindexes * sizeof (unsigned short);
+			r_nummeshindexes += hdr->numindexes;
+
+			ndx = (unsigned short *) ((byte *) hdr + hdr->indexes);
+			qglBufferSubDataARB (GL_ELEMENT_ARRAY_BUFFER_ARB, hdr->firstindex, hdr->numindexes * sizeof (unsigned short), ndx);
+		}
+
+		// unbind the buffer when done
+		qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+	}
+
+	// for the next map
+	r_nummeshindexes = 0;
 }
 

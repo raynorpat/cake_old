@@ -223,11 +223,11 @@ void R_AddEntityToAlphaList (entity_t *ent)
 
 	switch (ent->model->type)
 	{
-/*
 	case mod_alias:
 		al->type = ALPHATYPE_ALIAS;
 		break;
 
+/*
 	case mod_brush:
 		al->type = ALPHATYPE_BRUSH;
 		break;
@@ -336,7 +336,6 @@ void R_DrawAlphaList (void)
 		// drawing function
 		switch (curr->type)
 		{
-/*
 		case ALPHATYPE_ALIAS:
 			R_SetupAliasModel (curr->ent);
 
@@ -345,6 +344,7 @@ void R_DrawAlphaList (void)
 
 			break;
 
+/*
 		case ALPHATYPE_BRUSH:
 			R_DrawAlphaBModel (curr->ent);
 			break;

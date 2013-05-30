@@ -229,8 +229,10 @@ typedef struct
 	int					firstpose;
 	int					numposes;
 	float				interval;
-	trivertx_t			bboxmin;
-	trivertx_t			bboxmax;
+
+	float				mins[3];
+	float				maxs[3];
+
 	int					frame;
 	char				name[16];
 } maliasframedesc_t;
@@ -257,30 +259,49 @@ typedef struct mtriangle_s {
 
 
 #define	MAX_SKINS	32
-typedef struct {
-	int			ident;
-	int			version;
+
+// split out to keep vertex sizes down
+typedef struct meshdesc_s
+{
+	float st[2];
+	float light;
+	unsigned short vertindex;
+} meshdesc_t;
+
+typedef struct aliashdr_s
+{
 	vec3_t		scale;
 	vec3_t		scale_origin;
+
 	float		boundingradius;
-	vec3_t		eyeposition;
-	int			numskins;
-	int			skinwidth;
-	int			skinheight;
-	int			numverts;
-	int			numtris;
-	int			numframes;
 	synctype_t	synctype;
 	int			flags;
 	float		size;
 
-	int					numposes;
-	int					poseverts;
-	int					posedata;	// numposes*poseverts trivert_t
-	int					commands;	// gl command list with embedded s/t
-	struct gltexture_s *gl_texture[MAX_SKINS][4];
-	struct gltexture_s *fb_texture[MAX_SKINS][4];
-	maliasframedesc_t	frames[1];	// variable sized
+	int         nummeshframes;
+	int         numtris;
+	int         numverts;
+
+	int         vertsperframe;
+	int         numframes;
+
+	int         meshverts;
+	int			meshdescs;
+	int         vertexes;
+	int         framevertexsize;
+
+	int         skinwidth;
+	int         skinheight;
+	int         numskins;
+
+	int			indexes;
+	int			numindexes;
+	int			firstindex;
+
+	struct gltexture_s	*gltextures[MAX_SKINS][4];
+	struct gltexture_s	*fbtextures[MAX_SKINS][4];
+	int         texels[MAX_SKINS];   // only for player skins
+	maliasframedesc_t frames[1];
 } aliashdr_t;
 
 #define	MAXALIASVERTS	2048
@@ -300,8 +321,12 @@ extern	trivertx_t	*poseverts[MAXALIASFRAMES];
 
 typedef enum {mod_brush, mod_sprite, mod_alias} modtype_t;
 
+#define	MOD_NOLERP		256		// don't lerp when animating
+#define	MOD_NOSHADOW	512		// don't cast a shadow
+#define	MOD_FBRIGHTHACK	1024	// when fullbrights are disabled, use a hack to render this model brighter
+
 // some models are special
-typedef enum {MOD_NORMAL, MOD_PLAYER, MOD_EYES, MOD_FLAME, MOD_THUNDERBOLT} modhint_t;
+typedef enum {MOD_NORMAL, MOD_PLAYER, MOD_EYES} modhint_t;
 
 typedef struct model_s
 {

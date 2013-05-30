@@ -830,6 +830,8 @@ extern	cvar_t	r_sky_quality;
 extern	cvar_t	r_skyalpha;
 extern	cvar_t	r_skyfog;
 extern	cvar_t	r_primitives;
+extern	cvar_t	r_lerpmodels;
+extern	cvar_t	r_lerpmove;
 
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_finish;
@@ -927,8 +929,6 @@ qbool R_CullBox (vec3_t mins, vec3_t maxs);
 qbool R_CullSphere (vec3_t centre, float radius);
 qbool R_CullModelForEntity (entity_t *e);
 
-void R_PolyBlend (void);
-
 void R_MarkSurfaces (void);
 void R_CullSurfaces (void);
 
@@ -941,13 +941,11 @@ int R_LightPoint (vec3_t p);
 
 void R_StoreEfrags (efrag_t **ppefrag);
 
-void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr);
+void GL_MakeAliasModelDisplayLists (stvert_t *stverts, dtriangle_t *triangles);
 
 void R_DrawParticles (void);
 void R_DrawWorld (void);
-void R_DrawAliasModel (entity_t *e);
 void R_DrawBrushModel (entity_t *e);
-void R_DrawSpriteModel (entity_t *e);
 
 void R_DrawTextureChains_Water (void);
 void GL_BuildLightmaps (void);
@@ -957,8 +955,6 @@ void GL_SubdivideSurface (msurface_t *fa);
 void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
 void R_RenderDynamicLightmaps (msurface_t *fa);
 void R_UploadLightmap (int lmap);
-
-void R_DrawAliasShadow (entity_t *e);
 
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
