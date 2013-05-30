@@ -511,22 +511,29 @@ void R_PolyBlend (void)
 
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
+	qglDisable (GL_DEPTH_TEST);
 	qglDisable (GL_TEXTURE_2D);
+
+	qglLoadIdentity ();
+
+	// FIXME: get rid of these
+	qglRotatef (-90, 1, 0, 0);           // put Z going up
+	qglRotatef (90, 0, 0, 1);            // put Z going up
 
 	qglColor4fv (v_blend);
 
 	qglBegin (GL_QUADS);
-	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y);
-	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y);
-	qglVertex2f (r_refdef2.vrect.x + r_refdef2.vrect.width, r_refdef2.vrect.y + r_refdef2.vrect.height);
-	qglVertex2f (r_refdef2.vrect.x, r_refdef2.vrect.y + r_refdef2.vrect.height);
+	qglVertex3f (10, 100, 100);
+	qglVertex3f (10, -100, 100);
+	qglVertex3f (10, -100, -100);
+	qglVertex3f (10, 100, -100);
 	qglEnd ();
 
 	qglDisable (GL_BLEND);
 	qglEnable (GL_TEXTURE_2D);
 	qglEnable (GL_ALPHA_TEST);
 
-	qglColor3f (1, 1, 1);
+	qglColor4f (1, 1, 1, 1);
 }
 
 /*
@@ -559,6 +566,8 @@ void R_RenderScene (void)
 	R_DrawAlphaList ();
 
 	Fog_DisableGFog ();
+
+	R_PolyBlend ();
 }
 
 /*

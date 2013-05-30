@@ -732,8 +732,6 @@ void SCR_UpdateScreen (void)
 
 		RB_SetDefaultCanvas ();
 
-		R_PolyBlend ();
-	
 		if (r_netgraph.value)
 			R_DrawNetGraph ();
 
