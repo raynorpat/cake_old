@@ -26,8 +26,8 @@
 */
 
 // start a particle effect
-//void(vector o, vector d, float color, float count,
-//		float replacement_te, float replacement_count) particle = #48;
+void(vector o, vector d, float color, float count,
+		float replacement_te, float replacement_count) particle = #48;
 
 
 float STEP = 16;

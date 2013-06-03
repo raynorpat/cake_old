@@ -1,4 +1,4 @@
-./qwprogs.dat
+./hipprogs.dat
 
 ../qw/defs.qc
 ../qw/subs.qc
@@ -12,12 +12,8 @@
 ../qw/doors.qc
 ../qw/buttons.qc
 ../qw/triggers.qc
-
-//../qw/plats.qc
-plats.qc		// hacked func_train
-
-// ../qw/misc.qc
-misc.qc
+../qw/plats.qc
+../qw/misc.qc
 
 ../qw/commands.qc
 ../qwsp/sp_commands.qc
