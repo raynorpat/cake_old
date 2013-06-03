@@ -97,7 +97,7 @@ void R_ModelSurfsBeginFrame (void)
 
 // this adds a new modelsurf to the list; called for each surf that needs rendering in a frame
 // matrix can be null
-void R_AllocModelSurf (msurface_t *surf, texture_t *tex, float *matrix)
+void R_AllocModelSurf (msurface_t *surf, texture_t *tex, glmatrix *matrix, int entnum)
 {
 	// oh shit
 	if (r_num_modelsurfs >= R_MAX_MODELSURFS) return;
@@ -119,6 +119,7 @@ void R_AllocModelSurf (msurface_t *surf, texture_t *tex, float *matrix)
 	// no chains yet
 	r_modelsurfs[r_num_modelsurfs]->surfchain = NULL;
 	r_modelsurfs[r_num_modelsurfs]->lightchain = NULL;
+	r_modelsurfs[r_num_modelsurfs]->entnum = entnum;
 
 	// go to the next modelsurf
 	r_num_modelsurfs++;
@@ -328,7 +329,7 @@ loc0:;
 			tex = R_TextureAnimation (surf->texinfo->texture, 0);
 
 			// add to the list; the world is untransformed and has no matrix
-			R_AllocModelSurf (surf, tex, NULL);
+			R_AllocModelSurf (surf, tex, NULL, -1);
 
 			// take r_wateralpha from the world
 			// (to do - add a worldspawn flag for overriding this...)
@@ -439,7 +440,7 @@ rrwnnofront:;
 			tex = R_TextureAnimation (surf->texinfo->texture, 0);
 
 			// add to the list; the world is untransformed and has no matrix
-			R_AllocModelSurf (surf, tex, NULL);
+			R_AllocModelSurf (surf, tex, NULL, -1);
 
 			// take r_wateralpha from the world
 			// (to do - add a worldspawn flag for overriding this...)
@@ -512,13 +513,37 @@ void R_CheckModelSurfs (msurface_t *surf)
 }
 
 
-void R_TransferModelSurf (msurface_t *surf, float *matrix)
+void R_TransferModelSurf (msurface_t *surf, glmatrix *matrix, int entnum)
 {
 	// regenerate and transform the vertexes
 	if (matrix) GL_RegenerateVertexes (surf->model, surf, matrix);
 
 	r_worldindexes = R_TransferIndexes (surf->glindexes, r_worldindexes, surf->numglindexes, r_numworldvertexes);
-	memcpy (r_worldvertexes, surf->glvertexes, sizeof (glvertex_t) * surf->numglvertexes);
+
+	if (surf->lightmaptexturenum)
+		memcpy (r_worldvertexes, surf->glvertexes, sizeof (glvertex_t) * surf->numglvertexes);
+	else
+	{
+		int i;
+		glvertex_t *v = surf->glvertexes;
+
+		// if LM_BLOCK_WIDTH and/or LM_BLOCK_HEIGHT change these need to be changed too
+		float row = (float) (entnum >> 8) / 256.0f + (1.0f / 512.0f);
+		float col = (float) (entnum & 255) / 256.0f + (1.0f / 512.0f);
+
+		for (i = 0; i < surf->numglvertexes; i++, v++)
+		{
+			r_worldvertexes[i].v[0] = v->v[0];
+			r_worldvertexes[i].v[1] = v->v[1];
+			r_worldvertexes[i].v[2] = v->v[2];
+
+			r_worldvertexes[i].st1[0] = v->st1[0];
+			r_worldvertexes[i].st1[1] = v->st1[1];
+
+			r_worldvertexes[i].st2[0] = col;
+			r_worldvertexes[i].st2[1] = row;
+		}
+	}
 
 	r_numworldindexes += surf->numglindexes;
 	r_numworldvertexes += surf->numglvertexes;
@@ -545,7 +570,7 @@ void R_RenderModelSurfs_Generic (r_modelsurf_t *chain, RGETMSCHAINNEXTFUNC chain
 	{
 		R_CheckModelSurfs (chain->surface);
 		// R_UpdateLightmap (chain->surface->lightmaptexturenum);
-		R_TransferModelSurf (chain->surface, chain->matrix);
+		R_TransferModelSurf (chain->surface, chain->matrix, chain->entnum);
 	}
 
 	R_FinishModelSurfs ();
@@ -732,7 +757,7 @@ void R_ExtraSurfFBCheck (qbool alpha)
 }
 
 
-void R_RenderFenceTexture (msurface_t *surf, float *matrix)
+void R_RenderFenceTexture (msurface_t *surf, glmatrix *matrix, int entnum)
 {
 	if (surf->texinfo->texture != lasttexture) r_restart_surface = true;
 	if (&lightmap_textures[surf->lightmaptexturenum] != lastlightmap) r_restart_surface = true;
@@ -766,14 +791,14 @@ void R_RenderFenceTexture (msurface_t *surf, float *matrix)
 	}
 
 	R_CheckModelSurfs (surf);
-	R_TransferModelSurf (surf, matrix);
+	R_TransferModelSurf (surf, matrix, entnum);
 
 	// special handling for fullbrights
 	R_ExtraSurfFBCheck (surf->wateralpha < 1 ? true : false);
 }
 
 
-void R_RenderAlphaSurface (msurface_t *surf, float *m)
+void R_RenderAlphaSurface (msurface_t *surf, glmatrix *m, int entnum)
 {
 	if (surf->texinfo->texture != lasttexture) r_restart_surface = true;
 	if (&lightmap_textures[surf->lightmaptexturenum] != lastlightmap) r_restart_surface = true;
@@ -801,7 +826,7 @@ void R_RenderAlphaSurface (msurface_t *surf, float *m)
 	}
 
 	R_CheckModelSurfs (surf);
-	R_TransferModelSurf (surf, m);
+	R_TransferModelSurf (surf, m, entnum);
 
 	// special handling for fullbrights
 	R_ExtraSurfFBCheck (true);
