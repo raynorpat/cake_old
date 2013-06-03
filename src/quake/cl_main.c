@@ -948,7 +948,6 @@ void CL_Init (void)
 	CL_InitLocal ();
 	CL_FixupModelNames ();
 	CL_InitInput ();
-	CL_InitTEnts ();
 	CL_InitPrediction ();
 	CL_InitCam ();
 	CL_Ents_Init ();
@@ -959,6 +958,8 @@ void CL_Init (void)
 
 	// put up the loading image so the user doesn't stare at a black screen...
 	SCR_BeginLoadingPlaque();
+
+	CL_InitTEnts ();
 
 	NET_ClientConfig (true);
 
@@ -1131,44 +1132,39 @@ void CL_Frame (double time)
 	cl.servertime += cls.frametime;
 	cl.stats[STAT_TIME] = cl.servertime * 1000;	// for demos' sake
 
-if (cls.physframe)
-{
-	// get new key events
-	Sys_SendKeyEvents ();
+	if (cls.physframe)
+	{
+		// get new key events
+		Sys_SendKeyEvents ();
 
-	// allow mice or other external controllers to add commands
-	IN_Commands ();
+		// allow mice or other external controllers to add commands
+		IN_Commands ();
 
-	// process console commands
-	Cbuf_Execute ();
-	CL_CheckAutoPause ();
+		// process console commands
+		Cbuf_Execute ();
+		CL_CheckAutoPause ();
 
-	// if running a local server, send the move command now
-//	if (com_serveractive && !cls.demorecording)
-//		CL_SendToServer ();
+		if (com_serveractive)
+			SV_Frame (cls.physframetime);
 
-	if (com_serveractive)
-		SV_Frame (cls.physframetime);
+		// fetch results from server
+		CL_ReadPackets ();
 
-	// fetch results from server
-	CL_ReadPackets ();
+	#ifdef MVDPLAY
+		if (cls.mvdplayback)
+			MVD_Interpolate ();
+	#endif
 
-#ifdef MVDPLAY
-	if (cls.mvdplayback)
-		MVD_Interpolate ();
-#endif
+		// process stuffed commands
+		Cbuf_ExecuteEx (&cbuf_svc);
 
-	// process stuffed commands
-	Cbuf_ExecuteEx (&cbuf_svc);
-
-//	if (!(com_serveractive && !cls.demorecording))
 		CL_SendToServer ();
-}
-else {
-	usercmd_t dummy;
-	IN_Move (&dummy);
-	CL_AdjustAngles ();
-}
+	} else {
+		usercmd_t dummy;
+		IN_Move (&dummy);
+
+		CL_AdjustAngles ();
+	}
 
 	// predict all players
 	CL_PredictMovement ();
