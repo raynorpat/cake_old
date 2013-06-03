@@ -25,7 +25,7 @@ extern float v_blend[4];
 
 void V_ClearScene (void);
 void V_AddEntity (entity_t *ent);
-void V_AddDlight (int key, vec3_t origin, float radius, float minlight, float die, int *color);
+void V_AddDlight (int key, vec3_t origin, float radius, float minlight, float die, vec3_t color);
 void V_AddParticle (vec3_t origin, int color, float alpha);
 
 void V_Init (void);

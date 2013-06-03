@@ -621,6 +621,7 @@ void CL_VoorTrail (vec3_t start, vec3_t end, vec3_t trail_origin)
 
 		VectorAdd (point, vec, point);
 	}
+	VectorCopy (point, trail_origin);
 }
 
 /*
