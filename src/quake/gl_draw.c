@@ -942,7 +942,6 @@ R_DrawStretchRaw
 */
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data)
 {
-/*
 	unsigned	image32[256*256];
 	int			i, j, trows;
 	byte		*source;
@@ -961,7 +960,7 @@ void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *dat
 	qglMatrixMode (GL_MODELVIEW);
     qglLoadIdentity ();
 
-	GL_BindTexture (GL_TEXTURE0_ARB, NULL);
+	GL_BindTexture (GL_TEXTURE0_ARB, notexture);
 
 	if (rows<=256)
 	{
@@ -1006,7 +1005,6 @@ void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *dat
 	qglTexCoord2f (0, t);
 	qglVertex2f (x, y+h);
 	qglEnd ();
-	*/
 }
 
 //====================================================================
