@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rc_image.h"
 
 char loadfilename[MAX_OSPATH]; // file scope so that error messages can use it
+byte *Image_LoadTGA2 (byte *tgabuf, int *width, int *height);
+
 
 /*
 ============
@@ -39,8 +41,25 @@ byte *Image_LoadImage (char *name, int *width, int *height)
 
 	sprintf (loadfilename, "%s.tga", name);
 	FS_FOpenFile (loadfilename, &f);
+
 	if (f)
 		return Image_LoadTGA (f, width, height);
+
+	/*
+	if (f)
+	{
+		// NB - it is expected that the caller will do a Hunk_FreeToLowMark
+		byte *tgaload = NULL;
+		byte *tgabuf = (byte *) Hunk_Alloc (fs_filesize);
+
+		fread (tgabuf, fs_filesize, 1, f);
+		fclose (f);
+
+		tgaload = Image_LoadTGA2 (tgabuf, width, height);
+
+		return tgaload;
+	}
+	*/
 
 	sprintf (loadfilename, "%s.pcx", name);
 	FS_FOpenFile (loadfilename, &f);
@@ -58,8 +77,6 @@ TARGA LOADING
 
 =========================================================
 */
-
-targaheader_t targa_header;
 
 int fgetLittleShort (FILE *f)
 {
@@ -94,6 +111,9 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 	byte			*pixbuf;
 	int				row, column;
 	byte			*targa_rgba;
+	int				realrow; // johnfitz -- fix for upside-down targas
+	qbool			upside_down; // johnfitz -- fix for upside-down targas
+	targaheader_t 	targa_header;
 
 	targa_header.id_length = fgetc(fin);
 	targa_header.colormap_type = fgetc(fin);
@@ -118,8 +138,9 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 	columns = targa_header.width;
 	rows = targa_header.height;
 	numPixels = columns * rows;
+	upside_down = !(targa_header.attributes & 0x20); // johnfitz -- fix for upside-down targas
 
-	targa_rgba = Hunk_Alloc (numPixels*4);
+	targa_rgba = (byte *) Hunk_Alloc (numPixels * 4);
 
 	if (targa_header.id_length != 0)
 		fseek(fin, targa_header.id_length, SEEK_CUR);  // skip TARGA image comment
@@ -128,19 +149,24 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 	{
 		for(row=rows-1; row>=0; row--)
 		{
-			pixbuf = targa_rgba + row*columns*4;
+			// johnfitz -- fix for upside-down targas
+			realrow = upside_down ? row : rows - 1 - row;
+			pixbuf = targa_rgba + realrow * columns * 4;
+
+			// johnfitz
 			for(column=0; column<columns; column++)
 			{
 				unsigned char red,green,blue,alphabyte;
+
 				switch (targa_header.pixel_size)
 				{
 				case 24:
 						blue = getc(fin);
 						green = getc(fin);
 						red = getc(fin);
-						*pixbuf++ = red;
-						*pixbuf++ = green;
 						*pixbuf++ = blue;
+						*pixbuf++ = green;
+						*pixbuf++ = red;
 						*pixbuf++ = 255;
 						break;
 				case 32:
@@ -148,9 +174,9 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 						green = getc(fin);
 						red = getc(fin);
 						alphabyte = getc(fin);
-						*pixbuf++ = red;
-						*pixbuf++ = green;
 						*pixbuf++ = blue;
+						*pixbuf++ = green;
+						*pixbuf++ = red;
 						*pixbuf++ = alphabyte;
 						break;
 				}
@@ -159,14 +185,20 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 	}
 	else if (targa_header.image_type==10) // Runlength encoded RGB images
 	{
-		unsigned char red,green,blue,alphabyte,packetHeader,packetSize,j;
+		unsigned char red = 0, green = 0, blue = 0, alphabyte = 0, packetHeader = 0, packetSize = 0, j = 0;
+
 		for(row=rows-1; row>=0; row--)
 		{
-			pixbuf = targa_rgba + row*columns*4;
+			// johnfitz -- fix for upside-down targas
+			realrow = upside_down ? row : rows - 1 - row;
+			pixbuf = targa_rgba + realrow * columns * 4;
+
+			// johnfitz
 			for(column=0; column<columns; )
 			{
 				packetHeader=getc(fin);
 				packetSize = 1 + (packetHeader & 0x7f);
+
 				if (packetHeader & 0x80) // run-length packet
 				{
 					switch (targa_header.pixel_size)
@@ -187,19 +219,25 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 
 					for(j=0;j<packetSize;j++)
 					{
-						*pixbuf++=red;
-						*pixbuf++=green;
 						*pixbuf++=blue;
+						*pixbuf++ = green;
+						*pixbuf++ = red;
 						*pixbuf++=alphabyte;
 						column++;
+
 						if (column==columns) // run spans across rows
 						{
 							column=0;
+
 							if (row>0)
 								row--;
 							else
 								goto breakOut;
-							pixbuf = targa_rgba + row*columns*4;
+
+							// johnfitz -- fix for upside-down targas
+							realrow = upside_down ? row : rows - 1 - row;
+							pixbuf = targa_rgba + realrow * columns * 4;
+							// johnfitz
 						}
 					}
 				}
@@ -213,9 +251,9 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 								blue = getc(fin);
 								green = getc(fin);
 								red = getc(fin);
-								*pixbuf++ = red;
-								*pixbuf++ = green;
 								*pixbuf++ = blue;
+								*pixbuf++ = green;
+								*pixbuf++ = red;
 								*pixbuf++ = 255;
 								break;
 						case 32:
@@ -223,26 +261,34 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 								green = getc(fin);
 								red = getc(fin);
 								alphabyte = getc(fin);
-								*pixbuf++ = red;
-								*pixbuf++ = green;
 								*pixbuf++ = blue;
+								*pixbuf++ = green;
+								*pixbuf++ = red;
 								*pixbuf++ = alphabyte;
 								break;
 						}
+
 						column++;
+
 						if (column==columns) // pixel packet run spans across rows
 						{
 							column=0;
+
 							if (row>0)
 								row--;
 							else
 								goto breakOut;
-							pixbuf = targa_rgba + row*columns*4;
+
+							// johnfitz -- fix for upside-down targas
+							realrow = upside_down ? row : rows - 1 - row;
+							pixbuf = targa_rgba + realrow * columns * 4;
+							// johnfitz
 						}
 					}
 				}
 			}
-			breakOut:;
+
+breakOut:;
 		}
 	}
 
@@ -253,6 +299,194 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 	return targa_rgba;
 }
 
+// faster version that doesn't hammer disk IO so badly
+byte *Image_LoadTGA2 (byte *tgabuf, int *width, int *height)
+{
+	int				columns, rows, numPixels;
+	byte			*pixbuf;
+	int				row, column;
+	byte			*targa_rgba;
+	int				realrow; // johnfitz -- fix for upside-down targas
+	qbool			upside_down; // johnfitz -- fix for upside-down targas
+	targaheader_t	*tgaheader;
+
+	tgaheader = (targaheader_t *) tgabuf;
+	tgabuf += sizeof (targaheader_t);
+
+	tgaheader->colormap_index = LittleShort (tgaheader->colormap_index);
+	tgaheader->colormap_length = LittleShort (tgaheader->colormap_length);
+	tgaheader->x_origin = LittleShort (tgaheader->x_origin);
+	tgaheader->y_origin = LittleShort (tgaheader->y_origin);
+	tgaheader->width = LittleShort (tgaheader->width);
+	tgaheader->height = LittleShort (tgaheader->height);
+
+	if (tgaheader->image_type != 2 && tgaheader->image_type != 10)
+		Sys_Error ("Image_LoadTGA: %s is not a type 2 or type 10 targa\n", loadfilename);
+
+	if (tgaheader->colormap_type != 0 || (tgaheader->pixel_size != 32 && tgaheader->pixel_size != 24))
+		Sys_Error ("Image_LoadTGA: %s is not a 24bit or 32bit targa\n", loadfilename);
+
+	columns = tgaheader->width;
+	rows = tgaheader->height;
+	numPixels = columns * rows;
+	upside_down = !(tgaheader->attributes & 0x20); // johnfitz -- fix for upside-down targas
+
+	targa_rgba = (byte *) Hunk_Alloc (numPixels * 4);
+
+	if (tgaheader->id_length != 0)
+		tgabuf += tgaheader->id_length;
+
+	if (tgaheader->image_type == 2) // Uncompressed, RGB images
+	{
+		for (row = rows - 1; row >= 0; row--)
+		{
+			// johnfitz -- fix for upside-down targas
+			realrow = upside_down ? row : rows - 1 - row;
+			pixbuf = targa_rgba + realrow * columns * 4;
+
+			// johnfitz
+			for (column = 0; column < columns; column++)
+			{
+				unsigned char red, green, blue, alphabyte;
+
+				switch (tgaheader->pixel_size)
+				{
+				case 24:
+					blue = *tgabuf++;
+					green = *tgabuf++;
+					red = *tgabuf++;
+					*pixbuf++ = blue;
+					*pixbuf++ = green;
+					*pixbuf++ = red;
+					*pixbuf++ = 255;
+					break;
+				case 32:
+					blue = *tgabuf++;
+					green = *tgabuf++;
+					red = *tgabuf++;
+					alphabyte = *tgabuf++;
+					*pixbuf++ = blue;
+					*pixbuf++ = green;
+					*pixbuf++ = red;
+					*pixbuf++ = alphabyte;
+					break;
+				}
+			}
+		}
+	}
+	else if (tgaheader->image_type == 10) // Runlength encoded RGB images
+	{
+		unsigned char red = 0, green = 0, blue = 0, alphabyte = 0, packetHeader = 0, packetSize = 0, j = 0;
+
+		for (row = rows - 1; row >= 0; row--)
+		{
+			// johnfitz -- fix for upside-down targas
+			realrow = upside_down ? row : rows - 1 - row;
+			pixbuf = targa_rgba + realrow * columns * 4;
+
+			// johnfitz
+			for (column = 0; column < columns;)
+			{
+				packetHeader = *tgabuf++;
+				packetSize = 1 + (packetHeader & 0x7f);
+
+				if (packetHeader & 0x80) // run-length packet
+				{
+					switch (tgaheader->pixel_size)
+					{
+					case 24:
+						blue = *tgabuf++;
+						green = *tgabuf++;
+						red = *tgabuf++;
+						alphabyte = 255;
+						break;
+					case 32:
+						blue = *tgabuf++;
+						green = *tgabuf++;
+						red = *tgabuf++;
+						alphabyte = *tgabuf++;
+						break;
+					}
+
+					for (j = 0; j < packetSize; j++)
+					{
+						*pixbuf++ = blue;
+						*pixbuf++ = green;
+						*pixbuf++ = red;
+						*pixbuf++ = alphabyte;
+						column++;
+
+						if (column == columns) // run spans across rows
+						{
+							column = 0;
+
+							if (row > 0)
+								row--;
+							else
+								goto breakOut;
+
+							// johnfitz -- fix for upside-down targas
+							realrow = upside_down ? row : rows - 1 - row;
+							pixbuf = targa_rgba + realrow * columns * 4;
+							// johnfitz
+						}
+					}
+				}
+				else // non run-length packet
+				{
+					for (j = 0; j < packetSize; j++)
+					{
+						switch (tgaheader->pixel_size)
+						{
+						case 24:
+							blue = *tgabuf++;
+							green = *tgabuf++;
+							red = *tgabuf++;
+							*pixbuf++ = blue;
+							*pixbuf++ = green;
+							*pixbuf++ = red;
+							*pixbuf++ = 255;
+							break;
+						case 32:
+							blue = *tgabuf++;
+							green = *tgabuf++;
+							red = *tgabuf++;
+							alphabyte = *tgabuf++;
+							*pixbuf++ = blue;
+							*pixbuf++ = green;
+							*pixbuf++ = red;
+							*pixbuf++ = alphabyte;
+							break;
+						}
+
+						column++;
+
+						if (column == columns) // pixel packet run spans across rows
+						{
+							column = 0;
+
+							if (row > 0)
+								row--;
+							else
+								goto breakOut;
+
+							// johnfitz -- fix for upside-down targas
+							realrow = upside_down ? row : rows - 1 - row;
+							pixbuf = targa_rgba + realrow * columns * 4;
+							// johnfitz
+						}
+					}
+				}
+			}
+
+breakOut:;
+		}
+	}
+
+	*width = (int) (tgaheader->width);
+	*height = (int) (tgaheader->height);
+	return targa_rgba;
+}
 
 /*
 =================================================================

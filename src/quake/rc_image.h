@@ -23,13 +23,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // TGA header
 //
-typedef struct targaheader_s {
+#pragma pack (push, 1)
+typedef struct targaheader_s
+{
 	unsigned char 	id_length, colormap_type, image_type;
 	unsigned short	colormap_index, colormap_length;
 	unsigned char	colormap_size;
 	unsigned short	x_origin, y_origin, width, height;
 	unsigned char	pixel_size, attributes;
 } targaheader_t;
+#pragma pack (pop)
 
 //
 // PCX header
