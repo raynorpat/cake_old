@@ -34,6 +34,7 @@ unsigned int playerfbtextures[MAX_CLIENTS];
 #define ALPHATYPE_PARTICLE	5
 #define ALPHATYPE_FENCE		6
 #define ALPHATYPE_SURFACE	7
+#define ALPHATYPE_CORONA	8
 
 typedef struct alphalist_s
 {
@@ -42,13 +43,15 @@ typedef struct alphalist_s
 		entity_t *ent;
 		msurface_t *surf;
 		particle_type_t *particles;
+		dlight_t *light;
 	};
 
 	xcommand_t setupfunc;
 	xcommand_t takedownfunc;
 
-	float *matrix;
+	glmatrix *matrix;
 
+	int entnum;
 	int type;
 	float dist;
 } alphalist_t;
@@ -109,6 +112,24 @@ alphalist_t *R_GrabAlphaSlot (void)
 }
 
 
+void R_CoronasBegin (void);
+void R_CoronasEnd (void);
+void R_RenderCorona (dlight_t *light);
+
+void R_AddCoronaToAlphaList (dlight_t *l)
+{
+	alphalist_t *al;
+
+	if (!(al = R_GrabAlphaSlot ())) return;
+
+	al->setupfunc = R_CoronasBegin;
+	al->takedownfunc = R_CoronasEnd;
+	al->type = ALPHATYPE_CORONA;
+	al->dist = R_GetDist (l->origin);
+	al->light = l;
+}
+
+
 void R_ParticlesBegin (void);
 void R_ParticlesEnd (void);
 
@@ -127,21 +148,20 @@ void R_AddParticlesToAlphaList (particle_type_t *pt)
 }
 
 
-void R_InvalidateFence (void);
 void R_LiquidBegin (void);
 void R_LiquidEnd (void);
 void R_SpriteBegin (void);
 void R_SpriteEnd (void);
 
-float *R_TransformMidPoint (float *midpoint, float *matrix)
+float *R_TransformMidPoint (float *midpoint, glmatrix *m)
 {
 	static float transformed[3] = {0, 0, 0};
 
-	if (matrix)
+	if (m)
 	{
-		transformed[0] = midpoint[0] * matrix[0] + midpoint[1] * matrix[4] + midpoint[2] * matrix[8] + matrix[12];
-		transformed[1] = midpoint[0] * matrix[1] + midpoint[1] * matrix[5] + midpoint[2] * matrix[9] + matrix[13];
-		transformed[2] = midpoint[0] * matrix[2] + midpoint[1] * matrix[6] + midpoint[2] * matrix[10] + matrix[14];
+		transformed[0] = midpoint[0] * m->m16[0] + midpoint[1] * m->m16[4] + midpoint[2] * m->m16[8] + m->m16[12];
+		transformed[1] = midpoint[0] * m->m16[1] + midpoint[1] * m->m16[5] + midpoint[2] * m->m16[9] + m->m16[13];
+		transformed[2] = midpoint[0] * m->m16[2] + midpoint[1] * m->m16[6] + midpoint[2] * m->m16[10] + m->m16[14];
 	}
 	else
 	{
@@ -153,7 +173,7 @@ float *R_TransformMidPoint (float *midpoint, float *matrix)
 	return transformed;
 }
 
-/*
+
 void R_AddLiquidToAlphaList (r_modelsurf_t *ms)
 {
 	alphalist_t *al;
@@ -169,13 +189,13 @@ void R_AddLiquidToAlphaList (r_modelsurf_t *ms)
 	al->dist = R_GetDist (R_TransformMidPoint (ms->surface->midpoint, ms->matrix));
 	al->surf = ms->surface;
 	al->matrix = ms->matrix;
+	al->entnum = ms->entnum;
 }
-*/
+
 
 void R_ExtraSurfsBegin (void);
 void R_ExtraSurfsEnd (void);
 
-/*
 void R_AddSurfaceToAlphaList (r_modelsurf_t *ms)
 {
 	alphalist_t *al;
@@ -191,13 +211,12 @@ void R_AddSurfaceToAlphaList (r_modelsurf_t *ms)
 	al->dist = R_GetDist (R_TransformMidPoint (ms->surface->midpoint, ms->matrix));
 	al->surf = ms->surface;
 	al->matrix = ms->matrix;
+	al->entnum = ms->entnum;
 }
-*/
 
-/*
+
 void R_AddFenceToAlphaList (r_modelsurf_t *ms)
 {
-/*
 	alphalist_t *al;
 
 	if (!(al = R_GrabAlphaSlot ()))
@@ -211,8 +230,9 @@ void R_AddFenceToAlphaList (r_modelsurf_t *ms)
 	al->dist = R_GetDist (R_TransformMidPoint (ms->surface->midpoint, ms->matrix));
 	al->surf = ms->surface;
 	al->matrix = ms->matrix;
+	al->entnum = ms->entnum;
 }
-*/
+
 
 void R_AddEntityToAlphaList (entity_t *ent)
 {
@@ -227,11 +247,10 @@ void R_AddEntityToAlphaList (entity_t *ent)
 		al->type = ALPHATYPE_ALIAS;
 		break;
 
-/*
 	case mod_brush:
 		al->type = ALPHATYPE_BRUSH;
 		break;
-*/
+
 	case mod_sprite:
 		al->type = ALPHATYPE_SPRITE;
 		al->setupfunc = R_SpriteBegin;
@@ -259,14 +278,14 @@ int R_AlphaSortFunc (const void *a1, const void *a2)
 
 
 void R_InvalidateSprite (void);
-void R_RenderFenceTexture (msurface_t *surf, float *matrix);
+void R_RenderFenceTexture (msurface_t *surf, glmatrix *matrix, int entnum);
 void R_DrawAliasBatches (entity_t **ents, int numents, void *meshbuffer);
 void R_SetupAliasModel (entity_t *e);
 void R_DrawAlphaBModel (entity_t *ent);
 void R_InvalidateLiquid (void);
-void R_InvalidateAlphaSurf (void);
-void R_RenderAlphaSurface (msurface_t *surf, float *m);
-void R_RenderLiquidSurface (msurface_t *surf, float *m);
+void R_InvalidateExtraSurf (void);
+void R_RenderAlphaSurface (msurface_t *surf, glmatrix *m, int entnum);
+void R_RenderLiquidSurface (msurface_t *surf, glmatrix *m);
 
 
 void R_DrawAlphaList (void)
@@ -300,9 +319,8 @@ void R_DrawAlphaList (void)
 
 	// invalidate all cached states
 	R_InvalidateSprite ();
-//	R_InvalidateFence ();
-//	R_InvalidateLiquid ();
-//	R_InvalidateAlphaSurf ();
+	R_InvalidateLiquid ();
+	R_InvalidateExtraSurf ();
 
 	for (i = 0; i < r_numalphalist; i++)
 	{
@@ -316,9 +334,8 @@ void R_DrawAlphaList (void)
 		{
 			// invalidate all cached states
 			R_InvalidateSprite ();
-//			R_InvalidateFence ();
-//			R_InvalidateLiquid ();
-//			R_InvalidateAlphaSurf ();
+			R_InvalidateLiquid ();
+			R_InvalidateExtraSurf ();
 
 			// callbacks for state takedown (if needed)
 			if (prev->takedownfunc)
@@ -344,11 +361,10 @@ void R_DrawAlphaList (void)
 
 			break;
 
-/*
 		case ALPHATYPE_BRUSH:
 			R_DrawAlphaBModel (curr->ent);
 			break;
-*/
+
 		case ALPHATYPE_SPRITE:
 			R_DrawSpriteModel (curr->ent);
 			break;
@@ -356,9 +372,9 @@ void R_DrawAlphaList (void)
 		case ALPHATYPE_PARTICLE:
 			R_DrawParticlesForType (curr->particles);
 			break;
-/*
+
 		case ALPHATYPE_FENCE:
-			R_RenderFenceTexture (curr->surf, curr->matrix);
+			R_RenderFenceTexture (curr->surf, curr->matrix, curr->entnum);
 			break;
 
 		case ALPHATYPE_LIQUID:
@@ -366,9 +382,13 @@ void R_DrawAlphaList (void)
 			break;
 
 		case ALPHATYPE_SURFACE:
-			R_RenderAlphaSurface (curr->surf, curr->matrix);
+			R_RenderAlphaSurface (curr->surf, curr->matrix, curr->entnum);
 			break;
-*/
+
+		case ALPHATYPE_CORONA:
+			R_RenderCorona (curr->light);
+			break;
+
 		default:
 			break;
 		}
@@ -379,7 +399,7 @@ void R_DrawAlphaList (void)
 	if (prev->takedownfunc)
 		prev->takedownfunc ();
 
-	GL_Color (1, 1, 1, 1);	// current color is undefined after vertex arrays so this is always needed
+	qglColor4f (1, 1, 1, 1);	// current color is undefined after vertex arrays so this is always needed
 	qglAlphaFunc (GL_GREATER, 0.666);
 	qglDisable (GL_ALPHA_TEST);
 
@@ -436,7 +456,7 @@ void R_TranslatePlayerSkin (int playernum, byte *original)
 	unsigned	frac, fracstep;
 	extern	byte		player_8bit_texels[320*200];
 
-	GL_DisableMultitexture();
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_NONE);
 
 	top = r_translations[playernum].topcolor;
 	bottom = r_translations[playernum].bottomcolor;
@@ -484,7 +504,8 @@ void R_TranslatePlayerSkin (int playernum, byte *original)
 
 	// because this happens during gameplay, do it fast
 	// instead of sending it through gl_upload 8
-	GL_Bind(playertextures + playernum);
+	GL_ActiveTexture (GL_TEXTURE0_ARB);
+	qglBindTexture (GL_TEXTURE_2D, playertextures + playernum);
 
 	// scale and upload the texture
 	out = pixels;
@@ -509,7 +530,8 @@ void R_TranslatePlayerSkin (int playernum, byte *original)
 
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, inwidth, inheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	GL_TexEnv(GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
+
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -630,10 +652,14 @@ void R_NewMap (struct model_s *worldmodel)
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
 	r_worldentity.model = r_worldmodel;
 
+	R_Modules_NewMap();
+
 	// clear down stuff from the previous map
+	R_ModelSurfsBeginMap ();
 	R_AlphaListBeginMap ();
 
-	R_Modules_NewMap();
+	// create any static vertex and index buffers we need for this map
+	R_CreateMeshIndexBuffer ();
 
 // clear out efrags in case the level hasn't been reloaded
 // FIXME: is this one short?
@@ -644,18 +670,15 @@ void R_NewMap (struct model_s *worldmodel)
 
 	GL_BuildLightmaps ();
 
+	r_framecount = 0;
+	r_visframecount = 0;
+
+	Sky_NewMap (); // skybox in worldspawn
+	Fog_NewMap (); // global fog in worldspawn
+
 	R_FlushTranslations ();
-}
 
-
-void R_LoadSky_f ()
-{
-	if (Cmd_Argc() < 2) {
-		Com_Printf ("loadsky <name> : load a custom skybox\n");
-		return;
-	}
-
-	Sky_LoadSkyBox (Cmd_Argv(1));
+	R_InitVertexBuffers ();
 }
 
 

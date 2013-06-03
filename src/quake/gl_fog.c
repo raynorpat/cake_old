@@ -335,7 +335,7 @@ void Fog_Init (void)
 	Cmd_AddCommand ("fog", Fog_FogCommand_f);
 
 	// set up global fog
-	fog_density = 0.0;
+	fog_density = 0;
 	fog_red = 0.3;
 	fog_green = 0.3;
 	fog_blue = 0.3;

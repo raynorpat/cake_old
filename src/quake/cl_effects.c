@@ -917,40 +917,37 @@ dlight_t		cl_visdlights[MAX_DLIGHTS];
 
 /*
 ===============
-CL_AllocDlight
-
+CL_FindDlight
 ===============
 */
-cdlight_t *CL_AllocDlight (int key)
+cdlight_t *CL_FindDlight (int key)
 {
 	int		i;
 	cdlight_t	*dl;
 
-// first look for an exact key match
+	// first look for an exact key match
 	if (key)
 	{
 		dl = cl_dlights;
-		for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
+		for (i = 0; i < MAX_DLIGHTS; i++, dl++)
 		{
 			if (dl->key == key)
 			{
 				memset (dl, 0, sizeof(*dl));
 				dl->key = key;
-				dl->color[0] = dl->color[1] = dl->color[2] = 1;
 				return dl;
 			}
 		}
 	}
 
-// then look for anything else
+	// then look for anything else
 	dl = cl_dlights;
-	for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
+	for (i = 0; i < MAX_DLIGHTS; i++, dl++)
 	{
 		if (dl->die < cl.time)
 		{
 			memset (dl, 0, sizeof(*dl));
 			dl->key = key;
-			dl->color[0] = dl->color[1] = dl->color[2] = 1;
 			return dl;
 		}
 	}
@@ -958,24 +955,45 @@ cdlight_t *CL_AllocDlight (int key)
 	dl = &cl_dlights[0];
 	memset (dl, 0, sizeof(*dl));
 	dl->key = key;
-	dl->color[0] = dl->color[1] = dl->color[2] = 1;
 	return dl;
 }
 
 /*
 ===============
-CL_NewDlight
+CL_AllocDlight
 ===============
 */
-void CL_NewDlight (int key, vec3_t origin, float radius, float time, vec3_t color)
+cdlight_t *CL_AllocDlight (int key)
 {
-	cdlight_t	*dl;
+	// find a dlight to use
+	cdlight_t *dl = CL_FindDlight (key);
 
-	dl = CL_AllocDlight (key);
-	VectorCopy (origin, dl->origin);
-	dl->radius = radius;
-	dl->die = cl.time + time;
-	VectorCopy(color, dl->color);
+	// set default colour for any we don't colour ourselves
+	dl->color[0] = dl->color[1] = dl->color[2] = 255;
+
+	// done
+	return dl;
+}
+
+
+void R_ColorDLight (dlight_t *dl, int r, int g, int b)
+{
+	dl->color[0] = r;
+	dl->color[1] = g;
+	dl->color[2] = b;
+}
+
+
+void R_ColorWizLight (dlight_t *dl)
+{
+	R_ColorDLight (dl, 308, 351, 109);
+}
+
+
+void R_ColorLightningLight (dlight_t *dl)
+{
+	// old - R_ColorDLight (dl, 2, 225, 541);
+	R_ColorDLight (dl, 65, 232, 470);
 }
 
 
@@ -990,14 +1008,17 @@ void CL_LinkDlights (void)
 	cdlight_t	*dl;
 
 	dl = cl_dlights;
-	for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
+	for (i = 0; i < MAX_DLIGHTS; i++, dl++)
 	{
 		if (dl->die < cl.time || dl->radius <= 0)
 			continue;
 
-		V_AddDlight(dl->key, dl->origin, dl->radius, dl->minlight, dl->color);
+		V_AddDlight(dl->key, dl->origin, dl->radius, dl->minlight, dl->die, dl->color);
 
 		dl->radius -= cls.frametime * dl->decay;
+
+		if (dl->radius < 0)
+			dl->radius = 0;
 	}
 }
 

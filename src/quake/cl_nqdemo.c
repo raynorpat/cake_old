@@ -707,8 +707,8 @@ void NQD_LinkEntities (void)
 	float				f;
 	struct model_s		*model;
 	int					modelflags;
+	cdlight_t			*dl;
 	vec3_t				cur_origin, old_origin;
-	vec3_t				color;
 	float				autorotate;
 	int					i;
 	int					num;
@@ -737,7 +737,6 @@ void NQD_LinkEntities (void)
 		// spawn light flashes, even ones coming from invisible objects
 		if (state->effects & EF_MUZZLEFLASH) {
 			vec3_t		angles, forward;
-			cdlight_t	*dl;
 
 			dl = CL_AllocDlight (-num);
 			MSG_UnpackAngles (state->s_angles, angles);
@@ -747,20 +746,64 @@ void NQD_LinkEntities (void)
 			dl->radius = 200 + (rand()&31);
 			dl->minlight = 32;
 			dl->die = cl.time + 0.1;
-			dl->color[0] = 0.9; dl->color[2] = 0.6; dl->color[3] = 0.4;
+
+			R_ColorDLight (dl, 408, 242, 117);
+
+			if (state->modelindex == cl_playerindex)
+			{
+				if (cl.stats[STAT_ACTIVEWEAPON] == IT_SUPER_LIGHTNING)
+				{
+					// switch the dlight colour
+					R_ColorLightningLight (dl);
+				}
+				else if (cl.stats[STAT_ACTIVEWEAPON] == IT_LIGHTNING)
+				{
+					// switch the dlight colour
+					R_ColorLightningLight (dl);
+				}
+			
+				R_ColorDLight (dl, 255, 255, 255);
+			}
 		}
 		if (state->effects & EF_BRIGHTLIGHT) {
 			if (state->modelindex != cl_playerindex || r_powerupglow.value) {
-				vec3_t	tmp;
-				VectorCopy (cur_origin, tmp);
-				tmp[2] += 16;
-				color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
-				CL_NewDlight (state->number, tmp, 400 + (rand()&31), 0.1, color);
+				dl = CL_AllocDlight (-num);
+				VectorCopy (cur_origin,  dl->origin);
+				dl->origin[2] += 16;
+				dl->radius = 400 + (rand() & 31);
+				dl->die = cl.time + 0.001;
 			}
 		}
 		if (state->effects & EF_DIMLIGHT) {
-			color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
-			CL_NewDlight (state->number, cur_origin, 200 + (rand()&31), 0.1, color);
+			if (state->modelindex != cl_playerindex || r_powerupglow.value) {
+				dl = CL_AllocDlight (-num);
+				VectorCopy (cur_origin,  dl->origin);
+				dl->radius = 200 + (rand() & 31);
+				dl->die = cl.time + 0.001;
+
+				// powerup dynamic lights
+				if (state->modelindex == cl_playerindex)
+				{
+					int AverageColour;
+					int rgb[3];
+
+					rgb[0] = 64;
+					rgb[1] = 64;
+					rgb[2] = 64;
+
+					if (cl.stats[STAT_ITEMS] & IT_QUAD) rgb[2] = 255;
+					if (cl.stats[STAT_ITEMS] & IT_INVULNERABILITY) rgb[0] = 255;
+
+					// re-balance the colours
+					AverageColour = (rgb[0] + rgb[1] + rgb[2]) / 3;
+
+					rgb[0] = rgb[0] * 255 / AverageColour;
+					rgb[1] = rgb[1] * 255 / AverageColour;
+					rgb[2] = rgb[2] * 255 / AverageColour;
+
+					R_ColorDLight (dl, rgb[0], rgb[1], rgb[2]);
+				}
+			}
 		}
 
 		// if set to invisible, skip
@@ -872,10 +915,13 @@ void NQD_LinkEntities (void)
 						CL_RocketTrail (old_origin, ent.origin);
 				}
 
-				if (r_rocketlight.value)
-				{
-					color[0] = 0.9; color[1] = 0.6; color[2] = 0.4;
-					CL_NewDlight (state->number, ent.origin, 200, 0.1, color);
+				if (r_rocketlight.value) {
+					dl = CL_AllocDlight (state->number);
+					VectorCopy (ent.origin, dl->origin);
+					dl->radius = 200;
+					dl->die = cl.time + 0.01;
+
+					R_ColorDLight (dl, 408, 242, 117);
 				}
 			}
 			else if (modelflags & MF_GRENADE && r_grenadetrail.value)
@@ -884,12 +930,34 @@ void NQD_LinkEntities (void)
 				CL_BloodTrail (old_origin, ent.origin);
 			else if (modelflags & MF_ZOMGIB)
 				CL_SlightBloodTrail (old_origin, ent.origin);
-			else if (modelflags & MF_TRACER)
+			else if (modelflags & MF_TRACER) {
 				CL_TracerTrail (old_origin, ent.origin, 52);
-			else if (modelflags & MF_TRACER2)
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent.origin, dl->origin);
+				dl->radius = 200;
+				dl->die = cl.time + 0.01;
+
+				R_ColorWizLight (dl);
+			} else if (modelflags & MF_TRACER2) {
 				CL_TracerTrail (old_origin, ent.origin, 230);
-			else if (modelflags & MF_TRACER3)
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent.origin, dl->origin);
+				dl->radius = 200;
+				dl->die = cl.time + 0.01;
+
+				R_ColorDLight (dl, 408, 242, 117);
+			} else if (modelflags & MF_TRACER3) {
 				CL_VoorTrail (old_origin, ent.origin);
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent.origin, dl->origin);
+				dl->radius = 200;
+				dl->die = cl.time + 0.01;
+
+				R_ColorDLight (dl, 399, 141, 228);
+			}
 		}
 
 		VectorCopy (ent.origin, cent->lerp_origin);

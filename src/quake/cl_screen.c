@@ -692,13 +692,9 @@ needs almost the entire 256k of stack space!
 ==================
 */
 void Draw_EndBatching (void);
-void R_GetPrimitiveType (void);
 
 void SCR_UpdateScreen (void)
 {
-	// decode the primitive type
-	R_GetPrimitiveType ();
-
 	VID_UpdateGamma(false);
 
 	if (!scr_initialized)
@@ -706,6 +702,10 @@ void SCR_UpdateScreen (void)
 
 	if (vid_hidden)
 		return;
+
+	// unbind everything to start the frame with a clean slate
+	GL_UnbindBuffers ();
+	GL_UnbindTextures ();
 
 	scr_copytop = 0;
 	scr_copyeverything = 0;
@@ -730,7 +730,7 @@ void SCR_UpdateScreen (void)
 	
 		V_RenderView ();
 
-		RB_SetDefaultCanvas ();
+		GL_Set2D ();
 
 		if (r_netgraph.value)
 			R_DrawNetGraph ();
@@ -768,7 +768,6 @@ void SCR_UpdateScreen (void)
 	}
 
 	Draw_EndBatching ();
-	R_DisableVertexArrays ();
 
 	VID_Finish ();
 }

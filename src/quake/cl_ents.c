@@ -375,8 +375,8 @@ void CL_LinkPacketEntities (void)
 	float				f;
 	struct model_s		*model;
 	int					modelflags;
+	cdlight_t			*dl;
 	vec3_t				cur_origin, old_origin;
-	vec3_t				color;
 	float				autorotate, flicker;
 	int					i;
 	int					pnum;
@@ -404,26 +404,71 @@ void CL_LinkPacketEntities (void)
 		if (state->modelindex != cl_playerindex || r_powerupglow.value)
 		{
 			flicker = r_lightflicker.value ? (rand() & 31) : 10;
+
 			// spawn light flashes, even ones coming from invisible objects
-			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
+			if ((state->effects & EF_RED) || (state->effects & EF_BLUE))
 			{
-				color[0] = 1; color[1] = 0; color[2] = 1;
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
-			} else if (state->effects & EF_BLUE) {
-				color[0] = 0; color[1] = 0; color[2] = 1;
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
-			} else if (state->effects & EF_RED)	{
-				color[0] = 1; color[1] = 0; color[2] = 0;
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
-			} else if (state->effects & EF_BRIGHTLIGHT) {
-				vec3_t	tmp;
-				VectorCopy (cur_origin, tmp);
-				tmp[2] += 16;
-				color[0] = 0.8; color[1] = 0.6; color[2] = 0.5;
-				CL_NewDlight (state->number, tmp, 400 + flicker, 0.1, color);
-			} else if (state->effects & EF_DIMLIGHT) {
-				color[0] = 0.8; color[1] = 0.6; color[2] = 0.5;
-				CL_NewDlight (state->number, cur_origin, 200 + flicker, 0.1, color);
+				int AverageColour;
+				int rgb[3];
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (cur_origin, dl->origin);
+				dl->radius = 200 + flicker;
+				dl->die = cl.time + 0.001;
+
+				rgb[0] = 64;
+				rgb[1] = 64;
+				rgb[2] = 64;
+
+				if (state->effects & EF_BLUE) rgb[2] = 255;
+				if (state->effects & EF_RED) rgb[0] = 255;
+
+				// re-balance the colours
+				AverageColour = (rgb[0] + rgb[1] + rgb[2]) / 3;
+
+				rgb[0] = rgb[0] * 255 / AverageColour;
+				rgb[1] = rgb[1] * 255 / AverageColour;
+				rgb[2] = rgb[2] * 255 / AverageColour;
+
+				R_ColorDLight (dl, rgb[0], rgb[1], rgb[2]);
+			}
+
+			if (state->effects & EF_BRIGHTLIGHT) {
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (cur_origin, dl->origin);
+				dl->origin[2] += 16;
+				dl->radius = 400 + flicker;
+				dl->die = cl.time + 0.001;
+			}
+			
+			if (state->effects & EF_DIMLIGHT) {
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (cur_origin, dl->origin);
+				dl->radius = 200 + flicker;
+				dl->die = cl.time + 0.001;
+
+				// powerup dynamic lights
+				if (state->modelindex == cl_playerindex)
+				{
+					int AverageColour;
+					int rgb[3];
+
+					rgb[0] = 64;
+					rgb[1] = 64;
+					rgb[2] = 64;
+
+					if (cl.stats[STAT_ITEMS] & IT_QUAD) rgb[2] = 255;
+					if (cl.stats[STAT_ITEMS] & IT_INVULNERABILITY) rgb[0] = 255;
+
+					// re-balance the colours
+					AverageColour = (rgb[0] + rgb[1] + rgb[2]) / 3;
+
+					rgb[0] = rgb[0] * 255 / AverageColour;
+					rgb[1] = rgb[1] * 255 / AverageColour;
+					rgb[2] = rgb[2] * 255 / AverageColour;
+
+					R_ColorDLight (dl, rgb[0], rgb[1], rgb[2]);
+				}
 			}
 		}
 
@@ -516,10 +561,13 @@ void CL_LinkPacketEntities (void)
 						CL_RocketTrail (old_origin, ent.origin);
 				}
 
-				if (r_rocketlight.value)
-				{
-					color[0] = 0.9; color[1] = 0.6; color[2] = 0.4;
-					CL_NewDlight (state->number, ent.origin, 200, 0.1, color);
+				if (r_rocketlight.value) {
+					dl = CL_AllocDlight (state->number);
+					VectorCopy (ent.origin, dl->origin);
+					dl->radius = 200;
+					dl->die = cl.time + 0.01;
+
+					R_ColorDLight (dl, 408, 242, 117);
 				}
 			}
 			else if (modelflags & MF_GRENADE && r_grenadetrail.value)
@@ -528,12 +576,34 @@ void CL_LinkPacketEntities (void)
 				CL_BloodTrail (old_origin, ent.origin);
 			else if (modelflags & MF_ZOMGIB)
 				CL_SlightBloodTrail (old_origin, ent.origin);
-			else if (modelflags & MF_TRACER)
+			else if (modelflags & MF_TRACER) {
 				CL_TracerTrail (old_origin, ent.origin, 52);
-			else if (modelflags & MF_TRACER2)
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent.origin, dl->origin);
+				dl->radius = 200;
+				dl->die = cl.time + 0.01;
+
+				R_ColorWizLight (dl);
+			} else if (modelflags & MF_TRACER2) {
 				CL_TracerTrail (old_origin, ent.origin, 230);
-			else if (modelflags & MF_TRACER3)
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent.origin, dl->origin);
+				dl->radius = 200;
+				dl->die = cl.time + 0.01;
+
+				R_ColorDLight (dl, 408, 242, 117);
+			} else if (modelflags & MF_TRACER3) {
 				CL_VoorTrail (old_origin, ent.origin);
+
+				dl = CL_AllocDlight (state->number);
+				VectorCopy (ent.origin, dl->origin);
+				dl->radius = 200;
+				dl->die = cl.time + 0.01;
+
+				R_ColorDLight (dl, 399, 141, 228);
+			}
 		}
 
 		VectorCopy (ent.origin, cent->lerp_origin);
@@ -883,10 +953,11 @@ void CL_LinkPlayers (void)
 	double			playertime;
 	entity_t		ent;
 	centity_t		*cent;
+	cdlight_t		*dl;
 	int				msec;
 	frame_t			*frame;
 	int				oldphysent;
-	vec3_t			org, color;
+	vec3_t			org;
 	float			flicker;
 
 	playertime = cls.realtime - cls.latency + 0.02;
@@ -908,29 +979,76 @@ void CL_LinkPlayers (void)
 		{
 			if (j == cl.viewplayernum) {
 				VectorCopy (cl.simorg, org);
-			} else
+			} else {
 				VectorCopy (state->origin, org);
+			}
 
 			flicker = r_lightflicker.value ? (rand() & 31) : 10;
 
-			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED)) {
-				color[0] = 1; color[2] = 0; color[3] = 1;
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
-			} else if (state->effects & EF_BLUE) {
-				color[0] = 0; color[2] = 0; color[3] = 1;
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
-			} else if (state->effects & EF_RED) {
-				color[0] = 1; color[2] = 0; color[3] = 0;
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
-			} else if (state->effects & EF_BRIGHTLIGHT) {
-				vec3_t	tmp;
-				VectorCopy (org, tmp);
-				tmp[2] += 16;
-				color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
-				CL_NewDlight (j+1, tmp, 400 + flicker, 0.1, color);
-			} else if (state->effects & EF_DIMLIGHT) {
-				color[0] = 0.9; color[2] = 0.6; color[3] = 0.5;
-				CL_NewDlight (j+1, org, 200 + flicker, 0.1, color);
+			// spawn light flashes, even ones coming from invisible objects
+			if ((state->effects & EF_RED) || (state->effects & EF_BLUE))
+			{
+				int AverageColour;
+				int rgb[3];
+
+				dl = CL_AllocDlight (j+1);
+				VectorCopy (org, dl->origin);
+				dl->radius = 200 + flicker;
+				dl->die = cl.time + 0.001;
+
+				rgb[0] = 64;
+				rgb[1] = 64;
+				rgb[2] = 64;
+
+				if (state->effects & EF_BLUE) rgb[2] = 255;
+				if (state->effects & EF_RED) rgb[0] = 255;
+
+				// re-balance the colours
+				AverageColour = (rgb[0] + rgb[1] + rgb[2]) / 3;
+
+				rgb[0] = rgb[0] * 255 / AverageColour;
+				rgb[1] = rgb[1] * 255 / AverageColour;
+				rgb[2] = rgb[2] * 255 / AverageColour;
+
+				R_ColorDLight (dl, rgb[0], rgb[1], rgb[2]);
+			}
+
+			if (state->effects & EF_BRIGHTLIGHT) {
+				dl = CL_AllocDlight (j+1);
+				VectorCopy (org, dl->origin);
+				dl->origin[2] += 16;
+				dl->radius = 400 + flicker;
+				dl->die = cl.time + 0.001;
+			}
+			
+			if (state->effects & EF_DIMLIGHT) {
+				dl = CL_AllocDlight (j+1);
+				VectorCopy (org, dl->origin);
+				dl->radius = 200 + flicker;
+				dl->die = cl.time + 0.001;
+
+				// powerup dynamic lights
+				if (j == cl.viewplayernum)
+				{
+					int AverageColour;
+					int rgb[3];
+
+					rgb[0] = 64;
+					rgb[1] = 64;
+					rgb[2] = 64;
+
+					if (cl.stats[STAT_ITEMS] & IT_QUAD) rgb[2] = 255;
+					if (cl.stats[STAT_ITEMS] & IT_INVULNERABILITY) rgb[0] = 255;
+
+					// re-balance the colours
+					AverageColour = (rgb[0] + rgb[1] + rgb[2]) / 3;
+
+					rgb[0] = rgb[0] * 255 / AverageColour;
+					rgb[1] = rgb[1] * 255 / AverageColour;
+					rgb[2] = rgb[2] * 255 / AverageColour;
+
+					R_ColorDLight (dl, rgb[0], rgb[1], rgb[2]);
+				}
 			}
 		}
 

@@ -100,7 +100,7 @@ void Draw_TextBox (int x, int y, int width, int lines)
 
 void Draw_Crosshair (void)
 {
-	extern cvar_t crosshair, cl_crossx, cl_crossy;
+	extern cvar_t crosshaircolor, cl_crossx, cl_crossy;
 
-	R_DrawCrosshair (crosshair.value, cl_crossx.value, cl_crossy.value);
+	R_DrawCrosshair (cl_crossx.value, cl_crossy.value, crosshaircolor.value);
 }

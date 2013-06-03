@@ -20,181 +20,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
-int r_vastate = 0;
-int r_vertexsize = 0;
-GLenum r_clientactivetexture = GL_INVALID_VALUE;
-cvar_t r_primitives = {"r_primitives", "2", CVAR_ARCHIVE};
+static void *r_currentindexes = NULL;
 
-static GLuint r_currentindexbuffer = 0;
-
-
-#define VA_VERTEX	1
-#define VA_COLOR	2
-#define VA_TEX0		4
-#define VA_TEX1		8
-#define VA_TEX2		16
-
-
-void GL_ClientActiveTexture (GLenum tex)
+void GL_SetIndices (int indexBuffer, void *indexes)
 {
-	if (tex != r_clientactivetexture)
-	{
-		qglClientActiveTexture (tex);
-		r_clientactivetexture = tex;
-	}
-}
-
-
-float *r_vertexpointer = NULL;
-byte *r_colorpointer = NULL;
-float *r_texcoordpointer[3] = {NULL, NULL, NULL};
-
-void R_VertexPointer (int vertexsize, float *ptr)
-{
-	if (!(r_vastate & VA_VERTEX))
-		qglEnableClientState (GL_VERTEX_ARRAY);
-
-	if (r_vertexpointer != ptr)
-	{
-		qglVertexPointer (3, GL_FLOAT, vertexsize, ptr);
-		r_vertexpointer = ptr;
-	}
-}
-
-void R_ColorPointer (int vertexsize, byte *ptr)
-{
-	if (!(r_vastate & VA_COLOR))
-		qglEnableClientState (GL_COLOR_ARRAY);
-
-	if (r_colorpointer != ptr)
-	{
-		qglColorPointer (4, GL_UNSIGNED_BYTE, vertexsize, ptr);
-		r_colorpointer = ptr;
-	}
-}
-
-void R_TexCoordPointer (int tmu, int state, int vertexsize, float *ptr)
-{
-	if (!(r_vastate & state))
-	{
-		GL_ClientActiveTexture (GL_TEXTURE0_ARB + tmu);
-		qglEnableClientState (GL_TEXTURE_COORD_ARRAY);
-	}
-
-	if (r_texcoordpointer[tmu] != ptr)
-	{
-		GL_ClientActiveTexture (GL_TEXTURE0_ARB + tmu);
-
-		// this is a hack for the skybox cubemap
-		if (ptr == r_vertexpointer)
-			qglTexCoordPointer (3, GL_FLOAT, vertexsize, ptr);
-		else qglTexCoordPointer (2, GL_FLOAT, vertexsize, ptr);
-
-		r_texcoordpointer[tmu] = ptr;
-	}
-}
-
-
-void R_EnableVertexArrays (float *v, byte *c, float *st1, float *st2, float *st3, int vertexsize)
-{
-	int newstate = 0;
-
-	if (r_vertexsize != vertexsize)
-	{
-		// clear the pointers so the cached versions won't be used
-		r_vertexpointer = NULL;
-		r_colorpointer = NULL;
-		r_texcoordpointer[0] = r_texcoordpointer[1] = r_texcoordpointer[2] = NULL;
-		r_vertexsize = vertexsize;
-	}
-
-	if (v)
-	{
-		R_VertexPointer (vertexsize, v);
-		newstate |= VA_VERTEX;
-	}
-
-	if (c)
-	{
-		R_ColorPointer (vertexsize, c);
-		newstate |= VA_COLOR;
-	}
-
-	if (st1)
-	{
-		R_TexCoordPointer (0, VA_TEX0, vertexsize, st1);
-		newstate |= VA_TEX0;
-	}
-
-	if (st2)
-	{
-		R_TexCoordPointer (1, VA_TEX1, vertexsize, st2);
-		newstate |= VA_TEX1;
-	}
-
-	if (st3)
-	{
-		R_TexCoordPointer (2, VA_TEX2, vertexsize, st3);
-		newstate |= VA_TEX2;
-	}
-
-	// see if there is anything to take down
-	r_vastate &= ~newstate;
-	R_DisableVertexArrays ();
-	r_vastate = newstate;
-}
-
-
-void R_DisableVertexArrays (void)
-{
-	if (r_vastate & VA_TEX2)
-	{
-		GL_ClientActiveTexture (GL_TEXTURE2_ARB);
-		qglDisableClientState (GL_TEXTURE_COORD_ARRAY);
-		r_texcoordpointer[2] = NULL;
-	}
-
-	if (r_vastate & VA_TEX1)
-	{
-		GL_ClientActiveTexture (GL_TEXTURE1_ARB);
-		qglDisableClientState (GL_TEXTURE_COORD_ARRAY);
-		r_texcoordpointer[1] = NULL;
-	}
-
-	if (r_vastate & VA_TEX0)
-	{
-		GL_ClientActiveTexture (GL_TEXTURE0_ARB);
-		qglDisableClientState (GL_TEXTURE_COORD_ARRAY);
-		r_texcoordpointer[0] = NULL;
-	}
-
-	if (r_vastate & VA_COLOR)
-	{
-		qglDisableClientState (GL_COLOR_ARRAY);
-		r_colorpointer = NULL;
-
-		// current colour is undefined after this
-		GL_Color (1, 1, 1, 1);
-	}
-
-	if (r_vastate & VA_VERTEX)
-	{
-		qglDisableClientState (GL_VERTEX_ARRAY);
-		r_vertexpointer = NULL;
-	}
-
-	if (gl_support_arb_vertex_buffer_object)
-	{
-		// unbind any index buffer in use
-		if (r_currentindexbuffer)
-		{
-			qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-			r_currentindexbuffer = 0;
-		}
-	}
-
-	r_vastate = 0;
-	// r_clientactivetexture = GL_INVALID_VALUE;
+	r_currentindexes = indexes;
 }
 
 
@@ -262,263 +92,149 @@ unsigned short *R_TransferIndexes (unsigned short *src, unsigned short *dst, int
 }
 
 
-/*
-=========================================================================================================================================
+typedef void (*PFNGLARRAYPOINTERFUNC) (int, GLenum, GLsizei, const GLvoid *);
 
-			RENDERING
+// unfortunately OpenGL weenie-ism means that glNormalPointer, glEdgeFlagPointer and
+// possibly some others take different params, so we need to wrap these.  bah.
+void GL_VertexPointer (int size, GLenum type, GLsizei stride, const GLvoid *ptr) {qglVertexPointer (size, type, stride, ptr);}
+void GL_ColorPointer (int size, GLenum type, GLsizei stride, const GLvoid *ptr) {qglColorPointer (size, type, stride, ptr);}
+void GL_TexCoordPointer (int size, GLenum type, GLsizei stride, const GLvoid *ptr) {qglTexCoordPointer (size, type, stride, ptr);}
 
-	All primitive rendering in the engine goes through here.  This was shamelessly copied from Q3A and allows for comparison
-	of different drawing types and selection of the fastest, via the r_primitives cvar.
-
-	1: using glBegin/glEnd with glArrayElement
-	2: using glDrawElements or glDrawArrays
-	3: using glBegin/glEnd/glTexCoord, etc
-
-=========================================================================================================================================
-*/
-void APIENTRY R_ArrayElementDiscrete (GLint index)
+typedef struct gl_stream_s
 {
-	int vertoffset = ((r_vertexsize * index) >> 2);
+	int vbonum;
+	int desc;
+	int size;
+	GLenum type;
+	int stride;
+	void *ptr;
+	PFNGLARRAYPOINTERFUNC ptrfunc;
+	GLenum tmu;
+	GLenum mode;
+} gl_stream_t;
 
-	if (r_colorpointer)
+static gl_stream_t gl_streams[5] =
+{
+	{0, GLSTREAM_POSITION, 0, GL_NONE, 0, NULL, GL_VertexPointer, GL_NONE, GL_VERTEX_ARRAY},
+	{0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL, GL_ColorPointer, GL_NONE, GL_COLOR_ARRAY},
+	{0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE0_ARB, GL_TEXTURE_COORD_ARRAY},
+	{0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE1_ARB, GL_TEXTURE_COORD_ARRAY},
+	{0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE2_ARB, GL_TEXTURE_COORD_ARRAY}
+};
+
+static int gl_activestreams = 0;
+static GLenum r_clientactivetexture = GL_INVALID_VALUE;
+
+static void GL_ClientActiveTexture (gl_stream_t *stream)
+{
+	if (stream->tmu != r_clientactivetexture)
 	{
-		// need to fix up the offset here.....
-		float *ptr = r_vertexpointer + vertoffset;
-		qglColor4ubv ((byte *) (ptr + 3));
+		qglClientActiveTexture (stream->tmu);
+		r_clientactivetexture = stream->tmu;
+		gl_activestreams &= ~stream->desc;
+	}
+}
+
+
+// note that NULL may be a valid ptr if a VBO is used?
+// 0 is also a valid stride for tightly packed vertexes, so we need to check type == GL_NONE for disabled
+void GL_SetStreamSource (int vbonum, int streamnum, int size, GLenum type, int stride, void *ptr)
+{
+	gl_stream_t *stream = NULL;
+
+	switch (streamnum)
+	{
+	case GLSTREAM_POSITION:  stream = &gl_streams[0]; break;
+	case GLSTREAM_COLOR:     stream = &gl_streams[1]; break;
+	case GLSTREAM_TEXCOORD0: stream = &gl_streams[2]; break;
+	case GLSTREAM_TEXCOORD1: stream = &gl_streams[3]; break;
+	case GLSTREAM_TEXCOORD2: stream = &gl_streams[4]; break;
+	default: return;	// unknown
 	}
 
-	if (r_texcoordpointer[1] || r_texcoordpointer[2])
+	if (type == GL_NONE)
 	{
-		if (r_texcoordpointer[2])
+		if (gl_activestreams & stream->desc)
 		{
-			float *ptr = r_texcoordpointer[2] + vertoffset;
-			qglMultiTexCoord2f (GL_TEXTURE2_ARB, ptr[0], ptr[1]);
+			if (stream->tmu != GL_NONE)
+				GL_ClientActiveTexture (stream);
+
+			qglDisableClientState (stream->mode);
+			gl_activestreams &= ~stream->desc;
 		}
 
-		if (r_texcoordpointer[1])
-		{
-			float *ptr = r_texcoordpointer[1] + vertoffset;
-			qglMultiTexCoord2f (GL_TEXTURE1_ARB, ptr[0], ptr[1]);
-		}
-
-		if (r_texcoordpointer[0])
-		{
-			float *ptr = r_texcoordpointer[0] + vertoffset;
-			qglMultiTexCoord2f (GL_TEXTURE0_ARB, ptr[0], ptr[1]);
-		}
+		// clear down the data to force a full update next time this stream is used
+		stream->size = 0;
+		stream->type = GL_NONE;
+		stream->stride = 0;
+		stream->ptr = NULL;
 	}
 	else
 	{
-		if (r_texcoordpointer[0] == r_vertexpointer)
-		{
-			float *ptr = r_vertexpointer + vertoffset;
-			qglTexCoord3fv (ptr);
-		}
-		else if (r_texcoordpointer[0])
-		{
-			float *ptr = r_texcoordpointer[0] + vertoffset;
-			qglTexCoord2fv (ptr);
-		}
-	}
+		if (stream->tmu != GL_NONE)
+			GL_ClientActiveTexture (stream);
 
-	if (r_vertexpointer)
-	{
-		float *ptr = r_vertexpointer + vertoffset;
-		qglVertex3fv (ptr);
+		if (!(gl_activestreams & stream->desc))
+		{
+			qglEnableClientState (stream->mode);
+			gl_activestreams |= stream->desc;
+		}
+
+		if (stream->size != size || stream->type != type || stream->stride != stride || stream->ptr != ptr)
+		{
+			stream->ptrfunc (size, type, stride, ptr);
+
+			stream->size = size;
+			stream->type = type;
+			stream->stride = stride;
+			stream->ptr = ptr;
+		}
 	}
 }
 
 
-void R_DrawStripElements (int numIndexes, const unsigned short *indexes, void (APIENTRY *element) (GLint))
+void GL_DrawPrimitive (GLenum mode, int firstvert, int numverts)
 {
-	int i;
-	int last[3] = {-1, -1, -1};
-	qbool even;
-
-	if (numIndexes <= 0)
-		return;
-
-	qglBegin (GL_TRIANGLE_STRIP);
-	rs_drawelements++;
-
-	// prime the strip
-	element (indexes[0]);
-	element (indexes[1]);
-	element (indexes[2]);
-
-	last[0] = indexes[0];
-	last[1] = indexes[1];
-	last[2] = indexes[2];
-
-	even = false;
-
-	for (i = 3; i < numIndexes; i += 3)
+	if (gl_streams[0].ptr)
 	{
-		// odd numbered triangle in potential strip
-		if (!even)
-		{
-			// check previous triangle to see if we're continuing a strip
-			if ((indexes[i + 0] == last[2]) && (indexes[i + 1] == last[1]))
-			{
-				element (indexes[i + 2]);
-				even = true;
-			}
-			// otherwise we're done with this strip so finish it and start
-			// a new one
-			else
-			{
-				qglEnd();
-				qglBegin (GL_TRIANGLE_STRIP);
-				rs_drawelements++;
-				element (indexes[i + 0]);
-				element (indexes[i + 1]);
-				element (indexes[i + 2]);
-				even = false;
-			}
-		}
-		else
-		{
-			// check previous triangle to see if we're continuing a strip
-			if ((last[2] == indexes[i + 1]) && (last[0] == indexes[i + 0]))
-			{
-				element (indexes[i + 2]);
-				even = false;
-			}
-			// otherwise we're done with this strip so finish it and start
-			// a new one
-			else
-			{
-				qglEnd();
-				qglBegin (GL_TRIANGLE_STRIP);
-				rs_drawelements++;
-				element (indexes[i + 0]);
-				element (indexes[i + 1]);
-				element (indexes[i + 2]);
-				even = false;
-			}
-		}
+		if (qglLockArraysEXT && qglUnlockArraysEXT)
+			qglLockArraysEXT (firstvert, numverts);
 
-		// cache the last three vertices
-		last[0] = indexes[i + 0];
-		last[1] = indexes[i + 1];
-		last[2] = indexes[i + 2];
-	}
-
-	qglEnd();
-}
-
-
-static int r_drawtype = -1;
-
-void R_GetPrimitiveType (void)
-{
-	int primitives = (int) r_primitives.value;
-
-	// default is to use triangles if compiled vertex arrays are present
-	if (primitives == 0)
-	{
-		if (gl_supportslockarrays)
-			primitives = 2;
-		else primitives = 1;
-	}
-
-	if (primitives != r_drawtype)
-	{
-		if (primitives == 2)
-			Com_Printf ("Using glDrawElements\n");
-		else if (primitives == 1)
-			Com_Printf ("Using glArrayElement\n");
-		else if (primitives == 3)
-			Com_Printf ("Using R_ArrayElementDiscrete\n");
-		else Com_Printf ("Using glDrawElements\n");
-
-		r_drawtype = primitives;
-	}
-}
-
-
-void R_DrawArraysImmediate (GLenum mode, int firstvert, int numverts, void (APIENTRY *element) (GLint))
-{
-	int i;
-
-	qglBegin (mode);
-
-	for (i = 0; i < numverts; i++)
-		element (firstvert + i);
-
-	qglEnd ();
-	rs_drawelements++;
-}
-
-
-void R_DrawArrays (GLenum mode, int firstvert, int numverts)
-{
-	if (gl_support_arb_vertex_buffer_object)
-	{
-		// unbind any index buffer in use
-		if (r_currentindexbuffer)
-		{
-			qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-			r_currentindexbuffer = 0;
-		}
-	}
-
-	if (r_drawtype == 3)
-	{
-		R_DrawArraysImmediate (mode, firstvert, numverts, R_ArrayElementDiscrete);
-		return;
-	}
-
-	if (r_drawtype == 1)
-		R_DrawArraysImmediate (mode, firstvert, numverts, qglArrayElement);
-	else
-	{
 		qglDrawArrays (mode, firstvert, numverts);
+
+		if (qglLockArraysEXT && qglUnlockArraysEXT)
+			qglUnlockArraysEXT ();
+
 		rs_drawelements++;
 	}
 }
 
 
-void R_DrawElements (int numIndexes, int numVertexes, const unsigned short *indexes)
+void GL_DrawIndexedPrimitive (GLenum mode, int numIndexes, int numVertexes)
 {
-	if (gl_support_arb_vertex_buffer_object)
+	if (gl_streams[0].ptr)
 	{
-		// unbind any index buffer in use
-		if (r_currentindexbuffer)
-		{
-			qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-			r_currentindexbuffer = 0;
-		}
-	}
+		if (qglLockArraysEXT && qglUnlockArraysEXT)
+			qglLockArraysEXT (0, numVertexes);
 
-	if (r_drawtype == 3)
-	{
-		R_DrawStripElements (numIndexes, indexes, R_ArrayElementDiscrete);
-		return;
-	}
+		qglDrawElements (mode, numIndexes, GL_UNSIGNED_SHORT, r_currentindexes);
 
-	if (r_drawtype == 1)
-		R_DrawStripElements (numIndexes, indexes, qglArrayElement);
-	else
-	{
-		qglDrawElements (GL_TRIANGLES, numIndexes, GL_UNSIGNED_SHORT, indexes);
+		if (qglLockArraysEXT && qglUnlockArraysEXT)
+			qglUnlockArraysEXT ();
+
 		rs_drawelements++;
 	}
 }
 
 
-void R_DrawBufferElements (int firstIndex, int numIndexes, int indexBuffer)
+void GL_UnbindBuffers (void)
 {
-	if (gl_support_arb_vertex_buffer_object)
-	{
-		// update any index buffer in use
-		if (r_currentindexbuffer != indexBuffer)
-		{
-			qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, indexBuffer);
-			r_currentindexbuffer = indexBuffer;
-		}
-
-		qglDrawElements (GL_TRIANGLES, numIndexes, GL_UNSIGNED_SHORT, (void *) firstIndex);
-		rs_drawelements++;
-	}
+	// unbind all buffer objects on a mode switch
+	GL_SetIndices (0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_POSITION, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 }
+

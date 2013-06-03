@@ -39,74 +39,13 @@ unsigned int d_8to24table_fbright[256];
 unsigned int d_8to24table_nobright[256];
 unsigned int d_8to24table_conchars[256];
 
-//====================================================================
-
-int	currenttexture = -1;
-
-void GL_SelectTexture ( GLenum target )
-{
-	static GLenum currenttarget;
-	static int ct0, ct1;
-
-	if ( target == currenttarget )
-		return;
-
-	if(qglActiveTexture)
-		qglActiveTexture (target);
-
-	if ( target == GL_TEXTURE0_ARB )
-	{
-		ct1 = currenttexture;
-		currenttexture = ct0;
-	}
-	else
-	{
-		ct0 = currenttexture;
-		currenttexture = ct1;
-	}
-
-	currenttarget = target;
-}
-
-void GL_Bind ( int texnum )
-{
-	if ( currenttexture == texnum )
-		return;
-
-	currenttexture = texnum;
-	qglBindTexture (GL_TEXTURE_2D, texnum);
-}
-
-qbool mtexenabled = false;
-
 /*
-================
-GL_DisableMultitexture -- selects texture unit 0
-================
-*/
-void GL_DisableMultitexture(void)
-{
-	if (mtexenabled)
-	{
-		qglDisable(GL_TEXTURE_2D);
-		GL_SelectTexture(GL_TEXTURE0_ARB);
-		mtexenabled = false;
-	}
-}
+================================================================================
 
-/*
-================
-GL_EnableMultitexture -- selects texture unit 1
-================
-*/
-void GL_EnableMultitexture(void)
-{
-	GL_SelectTexture(GL_TEXTURE1_ARB);
-	qglEnable(GL_TEXTURE_2D);
-	mtexenabled = true;
-}
+	COMMANDS
 
-//====================================================================
+================================================================================
+*/
 
 typedef struct
 {
@@ -151,28 +90,27 @@ TexMgr_SetFilterModes
 */
 static void TexMgr_SetFilterModes (gltexture_t *glt)
 {
-	if (glt->flags & TEXPREF_MIPMAP)
+	GL_BindTexture (GL_TEXTURE0_ARB, glt);
+
+	if (glt->flags & TEXPREF_NEAREST)
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	}
+	else if (glt->flags & TEXPREF_LINEAR)
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	}
+	else if (glt->flags & TEXPREF_MIPMAP)
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
 	}
 	else
 	{
-		if (glt->flags & TEXPREF_NEAREST)
-		{
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
-		else if (glt->flags & TEXPREF_LINEAR)
-		{
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		}
-		else
-		{
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
-		}
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
 	}
 }
 
@@ -223,10 +161,7 @@ void TexMgr_TextureMode_f (void)
 
 stuff:
 		for (glt=active_gltextures; glt; glt=glt->next)
-		{
-			GL_Bind(glt->texnum);
 			TexMgr_SetFilterModes (glt);
-		}
 
 		break;
 	default:
@@ -262,7 +197,7 @@ void TexMgr_Imagelist_f (void)
 /*
 ================================================================================
 
-MANAGEMENT
+	TEXTURE MANAGER
 
 ================================================================================
 */
@@ -295,8 +230,12 @@ gltexture_t *TexMgr_NewTexture (void)
 {
 	gltexture_t *glt;
 
-	if (numgltextures == MAX_GLTEXTURES)
-		Sys_Error("numgltextures == MAX_GLTEXTURES\n");
+	if (!free_gltextures)
+	{
+		free_gltextures = (gltexture_t *) malloc (sizeof (gltexture_t));
+		memset (free_gltextures, 0, sizeof (gltexture_t));
+		free_gltextures->next = NULL;
+	}
 
 	glt = free_gltextures;
 	free_gltextures = glt->next;
@@ -561,9 +500,10 @@ void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
 
 	// upload
 	GL_BindTexture (GL_TEXTURE0_ARB, glt);
+	qglEnable (GL_TEXTURE_2D);	// some ATI drivers might need this... http://www.opengl.org/wiki/Common_Mistakes#Automatic_mipmap_generation
 	GL_PixelStore (4, 0);
-	//qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, scaled);
+
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_BGRA, GL_UNSIGNED_BYTE, scaled);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
@@ -581,7 +521,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, byte *data)
 				scaled_height = max (scaled_height >> 1, 1);
 
 				miplevel++;
-				qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+				qglTexImage2D (GL_TEXTURE_2D, miplevel, GL_RGBA, scaled_width, scaled_height, 0, GL_BGRA, GL_UNSIGNED_BYTE, scaled);
 			}
 		}
 	}
@@ -692,18 +632,20 @@ handles lightmap data
 */
 void TexMgr_LoadLightmap (gltexture_t *glt, byte *data)
 {
+	extern GLenum gl_Lightmap_Type;
+	extern GLenum gl_Lightmap_Format;
+
 	// upload it
-	GL_Bind (glt->texnum);
+	GL_BindTexture (GL_TEXTURE0_ARB, glt);
 
 	// internal format can't be bgra but format can be
 	GL_PixelStore (4, 0);
-//	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB10_A2, glt->width, glt->height, 0, GL_BGRA, GL_UNSIGNED_INT_2_10_10_10_REV, data);
+
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, glt->width, glt->height, 0, gl_Lightmap_Format, gl_Lightmap_Type, data);
 
 	// set filter modes
 	TexMgr_SetFilterModes (glt);
 }
-
 
 /*
 ================
@@ -1071,7 +1013,11 @@ void GL_TextureType (GLenum tmu, GLenum type)
 	if (type != r_lasttype[tmunum])
 	{
 		GL_ActiveTexture (tmu);
-		qglDisable (r_lasttype[tmunum]);
+
+		// only disable if there is something to enable
+		if (r_lasttype[tmunum] != GL_NONE)
+			qglDisable (r_lasttype[tmunum]);
+
 		qglEnable (type);
 
 		// update type
@@ -1107,6 +1053,7 @@ void GL_TexEnv (GLenum tmu, GLenum type, GLenum mode)
 			// call recursively to revert tmu to default state
 			GL_TexEnv (tmu, type, GL_REPLACE);
 			qglDisable (GL_TEXTURE_2D);
+			r_lasttype[tmunum] = GL_NONE;	// force a ren-enable of whatever the type was by setting this to an invalid type
 			scale = 1;
 		}
 		else if (mode == GL_RGB_SCALE_ARB)
@@ -1147,62 +1094,48 @@ void GL_TexEnv (GLenum tmu, GLenum type, GLenum mode)
 ================
 GL_BindTexture
 
-handles switching textures between different tmus more logically, handles switching between 2D and cubemap textures better
+handles switching textures between different tmus more logically
 ================
 */
 void GL_BindTexture (GLenum tmu, gltexture_t *texture)
 {
 	int tmunum = 0;
-	GLenum type;
-
-	if (!texture) texture = nulltexture;
-
-//	if (texture->flags & TEXPREF_CUBEMAP)
-//		type = GL_TEXTURE_CUBE_MAP;
-/*	else*/ type = GL_TEXTURE_2D;
 
 	tmunum = tmu - GL_TEXTURE0_ARB;
+	GL_TextureType (tmu, GL_TEXTURE_2D);
 
-	GL_TextureType (tmu, type);
-
-	if (texture->texnum != r_currenttexture[tmunum])
+	if (!texture)
+	{
+		r_currenttexture[tmunum] = -1;
+	}
+	else if (texture->texnum != r_currenttexture[tmunum])
 	{
 		// activate the correct tmu
 		GL_ActiveTexture (tmu);
 
 		r_currenttexture[tmunum] = texture->texnum;
-		qglBindTexture (type, texture->texnum);
-//		texture->visframe = r_framecount;
+		qglBindTexture (GL_TEXTURE_2D, texture->texnum);
+		texture->visframe = r_framecount;
 	}
 }
 
 
 // convenience; just unbinds from current textures so that the next GL_BindTexture calls will force an update
 // use whenever we want to call glBindTexture ourselves
-void GL_Unbind (void)
+void GL_UnbindTextures (void)
 {
+	// unbind all textures
 	r_currenttexture[0] = -1;
 	r_currenttexture[1] = -1;
 	r_currenttexture[2] = -1;
-}
 
+	// unbind cached environments
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_NONE);
+	GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
+	GL_TexEnv (GL_TEXTURE2_ARB, GL_TEXTURE_2D, GL_NONE);
 
-float r_rcolor = -1;
-float r_gcolor = -1;
-float r_bcolor = -1;
-float r_acolor = -1;
-
-void GL_Color (float r, float g, float b, float a)
-{
-	if (r == r_rcolor && g == r_gcolor && b == r_bcolor && a == r_acolor)
-		return;
-
-	qglColor4f (r, g, b, a);
-
-	r_rcolor = r;
-	r_gcolor = g;
-	r_bcolor = b;
-	r_acolor = a;
+	// back to TMU0
+	GL_ActiveTexture (GL_TEXTURE0_ARB);
 }
 
 
@@ -1220,7 +1153,7 @@ static void r_textures_start(void)
 	nulltexture = TexMgr_LoadImage (NULL, "nulltexture", 2, 2, SRC_RGBA, nulltexture_data, "", (unsigned)nulltexture_data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 
 	// have to assign these here becuase Mod_Init is called before TexMgr_Init
-	r_notexture_mip->gl_texture = r_notexture_mip2->gl_texture = notexture;
+	r_notexture_mip->gltexture = r_notexture_mip2->gltexture = notexture;
 
 	// generate particle images
 	TexMgr_InitParticleTexture ();
@@ -1265,11 +1198,8 @@ void TexMgr_Init (void)
 	Cmd_AddCommand ("imagelist", &TexMgr_Imagelist_f);
 
 	// init texture list
-	free_gltextures = (gltexture_t *) Hunk_AllocName (MAX_GLTEXTURES * sizeof(gltexture_t), "gltextures");
+	free_gltextures = NULL;
 	active_gltextures = NULL;
-	for (i=0; i<MAX_GLTEXTURES; i++)
-		free_gltextures[i].next = &free_gltextures[i+1];
-	free_gltextures[i].next = NULL;
 	numgltextures = 0;
 
 	R_RegisterModule("R_Textures", r_textures_start, r_textures_shutdown, r_textures_newmap);

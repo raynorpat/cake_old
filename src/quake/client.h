@@ -512,7 +512,6 @@ void CL_UpdateTEnts (void);
 // cl_effects.c
 //
 cdlight_t *CL_AllocDlight (int key);
-void CL_NewDlight (int key, vec3_t origin, float radius, float time, vec3_t color);
 void CL_LinkDlights (void);
 void CL_ClearDlights (void);
 

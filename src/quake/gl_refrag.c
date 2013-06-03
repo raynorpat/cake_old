@@ -151,7 +151,6 @@ void R_SplitEntityOnNode (mnode_t *node)
 }
 
 
-
 /*
 ===========
 R_AddEfrags

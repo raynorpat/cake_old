@@ -31,11 +31,11 @@ when crossing a water boudnary.
 */
 
 cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
-cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
-cvar_t	cl_bob = {"cl_bob","0.02"};
+cvar_t	cl_rollangle = {"cl_rollangle", "0"};
+cvar_t	cl_bob = {"cl_bob","0"};
 cvar_t	cl_bobcycle = {"cl_bobcycle","0.6"};
 cvar_t	cl_bobup = {"cl_bobup","0.5"};
-cvar_t	v_kicktime = {"v_kicktime", "0.5"};
+cvar_t	v_kicktime = {"v_kicktime", "0"};
 cvar_t	v_kickroll = {"v_kickroll", "0.6"};
 cvar_t	v_kickpitch = {"v_kickpitch", "0.6"};
 cvar_t	v_kickback = {"v_kickback", "0"};	// recoil effect
@@ -43,7 +43,8 @@ cvar_t	v_kickback = {"v_kickback", "0"};	// recoil effect
 cvar_t	cl_drawgun = {"r_drawviewmodel", "1"};
 
 cvar_t	scr_crosshairscale = {"scr_crosshairscale", "2", CVAR_ARCHIVE};
-cvar_t	crosshair = {"crosshair", "1", CVAR_ARCHIVE};
+cvar_t	crosshair = {"crosshair", "2", CVAR_ARCHIVE};
+cvar_t	crosshaircolor = {"crosshaircolor", "11", CVAR_ARCHIVE};
 cvar_t  cl_crossx = {"cl_crossx", "0", CVAR_ARCHIVE};
 cvar_t  cl_crossy = {"cl_crossy", "0", CVAR_ARCHIVE};
 
@@ -120,13 +121,12 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 /*
 ===============
 V_CalcBob
-
 ===============
 */
 float V_CalcBob (void)
 {
-	static	double	bobtime;
-	static float	bob;
+	static double bobtime;
+	static float bob;
 	float	cycle;
 	
 	if (cl.spectator)
@@ -135,28 +135,29 @@ float V_CalcBob (void)
 	if (!cl.onground)
 		return bob;		// just use old value
 
-	if (!cl_bobcycle.value)
+	if (!cl_bobcycle.value < 0.001)
 		return 0;
 
 	bobtime += cls.frametime;
 	cycle = bobtime - (int)(bobtime/cl_bobcycle.value)*cl_bobcycle.value;
 	cycle /= cl_bobcycle.value;
+
 	if (cycle < cl_bobup.value)
 		cycle = M_PI * cycle / cl_bobup.value;
 	else
-		cycle = M_PI + M_PI*(cycle-cl_bobup.value)/(1.0 - cl_bobup.value);
+		cycle = M_PI + M_PI * (cycle - cl_bobup.value) / (1.0 - cl_bobup.value);
 
-// bob is proportional to simulated velocity in the xy plane
-// (don't count Z, or jumping messes it up)
+	// bob is proportional to simulated velocity in the xy plane
+	// (don't count Z, or jumping messes it up)
+	bob = sqrt(cl.simvel[0] * cl.simvel[0] + cl.simvel[1] * cl.simvel[1]) * cl_bob.value;
+	bob = bob * 0.3 + bob * 0.7 * sin(cycle);
 
-	bob = sqrt(cl.simvel[0]*cl.simvel[0] + cl.simvel[1]*cl.simvel[1]) * cl_bob.value;
-	bob = bob*0.3 + bob*0.7*sin(cycle);
 	if (bob > 4)
 		bob = 4;
 	else if (bob < -7)
 		bob = -7;
-	return bob;
 	
+	return bob;	
 }
 
 
@@ -797,6 +798,7 @@ void V_AddEntity (entity_t *ent)
 		return;
 	
 	cl_visedicts[cl_numvisedicts++] = *ent;
+	cl_visedicts[cl_numvisedicts].entnum = cl_numvisedicts;
 }
 
 /*
@@ -804,8 +806,7 @@ void V_AddEntity (entity_t *ent)
 V_AddDlight
 ==================
 */
-
-void V_AddDlight(int key, vec3_t origin, float	radius, float minlight, vec3_t color)
+void V_AddDlight(int key, vec3_t origin, float radius, float die, float minlight, vec3_t color)
 {
 	if (cl_numvisdlights >= MAX_DLIGHTS)
 		return;
@@ -813,6 +814,7 @@ void V_AddDlight(int key, vec3_t origin, float	radius, float minlight, vec3_t co
 	cl_visdlights[cl_numvisdlights].key = key;
 	VectorCopy (origin, cl_visdlights[cl_numvisdlights].origin);
 	cl_visdlights[cl_numvisdlights].radius = radius;
+	cl_visdlights[cl_numvisdlights].die = die;
 	cl_visdlights[cl_numvisdlights].minlight = minlight;
 	VectorCopy (color, cl_visdlights[cl_numvisdlights].color);
 	cl_numvisdlights++;
@@ -926,6 +928,7 @@ void V_Init (void)
 	Cvar_Register (&v_centerspeed);
 
 	Cvar_Register (&crosshair);
+	Cvar_Register (&crosshaircolor);
 	Cvar_Register (&scr_crosshairscale);
 	Cvar_Register (&cl_crossx);
 	Cvar_Register (&cl_crossy);

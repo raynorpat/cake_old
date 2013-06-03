@@ -89,6 +89,28 @@ byte pic_crosshair_data[8][8] =
 	{255,255,255,255,255,255,255,255},
 };
 
+byte pic_newcrosshair_data[16][16] =
+{
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xfe, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfe, 0xff},
+	{0xff, 0xfe, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfe, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+};
+ 
+gltexture_t *new_crosshair;
+
 typedef struct
 {
 	gltexture_t *gltexture;
@@ -167,8 +189,10 @@ qpic_t *R_CachePic (char *path)
 		if (!strcmp (path, pic->name))
 			return &pic->pic;
 	}
+
 	if (menu_numcachepics == MAX_CACHED_PICS)
 		Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
+
 	menu_numcachepics++;
 	strcpy (pic->name, path);
 
@@ -191,6 +215,7 @@ qpic_t *R_CachePic (char *path)
 	return &pic->pic;
 }
 
+
 /*
 ================
 Draw_MakePic
@@ -206,13 +231,19 @@ qpic_t *Draw_MakePic (char *name, int width, int height, byte *data)
 	pic->height = height;
 
 	gl = (glpic_t *)pic->data;
-	gl->gltexture = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, data, "", (unsigned)data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+	gl->gltexture = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, data, "", (unsigned) data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 	gl->sl = 0;
 	gl->sh = 1;
 	gl->tl = 0;
 	gl->th = 1;
 
 	return pic;
+}
+
+gltexture_t *Draw_MakeTexture (char *name, int width, int height, byte *data)
+{
+	int flags = TEXPREF_NEAREST | TEXPREF_NOPICMIP;
+	return TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, data, "", (unsigned) data, flags);
 }
 
 //==============================================================================
@@ -247,6 +278,9 @@ static void gl_draw_start(void)
 	pic_ins = Draw_MakePic ("ins", 8, 9, &pic_ins_data[0][0]);
 	pic_ovr = Draw_MakePic ("ovr", 8, 8, &pic_ovr_data[0][0]);
 	pic_nul = Draw_MakePic ("nul", 8, 8, &pic_nul_data[0][0]);
+
+	// and the crosshair
+	new_crosshair = Draw_MakeTexture ("crosshair", 16, 16, &pic_newcrosshair_data[0][0]);
 
 	// precache all of our menu pics so that they're valid when we come to use them, otherwise we get weirdness
 	// when they're cached on-demand with the new renderer code.
@@ -347,11 +381,15 @@ float yscale_2d = 1;
 // note - this just needs to be set to an invalid pointer here; it can't be NULL because NULL is a valid test
 gltexture_t *draw_lasttexture = (gltexture_t *) 0xffffffff;
 r_defaultquad_t *r_draw_quads = NULL;
+extern unsigned int r_quadindexbuffer;
 
 void Draw_EndBatching (void)
 {
 	if (r_num_quads)
-		R_DrawArrays (GL_QUADS, 0, r_num_quads * 4);
+	{
+		GL_SetIndices (0, r_quad_indexes);
+		GL_DrawIndexedPrimitive (GL_TRIANGLES, r_num_quads * 6, r_num_quads * 4);
+	}
 
 	r_draw_quads = r_default_quads;
 	r_num_quads = 0;
@@ -434,12 +472,17 @@ void Draw_TestState (gltexture_t *texture)
 	{
 		Draw_EndBatching ();
 
+		GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
+		GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
+		GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+
 		if (texture)
 		{
-			R_EnableVertexArrays (r_default_quads->xyz, r_default_quads->color, r_default_quads->st, NULL, NULL, sizeof (r_defaultquad_t));
+			GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
 			GL_BindTexture (GL_TEXTURE0_ARB, texture);
 		}
-		else R_EnableVertexArrays (r_default_quads->xyz, r_default_quads->color, NULL, NULL, NULL, sizeof (r_defaultquad_t));
+		else GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
 
 		draw_lasttexture = texture;
 	}
@@ -453,20 +496,17 @@ Draw_CharacterQuad
 */
 void Draw_CharacterQuad (int x, int y, char num, byte *color)
 {
-	if (num != 32)
-	{
-		int				row, col;
-		float			frow, fcol, size;
+	int				row, col;
+	float			frow, fcol, size;
 
-		row = num >> 4;
-		col = num & 15;
+	row = num >> 4;
+	col = num & 15;
 
-		frow = row * 0.0625;
-		fcol = col * 0.0625;
-		size = 0.0625;
+	frow = row * 0.0625;
+	fcol = col * 0.0625;
+	size = 0.0625;
 
-		Draw_Textured2DQuad (x, y, 8, 8, fcol, frow, fcol + size, frow + size, color);
-	}
+	Draw_Textured2DQuad (x, y, 8, 8, fcol, frow, fcol + size, frow + size, color);
 }
 
 
@@ -479,15 +519,38 @@ void R_DrawChar (int x, int y, int num)
 {
 	unsigned int rgba = 0xffffffff;
 
+	if (y <= -8)
+		return;			// totally off screen
+
+	num &= 255;
+
+	if (num == 32)
+		return; //don't waste verts on spaces
+
 	Draw_TestState (char_texture);
-	Draw_CharacterQuad (x, y, (num & 255), (byte *) &rgba);
+	Draw_CharacterQuad (x, y, (char) num, (byte *) &rgba);
 }
 
+
+/*
+================
+R_DrawColoredChar
+================
+*/
 void R_DrawColoredChar (int x, int y, int num, unsigned int color)
 {
+	if (y <= -8)
+		return;			// totally off screen
+
+	num &= 255;
+
+	if (num == 32)
+		return; //don't waste verts on spaces
+
 	Draw_TestState (char_texture);
-	Draw_CharacterQuad (x, y, (num & 255), (byte *) color);
+	Draw_CharacterQuad (x, y, (char) num, (byte *) &color);
 }
+
 
 /*
 ================
@@ -498,44 +561,34 @@ void R_DrawString (int x, int y, const char *str)
 {
 	unsigned int rgba = 0xffffffff;
 
+	if (y <= -8)
+		return;			// totally off screen
+
 	Draw_TestState (char_texture);
 	
 	while (*str)
 	{
 		if (*str != 32) // don't waste verts on spaces
-			Draw_CharacterQuad (x, y, ((*str) & 255), (byte *) &rgba);
+			Draw_CharacterQuad (x, y, *str, (byte *) &rgba);
 
 		str++;
 		x += 8;
 	}
 }
 
-void R_DrawCrosshair (int num, int crossx, int crossy)
+
+
+void Draw_Texture (int x, int y, int w, int h, void *tex, byte *color)
 {
-	extern cvar_t crosshair;
-	extern cvar_t scr_crosshairscale;
-	extern cvar_t scr_sbarscale;
-	float s = clamp (1.0, scr_crosshairscale.value, 10.0);
+	unsigned int defaultcolor = 0xffffffff;
 
-	if (!crosshair.value)
-		return;
+	// provide a default color if none is specified
+	if (!color) color = (byte *) &defaultcolor;
 
-	crossx = ((vid.width / 2) - (4.0f * s)) / s;
-	crossy = (((vid.height - 48 * scr_sbarscale.value) / 2) - (4.0f * s)) / s;
-
-	RB_SetCanvas (CANVAS_DEFAULT);
-
-	if (s != 1)
-	{
-		qglPushMatrix ();
-		qglScalef (s, s, 1);
-	}
-
-	R_DrawChar (crossx, crossy, '+');
-
-	if (s != 1)
-		qglPopMatrix ();
+	Draw_TestState ((gltexture_t *) tex);
+	Draw_Textured2DQuad (x, y, w, h, 0, 0, 1, 1, color);
 }
+
 
 void Draw_ColoredPic (int x, int y, qpic_t *pic, byte *color)
 {
@@ -623,6 +676,51 @@ void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha)
 	Draw_EnableTexture ();
 }
 
+
+/*
+================
+R_DrawCrosshair
+================
+*/
+void R_DrawCrosshair (int crossx, int crossy, int color)
+{
+	extern cvar_t crosshair;
+	extern cvar_t scr_crosshairscale;
+	extern cvar_t scr_sbarscale;
+	float s = 1.0f; //clamp (1.0, scr_crosshairscale.value, 10.0);
+
+	if (!crosshair.value)
+		return;
+
+	if (crosshair.value > 1)
+	{
+		// was 4, 8 for new crosshair
+		crossx = ((vid.width / 2) - (8.0f * s)) / s;
+		crossy = (((vid.height) / 2) - (8.0f * s)) / s;
+	}
+	else
+	{
+		// was 4 for old crosshair
+		crossx = ((vid.width / 2) - (4.0f * s)) / s;
+		crossy = (((vid.height) / 2) - (4.0f * s)) / s;
+	}
+
+	RB_SetCanvas (CANVAS_DEFAULT);
+
+	if (s != 1)
+	{
+		qglPushMatrix ();
+		qglScalef (s, s, 1);
+	}
+
+	if (crosshair.value > 1)
+		Draw_Texture (crossx, crossy, 16, 16, new_crosshair, (byte *) &d_8to24table_rgba[color & 255]);
+	else R_DrawChar (crossx, crossy, '+');
+
+	if (s != 1)
+		qglPopMatrix ();
+}
+
 //=============================================================================
 
 void R_LoadingScreen (void)
@@ -681,10 +779,6 @@ void RB_SetCanvas (canvastype newcanvas)
 
 	switch(newcanvas)
 	{
-	default:
-	case CANVAS_DEFAULT:
-		// just use default values from above
-		break;
 	case CANVAS_CONSOLE:
 		lines = vid.height - (scr_con_current * vid.height / vid_conheight.value);
 
@@ -694,6 +788,7 @@ void RB_SetCanvas (canvastype newcanvas)
 		xscale_2d = (float) vid.width / (float) vid_conwidth.value;
 		yscale_2d = (float) vid.height / (float) vid_conheight.value;
 		break;
+
 	case CANVAS_MENU:
 		s = min ((float) vid.width / 320.0, (float) vid.height / 200.0);
 		s = clamp (1.0, scr_menuscale.value, s);
@@ -704,6 +799,7 @@ void RB_SetCanvas (canvastype newcanvas)
 		xscale_2d = s;
 		yscale_2d = s;
 		break;
+
 	case CANVAS_SBAR:
 		s = clamp (1.0, scr_sbarscale.value, (float)vid.width / 320.0);
 
@@ -713,6 +809,7 @@ void RB_SetCanvas (canvastype newcanvas)
 		xscale_2d = s;
 		yscale_2d = s;
 		break;
+
 	case CANVAS_BOTTOMLEFT: // used by devstats
 		s = (float) vid.width / (float) vid_conwidth.value; // use console scale
 
@@ -722,6 +819,7 @@ void RB_SetCanvas (canvastype newcanvas)
 		xscale_2d = s;
 		yscale_2d = s;
 		break;
+
 	case CANVAS_BOTTOMRIGHT: // used by fps
 		s = (float) vid.width / (float) vid_conwidth.value; // use console scale
 
@@ -731,7 +829,69 @@ void RB_SetCanvas (canvastype newcanvas)
 		xscale_2d = s;
 		yscale_2d = s;
 		break;
+
+	case CANVAS_DEFAULT:
+	default:
+		// just use default values from above
+		break;
 	}
+}
+
+
+/*
+================
+GL_Set2D
+================
+*/
+// underwater warp!!!
+void R_DrawUnderwaterWarp (void);
+
+void GL_Set2D (void)
+{
+	currentcanvas = CANVAS_INVALID;
+
+	Draw_InvalidateState ();
+
+	// unbind everything and go back to TMU0
+	GL_UnbindBuffers ();
+
+	// unbind all textures
+	GL_BindTexture (GL_TEXTURE0_ARB, NULL);
+	GL_BindTexture (GL_TEXTURE1_ARB, NULL);
+	GL_BindTexture (GL_TEXTURE2_ARB, NULL);
+
+	// unbined cached environments
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_NONE);
+	GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
+	GL_TexEnv (GL_TEXTURE2_ARB, GL_TEXTURE_2D, GL_NONE);
+
+	// back to TMU0
+	GL_ActiveTexture (GL_TEXTURE0_ARB);
+
+	RB_SetCanvas (CANVAS_DEFAULT);
+
+	// partition the depth range for 3D/2D stuff
+	qglDepthRange (QGL_DEPTH_2D_BEGIN, QGL_DEPTH_2D_END);
+
+	qglViewport (0, 0, vid.width, vid.height);
+
+	qglMatrixMode (GL_PROJECTION);
+    qglLoadIdentity ();
+	qglOrtho (0, vid.width, vid.height, 0, -99999, 99999);
+
+	qglMatrixMode (GL_MODELVIEW);
+    qglLoadIdentity ();
+
+	qglDisable (GL_DEPTH_TEST);
+	qglDepthMask (GL_FALSE);
+	qglDisable (GL_CULL_FACE);
+
+	// the underwater warp needs to be drawn before enabling alpha test or it won't blend properly
+//	R_DrawUnderwaterWarp ();
+	
+	qglEnable (GL_BLEND);
+	qglDisable (GL_ALPHA_TEST);
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 }
 
 //====================================================================
@@ -892,6 +1052,7 @@ R_DrawNetGraph
 */
 void R_DrawNetGraph (void)
 {
+/*
 	int		a, x, i, y;
 	int lost;
 	char st[80];
@@ -944,4 +1105,5 @@ void R_DrawNetGraph (void)
 	qglTexCoord2f (0, 1);
 	qglVertex2f (x, y+NET_GRAPHHEIGHT);
 	qglEnd ();
+*/
 }

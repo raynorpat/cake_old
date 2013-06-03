@@ -254,6 +254,16 @@ void CL_ParseTEnt (void)
 		pos[2] = MSG_ReadCoord ();
 		CL_RunParticleEffect (pos, vec3_origin, 20, 30);
 		S_StartSound (-1, 0, cl_sfx_wizhit, pos, 1, ATTN_NORM);
+
+		{
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 250;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
+
+			R_ColorWizLight (dl);
+		}
 		break;
 
 	case TE_KNIGHTSPIKE:			// spike hitting wall
@@ -262,6 +272,16 @@ void CL_ParseTEnt (void)
 		pos[2] = MSG_ReadCoord ();
 		CL_RunParticleEffect (pos, vec3_origin, 226, 20);
 		S_StartSound (-1, 0, cl_sfx_knighthit, pos, 1, ATTN_NORM);
+
+		{
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 250;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
+
+			R_ColorDLight (dl, 408, 242, 117);
+		}
 		break;
 
 	case TE_SPIKE:			// spike hitting wall
@@ -317,26 +337,16 @@ void CL_ParseTEnt (void)
 			CL_RunParticleEffect (pos, vec3_origin, 73, 20*32);
 		else if (cl_explosion.value == 8)
 			CL_RunParticleEffect (pos, vec3_origin, 225, 50);
-		else
-		{
+		else if (cl_explosion.value != 1 && cl_explosion.value != 3)
+			CL_ParticleExplosion (pos);
 
-		// Tonik: explosion modifiers...
-			if (cl_explosion.value != 1 && cl_explosion.value != 3)
-			{
-				CL_ParticleExplosion (pos);
-			}
-		
-		// light
-			if (cl_explosion.value != 2 && cl_explosion.value != 3)
-			{
-				dl = CL_AllocDlight (0);
-				VectorCopy (pos, dl->origin);
-				dl->radius = 350;
-				dl->die = cl.time + 0.5;
-				dl->decay = 300;
-				dl->color[0] = 1; dl->color[2] = 1; dl->color[3] = 1;
-			}
-		}
+		dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 350;
+		dl->die = cl.time + 0.5;
+		dl->decay = 300;
+
+		R_ColorDLight (dl, 408, 242, 117);
 
 	// sound
 		S_StartSound (-1, 0, cl_sfx_r_exp3, pos, 1, ATTN_NORM);
@@ -358,6 +368,16 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		CL_BlobExplosion (pos);
+
+		{
+			dl = CL_AllocDlight (0);
+			VectorCopy (pos, dl->origin);
+			dl->radius = 350;
+			dl->die = cl.time + 0.5;
+			dl->decay = 300;
+
+			R_ColorDLight (dl, 399, 141, 228);
+		}
 
 		S_StartSound (-1, 0, cl_sfx_r_exp3, pos, 1, ATTN_NORM);
 		break;

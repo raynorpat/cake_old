@@ -1575,14 +1575,6 @@ void CL_ParseStufftext (void)
 	Com_DPrintf ("stufftext: %s\n", s);
 	Cbuf_AddTextEx (&cbuf_svc, s);
 
-	// QW servers send this without the ending \n
-	if ( !strcmp (s, "cmd snap") ||
-		// QuakeForge servers up to Beta 6 send this without the \n
-		(!strncmp (s, "r_skyname ", 10) && !strchr (s, '\n')) )
-	{
-		Cbuf_AddTextEx (&cbuf_svc, "\n");
-	}
-
 	// Execute stuffed commands immediately when starting a demo
 	if (cls.demoplayback && cls.state != ca_active)
 		Cbuf_ExecuteEx (&cbuf_svc); // FIXME: execute cbuf_main too?
@@ -1635,7 +1627,7 @@ CL_MuzzleFlash
 */
 void CL_MuzzleFlash (void)
 {
-	vec3_t		forward;
+	vec3_t		forward, right, up;
 	vec3_t		origin, angles;
 	cdlight_t	*dl;
 	int			i;
@@ -1661,45 +1653,49 @@ void CL_MuzzleFlash (void)
 			if (ent->number == i)
 			{
 				dl = CL_AllocDlight (-i);
+
 				MSG_UnpackAngles (ent->s_angles, angles);
 				AngleVectors (angles, forward, NULL, NULL);
 				MSG_UnpackOrigin (ent->s_origin, origin);
 				VectorMA (origin, 18, forward, dl->origin);
+
 				dl->radius = 200 + (rand()&31);
 				dl->minlight = 32;
 				dl->die = cl.time + 0.1;
-				dl->color[0] = 0.9; dl->color[2] = 0.6; dl->color[3] = 0.4;
 				break;
 			}
 		}
 		return;
 	}
 
+	dl = CL_AllocDlight (-i);
 
 	//fuh : cl.playernum is used here instead of cl.viewplayernum because
 	//fuh : Cam_SetViewPlayer() is not called until after CL_ReadPackets().
 	if (i - 1 == cl.playernum)
 	{
-		if (cl_muzzleflash.value == 2)
-			return;
-
 		VectorCopy (cl.simorg, origin);
 		VectorCopy (cl.simangles, angles);
 	}
 	else
 	{
 		state = &cl.frames[cl.parsecount & UPDATE_MASK].playerstate[i-1];
+
 		VectorCopy (state->origin, origin);
 		VectorCopy (state->viewangles, angles);
 	}
 
-	dl = CL_AllocDlight (-i);
-	AngleVectors (angles, forward, NULL, NULL);
-	VectorMA (origin, 18, forward, dl->origin);
+	AngleVectors(angles, forward, right, up);
+	VectorMA(origin, 22, forward, origin);
+	VectorMA(origin, 10, right, origin);
+	VectorMA(origin, 12, up, origin);
+	VectorCopy(origin, dl->origin);
+
 	dl->radius = 200 + (rand()&31);
 	dl->minlight = 32;
 	dl->die = cl.time + 0.1;
-	dl->color[0] = 0.9; dl->color[2] = 0.6; dl->color[3] = 0.4;
+	
+	R_ColorDLight (dl, 255, 255, 255);
 }
 
 

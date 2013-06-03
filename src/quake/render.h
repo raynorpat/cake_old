@@ -42,13 +42,14 @@ typedef struct
 	char	map[64];
 } lightstyle_t;
 
-#define	MAX_DLIGHTS		32
+#define	MAX_DLIGHTS		128
 
 typedef struct
 {
 	int				key;		// FIXME
 	vec3_t			origin;
 	float			radius;
+	float			die;		// stop lighting after this time
 	float			minlight;
 	vec3_t			color;
 } dlight_t;
@@ -75,7 +76,7 @@ typedef struct aliasstate_s
 	struct gltexture_s *fb;
 
 	float shadelight[4];
-	float *shadedots;
+	float ambientlight[4];
 	vec3_t lightspot;
 
 	short pose1;
@@ -90,7 +91,10 @@ typedef struct aliasstate_s
 typedef struct entity_s
 {
 	// need to store the entity matrix for bmodel transforms
-	float					matrix[16];
+	glmatrix				matrix;
+
+	// entity number allocated
+	int						entnum;
 
 	aliasstate_t			aliasstate;
 
@@ -172,8 +176,10 @@ typedef struct {
 	qbool			watervis;
 
 	lightstyle_t	*lightstyles;
+
 	int				numDlights;
 	dlight_t		*dlights;
+
 	int				numParticles;
 	particle_t		*particles;
 
@@ -197,14 +203,11 @@ void R_Init (void);
 void R_InitTextures (void);
 void R_InitEfrags (void);
 void R_RenderView (void);		// must set r_refdef first
-void Sky_LoadSkyBox (char *name); // Quake2 skybox
 
 void R_AddEfrags (entity_t *ent);
 void R_RemoveEfrags (entity_t *ent);
 
 void R_NewMap (struct model_s *worldmodel);
-
-void R_PushDlights (void);
 
 // memory pointed to by pcxdata is allocated using Hunk_TempAlloc
 // never store this pointer for later use!
@@ -220,7 +223,7 @@ void R_DrawPic (int x, int y, qpic_t *pic);
 void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom);
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha);
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);
-void R_DrawCrosshair (int num, int crossx, int crossy);
+void R_DrawCrosshair (int crossx, int crossy, int color);
 void R_DrawNetGraph (void);
 void R_DrawConsoleBackground (float alpha);
 

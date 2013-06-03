@@ -28,13 +28,32 @@ float texcoordfactor = 0.5f;
 R_DrawParticles
 ===============
 */
+extern unsigned int r_quadindexbuffer;
+extern unsigned int r_parttexcoordbuffer;
+
+
+float up[3];
+float right[3];
+
+int r_particleframe = -1;
+
 void R_ParticlesBegin (void)
 {
+	VectorScale (vup, 1.5, up);
+	VectorScale (vright, 1.5, right);
+
 	GL_BindTexture (GL_TEXTURE0_ARB, particletexture);
-	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 
 	r_num_quads = 0;
-	R_EnableVertexArrays (r_default_quads->xyz, r_default_quads->color, r_default_quads->st, NULL, NULL, sizeof (r_defaultquad_t));
+
+	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
+	GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+
+	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
+	qglDepthMask (GL_TRUE);
 }
 
 
@@ -43,18 +62,26 @@ void R_ParticlesEnd (void)
 	// draw anything left over
 	if (r_num_quads)
 	{
-		R_DrawElements (r_num_quads * 6, r_num_quads * 4, r_quad_indexes);
-		//R_DrawArrays (GL_QUADS, 0, r_num_quads * 4);
+		GL_SetIndices (0, r_quad_indexes);
+		GL_DrawIndexedPrimitive (GL_TRIANGLES, r_num_quads * 6, r_num_quads * 4);
+
 		r_num_quads = 0;
 	}
 
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
+	qglDepthMask (GL_FALSE);
 }
+
 
 #define PARTICLE_VERTEX(i,vert) \
 	rpq[i].xyz[0] = (vert)[0]; \
 	rpq[i].xyz[1] = (vert)[1]; \
 	rpq[i].xyz[2] = (vert)[2];
+
+#define PARTICLE_VERTEX2(xyz,vert) \
+	xyz[0] = (vert)[0]; \
+	xyz[1] = (vert)[1]; \
+	xyz[2] = (vert)[2];
 
 #define PARTICLE_TEXCOORD(i,s,t) \
 	rpq[i].st[0] = s; \
@@ -63,23 +90,26 @@ void R_ParticlesEnd (void)
 void R_DrawParticlesForType (particle_type_t *pt)
 {
 	particle_t *p;
-	float up[3];
-	float right[3];
+
 	float scale;
 	vec3_t p_up, p_right, p_upright; // johnfitz -- p_ vectors
-	r_defaultquad_t *rpq = &r_default_quads[r_num_quads * 4];
+
+	r_defaultquad_t *rpq;
+
 	unsigned int rgba;
 
-	// should this be adjustable per particle???
-	VectorScale (vup, 1.5, up);
-	VectorScale (vright, 1.5, right);
+	rpq = &r_default_quads[r_num_quads * 4];
 
 	for (p = pt->particles; p; p = p->next, rpq += 4, r_num_quads++)
 	{
-		if (r_num_quads == r_max_quads)
+		// don't crash
+		if (p->color < 0 || p->color > 254) continue;
+
+		if (r_num_quads >= r_max_quads)
 		{
-			R_DrawElements (r_num_quads * 6, r_num_quads * 4, r_quad_indexes);
-			// R_DrawArrays (GL_QUADS, 0, r_num_quads * 4);
+			GL_SetIndices (0, r_quad_indexes);
+			GL_DrawIndexedPrimitive (GL_TRIANGLES, r_num_quads * 6, r_num_quads * 4);
+
 			rpq = r_default_quads;
 			r_num_quads = 0;
 		}
@@ -100,22 +130,24 @@ void R_DrawParticlesForType (particle_type_t *pt)
 
 		// set correct particle colour
 		rgba = d_8to24table_rgba[(int) p->color];
-		((byte *) &rgba)[3] = 255;
-		rpq[0].rgba = rpq[1].rgba = rpq[2].rgba = rpq[3].rgba = rgba;
+		((byte *) &rgba)[3] = 255; //BYTE_CLAMPF (p->alpha);
 
+		rpq[0].rgba = rpq[1].rgba = rpq[2].rgba = rpq[3].rgba = rgba;
+	
 		PARTICLE_VERTEX (0, p->org);
 		PARTICLE_TEXCOORD (0, 0, 0);
-
+	
 		PARTICLE_VERTEX (1, p_up);
 		PARTICLE_TEXCOORD (1, texcoordfactor, 0);
 
 		PARTICLE_VERTEX (2, p_upright);
 		PARTICLE_TEXCOORD (2, texcoordfactor, texcoordfactor);
-
+	
 		PARTICLE_VERTEX (3, p_right);
 		PARTICLE_TEXCOORD (3, 0, texcoordfactor);
 	}
 }
+
 
 void R_AddParticlesToAlphaList (particle_type_t *pt);
 

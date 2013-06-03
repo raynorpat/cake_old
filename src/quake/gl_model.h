@@ -40,6 +40,17 @@ BRUSH MODELS
 ==============================================================================
 */
 
+typedef struct r_modelsurf_s
+{
+	struct msurface_s *surface;	// the surface; the same msurface_t may be included more than once (e.g. for instanced bmodels)
+	struct texture_s *texture;	// the texture used by this modelsurf (after a run through R_TextureAnimation
+	glmatrix *matrix;			// the matrix used to transform this modelsurf; this can be NULL
+	int entnum;					// the entity number used with this modelsurf
+
+	struct r_modelsurf_s *surfchain;
+	struct r_modelsurf_s *lightchain;
+} r_modelsurf_t;
+
 
 //
 // in memory representation
@@ -53,9 +64,8 @@ typedef struct texture_s
 {
 	char		name[16];
 	unsigned	width, height;
-	struct gltexture_s *gl_texture;		// pointer to gltexture
-	struct gltexture_s *fb_texture;		// fullbright mask texture
-	struct msurface_s *texturechain;	// for texture chains
+	struct gltexture_s	*gltexture; 	// pointer to gltexture
+	struct gltexture_s	*fullbright; 	// fullbright mask texture
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
@@ -72,6 +82,11 @@ typedef struct texture_s
 #define SURF_DRAWBACKGROUND	0x40
 #define SURF_UNDERWATER		0x80
 #define SURF_NOTEXTURE		0x100
+#define SURF_DRAWFENCE		0x200
+#define SURF_DRAWLAVA		0x400
+#define SURF_DRAWSLIME		0x800
+#define SURF_DRAWTELE		0x1000
+#define SURF_DRAWWATER		0x2000
 
 typedef struct
 {
@@ -93,49 +108,88 @@ typedef struct glvertex_s
 	float st2[2];
 } glvertex_t;
 
-#define	VERTEXSIZE	7
 
-typedef struct glpoly_s
+// because we're using larger lightmap sizes we need larger sized variables here
+typedef struct glRect_s
 {
-	struct	glpoly_s	*next;
-	struct	glpoly_s	*chain;
-	int		numverts;
-	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2)
-} glpoly_t;
+	int left, top, right, bottom;
+} glRect_t;
+
 
 typedef struct msurface_s
 {
+	int			surfnum;
 	int			visframe;		// should be drawn when node is crossed
-	qbool		culled;			// for frustum culling
 	float		mins[3];		// for frustum culling
 	float		maxs[3];		// for frustum culling
+
+	float		*matrix;
+	float		midpoint[3];
+	float		dist;
+
+	qbool		intersect;		// true if the surface intersects the frustum
 
 	mplane_t	*plane;
 	int			flags;
 
-	int			firstedge;	// look up in model->surfedges[], negative numbers
-	int			numedges;	// are backwards edges
+	int			firstedge;		// look up in model->surfedges[], negative numbers
+	int			numedges;		// are backwards edges
 
-	short		texturemins[2];
-	short		extents[2];
+	glvertex_t	*glvertexes;
+	int			numglvertexes;
 
-	int			light_s, light_t;	// lightmap texture coordinates
+	unsigned short *glindexes;
+	int			numglindexes;
 
-	glpoly_t	*polys;				// multiple if warped
-	struct	msurface_s	*texturechain;
+	float		subdividesize;
+
+	// the model that uses this surface (for vertex regeneration)
+	struct model_s		*model;
+
+	int			texturemins[2];
+	int			extents[2];
+
+	// lightmaps
+	int			smax;
+	int			tmax;
+	byte		*lightbase;
+
+	// mh - for tracking overbright setting; if this is != gl_overbright we will need to rebuild the lightmap
+	int			overbright;
+
+	// update rectangle for lightmaps on this surf
+	glRect_t	lightrect;
 
 	mtexinfo_t	*texinfo;
 
+	// explicit water alpha used by this surf
+	float		wateralpha;
+
 // lighting info
 	int			dlightframe;
-	int			dlightbits;
+	int			dlightbits[4];
 
+	// this may be switched to 0 if we're using the entity lightmap
 	int			lightmaptexturenum;
-	byte		styles[MAXLIGHTMAPS];
-	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
-	qbool		cached_dlight;				// true if dynamic light in cache
+
+	// this is the true lightmap texnum
+	int			truelightmaptexturenum;
+
+	byte		styles[MAX_SURFACE_STYLES];
+	int			cached_light[MAX_SURFACE_STYLES];	// values currently used in lightmap
+	qbool		cached_dlight;			// true if dynamic light in cache
 	byte		*samples;		// [numstyles*surfsize]
 } msurface_t;
+
+
+#define INSIDE_FRUSTUM		1
+#define OUTSIDE_FRUSTUM		2
+#define INTERSECT_FRUSTUM	3
+
+#define FULLY_INSIDE_FRUSTUM		0x01010101
+#define FULLY_OUTSIDE_FRUSTUM		0x10101010
+#define FULLY_INTERSECT_FRUSTUM		0x11111111
+
 
 typedef struct mnode_s
 {
@@ -146,6 +200,12 @@ typedef struct mnode_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
+
+	union
+	{
+		int			bops;
+		byte		sides[4];
+	};
 
 // node specific
 	mplane_t	*plane;
@@ -164,6 +224,12 @@ typedef struct mleaf_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
+
+	union
+	{
+		int			bops;
+		byte		sides[4];
+	};
 
 // leaf specific
 	byte		*compressed_vis;
@@ -261,12 +327,12 @@ typedef struct mtriangle_s {
 #define	MAX_SKINS	32
 
 // split out to keep vertex sizes down
-typedef struct meshdesc_s
+typedef struct aliasmesh_s
 {
 	float st[2];
 	float light;
 	unsigned short vertindex;
-} meshdesc_t;
+} aliasmesh_t;
 
 typedef struct aliashdr_s
 {
@@ -286,17 +352,19 @@ typedef struct aliashdr_s
 	int         numframes;
 
 	int         meshverts;
-	int			meshdescs;
-	int         vertexes;
+	intptr_t	aliasmesh;
+	intptr_t    vertexes;
 	int         framevertexsize;
 
 	int         skinwidth;
 	int         skinheight;
 	int         numskins;
 
-	int			indexes;
+	intptr_t	indexes;
 	int			numindexes;
-	int			firstindex;
+
+	intptr_t	firstindex;
+	intptr_t	firstvertex;
 
 	struct gltexture_s	*gltextures[MAX_SKINS][4];
 	struct gltexture_s	*fbtextures[MAX_SKINS][4];
@@ -351,7 +419,6 @@ typedef struct model_s
 	// brush model
 	int			firstmodelsurface, nummodelsurfaces;
 
-	// FIXME, don't really need these two
 	int			numsubmodels;
 	dmodel_t	*submodels;
 
@@ -414,6 +481,7 @@ mleaf_t *Mod_PointInLeaf (float *p, model_t *model);
 byte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 
 qbool	Mod_CheckFullbrights (byte *pixels, int count);
+void GL_RegenerateVertexes (model_t *mod, msurface_t *surf, glmatrix *matrix);
 
 #endif	// __MODEL__
 

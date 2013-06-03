@@ -23,9 +23,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "sound.h"
 
 r_defaultquad_t *r_default_quads = (r_defaultquad_t *) scratchbuf;
+r_defaultquad2_t *r_default_quads2 = (r_defaultquad2_t *) scratchbuf;
+
 int r_max_quads = SCRATCHBUF_SIZE / (sizeof (r_defaultquad_t) * 4);
 int r_num_quads = 0;
+
 unsigned short *r_quad_indexes = NULL;
+
+unsigned int r_quadindexbuffer = 0;
+unsigned int r_parttexcoordbuffer = 0;
+
+void R_InitQuads (void);
+void R_DrawCoronas (void);
+
+glmatrix r_world_matrix;
+
+void R_InitVertexBuffers (void)
+{
+	// create the initial indexes if needed
+	if (!r_quad_indexes) R_InitQuads ();
+}
 
 
 void R_InitQuads (void)
@@ -33,6 +50,9 @@ void R_InitQuads (void)
 	int i;
 	unsigned short *ndx;
 	unsigned int pquad;
+
+	// don't create it more than once
+	if (r_quad_indexes) return;
 
 	// clamp to shorts
 	if (r_max_quads >= 16384) r_max_quads = 16384;
@@ -60,6 +80,7 @@ void R_DrawSpriteModels (void);
 void R_ShowTrisBegin (void)
 {
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_NONE);
+	qglColor4f (1, 1, 1, 1);
 	Fog_DisableGFog ();
 
 	if (r_showtris.value < 2)
@@ -75,7 +96,7 @@ void R_ShowTrisBegin (void)
 	}
 
 	qglPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
-	GL_Color (1, 1, 1, 1);
+	qglColor4f (1, 1, 1, 1);
 }
 
 
@@ -102,11 +123,11 @@ model_t	*r_worldmodel;
 entity_t r_worldentity;
 
 vec3_t	modelorg, r_entorigin;
-entity_t *currententity;
 
 int		r_visframecount;	// bumped when going to a new PVS
 int		r_framecount;		// used for dlight push checking
 
+glmatrix r_projection_matrix;
 mplane_t frustum[4];
 
 //
@@ -123,7 +144,6 @@ vec3_t	r_origin;
 refdef2_t r_refdef2;
 
 mleaf_t	*r_viewleaf, *r_oldviewleaf;
-mleaf_t	*r_viewleaf2, *r_oldviewleaf2;	// for watervis hack
 
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
@@ -156,63 +176,90 @@ cvar_t	gl_nocolors = {"gl_nocolors","0"};
 cvar_t	gl_finish = {"gl_finish","0"};
 cvar_t	gl_fullbrights = {"gl_fullbrights","1"};
 cvar_t	gl_overbright = {"gl_overbright","1"};
-cvar_t	gl_farclip = {"gl_farclip", "16384", CVAR_ARCHIVE};
 
-float	r_lightscale = 4.0f; // overbright light scale
+extern cvar_t r_show_coronas;
+extern cvar_t r_instancedlight;
 
 void R_AlphaListBeginFrame (void);
 void R_DrawAlphaList (void);
 
 /*
 =================
-R_CullBox
+R_CullSphere
 
-Returns true if the box is completely outside the frustum
+Returns true if the sphere is outside the frustum
+grabbed from AlienArena 2011 source (repaying the compliment!!!)
 =================
 */
-qbool R_CullBox (vec3_t mins, vec3_t maxs)
+qbool R_CullSphere (const float *center, const float radius, const int clipflags)
 {
 	int		i;
 	mplane_t *p;
 
-	for (i=0,p=frustum ; i<4; i++,p++)
+	for (i = 0, p = frustum; i < 4; i++, p++)
 	{
+		if (!(clipflags & (1 << i)))
+			continue;
+
+		if (DotProduct (center, p->normal) - p->dist <= -radius)
+			return true;
+	}
+
+	return false;
+}
+
+
+/*
+=================
+R_CullBox -- johnfitz -- replaced with new function from lordhavoc
+
+Returns true if the box is completely outside the frustum
+=================
+*/
+qbool R_CullBox (vec3_t emins, vec3_t emaxs)
+{
+	int		i;
+	mplane_t *p;
+
+	for (i = 0; i < 4; i++)
+	{
+		p = &frustum[i];
+
 		switch (p->signbits)
 		{
+		default:
 		case 0:
-			if (p->normal[0]*maxs[0] + p->normal[1]*maxs[1] + p->normal[2]*maxs[2] < p->dist)
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emaxs[1] + p->normal[2] * emaxs[2] < p->dist)
 				return true;
 			break;
 		case 1:
-			if (p->normal[0]*mins[0] + p->normal[1]*maxs[1] + p->normal[2]*maxs[2] < p->dist)
+			if (p->normal[0] * emins[0] + p->normal[1] * emaxs[1] + p->normal[2] * emaxs[2] < p->dist)
 				return true;
 			break;
 		case 2:
-			if (p->normal[0]*maxs[0] + p->normal[1]*mins[1] + p->normal[2]*maxs[2] < p->dist)
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emins[1] + p->normal[2] * emaxs[2] < p->dist)
 				return true;
 			break;
 		case 3:
-			if (p->normal[0]*mins[0] + p->normal[1]*mins[1] + p->normal[2]*maxs[2] < p->dist)
+			if (p->normal[0] * emins[0] + p->normal[1] * emins[1] + p->normal[2] * emaxs[2] < p->dist)
 				return true;
 			break;
 		case 4:
-			if (p->normal[0]*maxs[0] + p->normal[1]*maxs[1] + p->normal[2]*mins[2] < p->dist)
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emaxs[1] + p->normal[2] * emins[2] < p->dist)
 				return true;
 			break;
 		case 5:
-			if (p->normal[0]*mins[0] + p->normal[1]*maxs[1] + p->normal[2]*mins[2] < p->dist)
+			if (p->normal[0] * emins[0] + p->normal[1] * emaxs[1] + p->normal[2] * emins[2] < p->dist)
 				return true;
 			break;
 		case 6:
-			if (p->normal[0]*maxs[0] + p->normal[1]*mins[1] + p->normal[2]*mins[2] < p->dist)
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emins[1] + p->normal[2] * emins[2] < p->dist)
 				return true;
 			break;
 		case 7:
-			if (p->normal[0]*mins[0] + p->normal[1]*mins[1] + p->normal[2]*mins[2] < p->dist)
+			if (p->normal[0] * emins[0] + p->normal[1] * emins[1] + p->normal[2] * emins[2] < p->dist)
 				return true;
 			break;
-		default:
-			return false;
 		}
 	}
 
@@ -249,26 +296,6 @@ qbool R_CullModelForEntity (entity_t *e)
 	return R_CullBox (mins, maxs);
 }
 
-/*
-=================
-R_CullSphere
-
-Returns true if the sphere is completely outside the frustum
-=================
-*/
-qbool R_CullSphere (vec3_t centre, float radius)
-{
-	int		i;
-	mplane_t *p;
-
-	for (i=0,p=frustum ; i<4; i++,p++)
-	{
-		if ( DotProduct (centre, p->normal) - p->dist <= -radius )
-			return true;
-	}
-
-	return false;
-}
 
 //==============================================================================
 //
@@ -282,64 +309,199 @@ static int SignbitsForPlane (mplane_t *out)
 
 	// for fast box on planeside test
 	bits = 0;
+
 	for (j=0 ; j<3 ; j++)
 	{
 		if (out->normal[j] < 0)
 			bits |= 1<<j;
 	}
+
 	return bits;
 }
 
+
 /*
-===============
-TurnVector
-
-turn forward towards side on the plane defined by forward and side
-if angle = 90, the result will be equal to side
-assumes side and forward are perpendicular, and normalized
-to turn away from side, use a negative angle
-===============
+=============
+GL_SetFrustum
+=============
 */
-#define DEG2RAD( a ) ( (a) * M_PI/180 )
-static void TurnVector (vec3_t out, const vec3_t forward, const vec3_t side, float angle)
+void GL_SetFrustum (float fovx, float fovy)
 {
-	float scale_forward, scale_side;
+#define NEARCLIP 4
+	float left, right, bottom, top;
+	float nudge = 1.0 - 1.0 / (1 << 23);
 
-	scale_forward = cos( DEG2RAD( angle ) );
-	scale_side = sin( DEG2RAD( angle ) );
+	right = NEARCLIP * tan (fovx * M_PI / 360.0);
+	left = -right;
 
-	out[0] = scale_forward*forward[0] + scale_side*side[0];
-	out[1] = scale_forward*forward[1] + scale_side*side[1];
-	out[2] = scale_forward*forward[2] + scale_side*side[2];
+	top = NEARCLIP * tan (fovy * M_PI / 360.0);
+	bottom = -top;
+
+	r_projection_matrix.m16[0] = (2 * NEARCLIP) / (right - left);
+	r_projection_matrix.m16[4] = 0;
+	r_projection_matrix.m16[8] = (right + left) / (right - left);
+	r_projection_matrix.m16[12] = 0;
+
+	r_projection_matrix.m16[1] = 0;
+	r_projection_matrix.m16[5] = (2 * NEARCLIP) / (top - bottom);
+	r_projection_matrix.m16[9] = (top + bottom) / (top - bottom);
+	r_projection_matrix.m16[13] = 0;
+
+	r_projection_matrix.m16[2] = 0;
+	r_projection_matrix.m16[6] = 0;
+	r_projection_matrix.m16[10] = -1 * nudge;
+	r_projection_matrix.m16[14] = -2 * NEARCLIP * nudge;
+
+	r_projection_matrix.m16[3] = 0;
+	r_projection_matrix.m16[7] = 0;
+	r_projection_matrix.m16[11] = -1;
+	r_projection_matrix.m16[15] = 0;
+
+	if (r_waterwarp.value && r_waterwarp.value < 2)
+	{
+		int contents = Mod_PointInLeaf (r_origin, r_worldmodel)->contents;
+
+		if ((contents == CONTENTS_WATER || contents == CONTENTS_SLIME || contents == CONTENTS_LAVA) && v_blend[3])
+		{
+			r_projection_matrix.m16[4] = sin (cl.time * 1.125f) * 0.0666f;
+			r_projection_matrix.m16[1] = cos (cl.time * 1.125f) * 0.0666f;
+			GL_ScaleMatrix (&r_projection_matrix, (cos (cl.time * 0.75f) + 20.0f) * 0.05f, (sin (cl.time * 0.75f) + 20.0f) * 0.05f, 1);
+		}
+	}
+
+	qglLoadMatrixf (r_projection_matrix.m16);
 }
 
-/*
-===============
-R_SetFrustum
-===============
-*/
-static void R_SetFrustum (float fovx, float fovy)
+
+void R_ExtractFrustum (void)
 {
-	int		i;
+	int i;
+	glmatrix r_mvp_matrix;
 
-	// retain the old frustum unless we're in the first few frames in which case we want one to be done as a baseline
-	if (r_framecount > 5 && r_lockfrustum.value)
-		return;
+	// get the frustum from the actual matrixes that were used
+	GL_MultiplyMatrix (&r_mvp_matrix, &r_world_matrix, &r_projection_matrix);
 
-	if (r_stereo.value)
-		fovx += 10; // HACK: so polygons don't drop out becuase of stereo skew
+	// frustum 0
+	frustum[0].normal[0] = r_mvp_matrix.m16[3] - r_mvp_matrix.m16[0];
+	frustum[0].normal[1] = r_mvp_matrix.m16[7] - r_mvp_matrix.m16[4];
+	frustum[0].normal[2] = r_mvp_matrix.m16[11] - r_mvp_matrix.m16[8];
 
-	TurnVector(frustum[0].normal, vpn, vright, fovx / 2 - 90); // left plane
-	TurnVector(frustum[1].normal, vpn, vright, 90 - fovx / 2); // right plane
-	TurnVector(frustum[2].normal, vpn, vup, 90 - fovy / 2); // bottom plane
-	TurnVector(frustum[3].normal, vpn, vup, fovy / 2 - 90); // top plane
+	// frustum 1
+	frustum[1].normal[0] = r_mvp_matrix.m16[3] + r_mvp_matrix.m16[0];
+	frustum[1].normal[1] = r_mvp_matrix.m16[7] + r_mvp_matrix.m16[4];
+	frustum[1].normal[2] = r_mvp_matrix.m16[11] + r_mvp_matrix.m16[8];
 
-	for (i=0 ; i<4 ; i++)
+	// frustum 2
+	frustum[2].normal[0] = r_mvp_matrix.m16[3] + r_mvp_matrix.m16[1];
+	frustum[2].normal[1] = r_mvp_matrix.m16[7] + r_mvp_matrix.m16[5];
+	frustum[2].normal[2] = r_mvp_matrix.m16[11] + r_mvp_matrix.m16[9];
+
+	// frustum 3
+	frustum[3].normal[0] = r_mvp_matrix.m16[3] - r_mvp_matrix.m16[1];
+	frustum[3].normal[1] = r_mvp_matrix.m16[7] - r_mvp_matrix.m16[5];
+	frustum[3].normal[2] = r_mvp_matrix.m16[11] - r_mvp_matrix.m16[9];
+
+	for (i = 0; i < 4; i++)
 	{
+		VectorNormalize (frustum[i].normal);
+
 		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (r_origin, frustum[i].normal); // FIXME: shouldn't this always be zero?
+		frustum[i].dist = DotProduct (r_origin, frustum[i].normal); //FIXME: shouldn't this always be zero?
 		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
 	}
+}
+
+
+/*
+=============
+R_SetupGL
+=============
+*/
+int gl_vpx, gl_vpy, gl_vpwidth, gl_vpheight;
+
+void R_SetupGL (void)
+{
+	// evaluate viewport size
+	gl_vpx = 0;
+	gl_vpy = 0;
+	gl_vpwidth = vid.width;
+	gl_vpheight = vid.height;
+}
+
+
+void R_SetViewport (void)
+{
+	// now set the correct viewport
+	qglViewport (gl_vpx, gl_vpy, gl_vpwidth, gl_vpheight);
+
+	// johnfitz -- rewrote this section
+	qglMatrixMode (GL_PROJECTION);
+	qglLoadIdentity ();
+	// johnfitz
+
+	GL_SetFrustum (r_fovx, r_fovy); // johnfitz -- use r_fov* vars
+
+	qglMatrixMode (GL_MODELVIEW);
+
+	GL_IdentityMatrix (&r_world_matrix);
+
+	GL_RotateMatrix (&r_world_matrix, -90, 1, 0, 0);
+	GL_RotateMatrix (&r_world_matrix, 90, 0, 0, 1);
+
+	GL_RotateMatrix (&r_world_matrix, -r_refdef2.viewangles[2], 1, 0, 0);
+	GL_RotateMatrix (&r_world_matrix, -r_refdef2.viewangles[0], 0, 1, 0);
+	GL_RotateMatrix (&r_world_matrix, -r_refdef2.viewangles[1], 0, 0, 1);
+
+	GL_TranslateMatrix (&r_world_matrix, -r_refdef2.vieworg[0], -r_refdef2.vieworg[1], -r_refdef2.vieworg[2]);
+
+	qglLoadMatrixf (r_world_matrix.m16);
+
+	R_ExtractFrustum ();
+
+	// set drawing parms
+	qglEnable (GL_CULL_FACE);
+
+	qglDisable (GL_BLEND);
+	qglDisable (GL_ALPHA_TEST);
+	qglEnable (GL_DEPTH_TEST);
+	qglDepthMask (GL_TRUE);
+	qglDepthFunc (GL_LEQUAL);
+}
+
+
+/*
+=============
+R_Clear -- johnfitz -- rewritten and gutted
+=============
+*/
+void R_Clear (void)
+{
+	extern int gl_stencilbits;
+	unsigned int clearbits;
+
+	// partition the depth range for 3D/2D stuff
+	qglDepthRange (QGL_DEPTH_3D_BEGIN, QGL_DEPTH_3D_END);
+
+	// always clear the depth buffer
+	clearbits = GL_DEPTH_BUFFER_BIT;
+
+	if (r_viewleaf && r_viewleaf->contents == CONTENTS_SOLID)
+	{
+		// when noclipping set a black clear color
+		qglClearColor (0.15, 0.15, 0.15, 1);
+		clearbits |= GL_COLOR_BUFFER_BIT;
+	}
+	else if (1)
+	{
+		// set the correct clear color
+		qglClearColor (0.15, 0.15, 0.15, 1);
+		clearbits |= GL_COLOR_BUFFER_BIT;
+	}
+
+	// if we got a stencil buffer we must always clear it, even if we're not using it
+	clearbits |= GL_STENCIL_BUFFER_BIT;
+
+	qglClear (clearbits);
 }
 
 /*
@@ -351,13 +513,51 @@ this is the stuff that needs to be done once per eye in stereo mode
 */
 void R_SetupScene (void)
 {
-	R_PushDlights ();
 	R_AnimateLight ();
-
 	r_framecount++;
-
-	RB_Set3DMatrix ();
 }
+
+
+void R_UpdateContentsColor (void)
+{
+	/*
+	if (r_viewleaf->contents == CONTENTS_EMPTY)
+	{
+		// brought to you today by "disgusting hacks 'r' us"...
+		extern cshift_t cshift_empty;
+
+		cl.cshifts[CSHIFT_CONTENTS].destcolor[0] = cshift_empty.destcolor[0];
+		cl.cshifts[CSHIFT_CONTENTS].destcolor[1] = cshift_empty.destcolor[1];
+		cl.cshifts[CSHIFT_CONTENTS].destcolor[2] = cshift_empty.destcolor[2];
+		cl.cshifts[CSHIFT_CONTENTS].percent = cshift_empty.percent;
+	}
+	else if (r_viewleaf->contentscolor)
+	{
+		// if the viewleaf has a contents colour set we just override with it
+		cl.cshifts[CSHIFT_CONTENTS].destcolor[0] = r_viewleaf->contentscolor[0];
+		cl.cshifts[CSHIFT_CONTENTS].destcolor[1] = r_viewleaf->contentscolor[1];
+		cl.cshifts[CSHIFT_CONTENTS].destcolor[2] = r_viewleaf->contentscolor[2];
+
+		// these now have more colour so reduce the percent to compensate
+		if (r_viewleaf->contents == CONTENTS_WATER)
+			cl.cshifts[CSHIFT_CONTENTS].percent = 48;
+		else if (r_viewleaf->contents == CONTENTS_LAVA)
+			cl.cshifts[CSHIFT_CONTENTS].percent = 112;
+		else if (r_viewleaf->contents == CONTENTS_SLIME)
+			cl.cshifts[CSHIFT_CONTENTS].percent = 80;
+		else cl.cshifts[CSHIFT_CONTENTS].percent = 0;
+	}
+	else
+	*/
+	{
+		// empty or undefined
+		V_SetContentsColor (r_viewleaf->contents);
+	}
+
+	// now calc the blend
+	V_PrepBlend ();
+}
+
 
 /*
 ===============
@@ -368,13 +568,6 @@ this is the stuff that needs to be done once per frame, even in stereo mode
 */
 void R_SetupView (void)
 {
-	vec3_t	testorigin;
-	mleaf_t	*leaf;
-	extern float wateralpha;
-
-	// use wateralpha only if the server allows
-	wateralpha = r_refdef2.watervis ? r_wateralpha.value : 1;
-
 	// setup fog values for this frame
 	Fog_SetupFrame ();
 
@@ -384,62 +577,30 @@ void R_SetupView (void)
 
 	// current viewleaf
 	r_oldviewleaf = r_viewleaf;
-	r_oldviewleaf2 = r_viewleaf2;
 	r_viewleaf = Mod_PointInLeaf (r_origin, r_worldmodel);
-	r_viewleaf2 = NULL;
 
-	// check above and below so crossing solid water doesn't draw wrong
-	if (r_viewleaf->contents <= CONTENTS_WATER && r_viewleaf->contents >= CONTENTS_LAVA)
-	{
-		// look up a bit
-		VectorCopy (r_origin, testorigin);
-		testorigin[2] += 10;
-		leaf = Mod_PointInLeaf (testorigin, r_worldmodel);
-		if (leaf->contents == CONTENTS_EMPTY)
-			r_viewleaf2 = leaf;
-	}
-	else if (r_viewleaf->contents == CONTENTS_EMPTY)
-	{
-		// look down a bit
-		VectorCopy (r_origin, testorigin);
-		testorigin[2] -= 10;
-		leaf = Mod_PointInLeaf (testorigin, r_worldmodel);
-		if (leaf->contents <= CONTENTS_WATER &&	leaf->contents >= CONTENTS_LAVA)
-			r_viewleaf2 = leaf;
-	}
-
-	V_SetContentsColor (r_viewleaf->contents);
-	V_PrepBlend ();
-
-	// the overbright scale needs to retain 1 in the alpha channel
-	if (gl_overbright.value >= 1)
-		r_lightscale = 4;
-	else if (gl_overbright.value < 1)
-		r_lightscale = 2;
-
-	if (r_lightmap.value)
-		r_lightscale *= 0.5f;
+	R_UpdateContentsColor ();
 
 	// calculate r_fovx and r_fovy here
 	r_fovx = r_refdef2.fov_x;
 	r_fovy = r_refdef2.fov_y;
+
 	if (r_waterwarp.value)
 	{
 		int contents = Mod_PointInLeaf (r_origin, r_worldmodel)->contents;
-		if (contents == CONTENTS_WATER || contents == CONTENTS_SLIME || contents == CONTENTS_LAVA)
+
+		if ((contents == CONTENTS_WATER || contents == CONTENTS_SLIME || contents == CONTENTS_LAVA) && v_blend[3])
 		{
-			// variance is a percentage of width, where width = 2 * tan(fov / 2) otherwise the effect is too dramatic at high FOV and too subtle at low FOV.  what a mess!
-			r_fovx = atan(tan(DEG2RAD(r_refdef2.fov_x) / 2) * (0.97 + sin(cl.time * 1.5) * 0.03)) * 2 / (M_PI/180);
-			r_fovy = atan(tan(DEG2RAD(r_refdef2.fov_y) / 2) * (1.03 - sin(cl.time * 1.5) * 0.03)) * 2 / (M_PI/180);
+			if (r_waterwarp.value > 2)
+			{
+				// variance is a percentage of width, where width = 2 * tan(fov / 2) otherwise the effect is too dramatic at high FOV and too subtle at low FOV.  what a mess!
+				r_fovx = atan (tan (DEG2RAD (r_refdef2.fov_x) / 2) * (0.97 + sin (r_refdef2.time * 1.5) * 0.03)) * 2 / (M_PI/180);
+				r_fovy = atan (tan (DEG2RAD (r_refdef2.fov_y) / 2) * (1.03 - sin (r_refdef2.time * 1.5) * 0.03)) * 2 / (M_PI/180);
+			}
 		}
 	}
 
-	R_SetFrustum (r_fovx, r_fovy);
-
-	R_MarkSurfaces ();			// create texture chains from PVS
-	R_CullSurfaces ();			// do after R_SetFrustum and R_MarkSurfaces
-
-	RB_Clear ();
+	R_MarkLeafs (); // create texture chains from PVS
 }
 
 //==============================================================================
@@ -449,42 +610,27 @@ void R_SetupView (void)
 //==============================================================================
 
 /*
-=============
-R_DrawEntitiesOnList
-=============
-*/
-void R_DrawEntitiesOnList (void)
-{
-	int		i;
+================
+R_RenderScene
 
-	if (!r_drawentities.value)
-		return;
-	
-	for (i = 0; i < cl_numvisedicts; i++)
+r_refdef must be set before the first call
+================
+*/
+
+void GL_PolyBlend (void)
+{
+	float blendverts[] =
 	{
-		currententity = &cl_visedicts[i];
+		// note - 100 y is needed for high fov
+		10, 100, 100,
+		10, -100, 100,
+		10, -100, -100,
+		10, 100, -100
+	};
 
-		switch (currententity->model->type)
-		{
-			case mod_brush:
-				R_DrawBrushModel (currententity);
-				break;
-
-			default:
-				break;
-		}
-	}
-}
-
-/*
-============
-R_PolyBlend
-============
-*/
-void R_PolyBlend (void)
-{
-	if (!v_blend[3])
-		return;
+	// whaddaya know - these run faster
+//	if (!gl_polyblend.value) return;
+	if (!v_blend[3]) return;
 
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
@@ -494,115 +640,82 @@ void R_PolyBlend (void)
 	qglLoadIdentity ();
 
 	// FIXME: get rid of these
-	qglRotatef (-90, 1, 0, 0);           // put Z going up
-	qglRotatef (90, 0, 0, 1);            // put Z going up
+	qglRotatef (-90, 1, 0, 0);	    // put Z going up
+	qglRotatef (90, 0, 0, 1);	    // put Z going up
 
-	qglColor4fv (v_blend);
+	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, 0, blendverts);
+	GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetIndices (0, r_quad_indexes);
 
-	qglBegin (GL_QUADS);
-	qglVertex3f (10, 100, 100);
-	qglVertex3f (10, -100, 100);
-	qglVertex3f (10, -100, -100);
-	qglVertex3f (10, 100, -100);
-	qglEnd ();
+	qglColor4f (v_blend[0], v_blend[1], v_blend[2], v_blend[3]);
+
+	GL_DrawIndexedPrimitive (GL_TRIANGLES, 6, 4);
 
 	qglDisable (GL_BLEND);
 	qglEnable (GL_TEXTURE_2D);
 	qglEnable (GL_ALPHA_TEST);
-
 	qglColor4f (1, 1, 1, 1);
 }
 
-/*
-================
-R_RenderScene
-
-r_refdef must be set before the first call
-================
-*/
 void R_RenderScene (void)
 {
+	R_ModelSurfsBeginFrame ();
 	R_AlphaListBeginFrame ();
-
-	R_SetupScene (); 				// this does everything that should be done once per call to RenderScene
-
+	R_SetupScene (); // this does everything that should be done once per call to RenderScene
+	R_SetupGL ();
+	R_SetViewport ();
+	R_Clear ();
 	Fog_EnableGFog ();
-
-	Sky_DrawSky ();
-
 	R_DrawWorld ();
-
-	R_DrawEntitiesOnList ();
-
-	R_DrawTextureChains_Water ();	// drawn here since they might have transparency
-
 	R_DrawAliasModels ();
 	R_DrawSpriteModels ();
 	R_DrawParticles ();
+	R_DrawCoronas ();
 	R_DrawAlphaList ();
-
 	Fog_DisableGFog ();
 
-	R_PolyBlend ();
+	GL_PolyBlend ();
 }
+
 
 /*
 ================
 R_RenderView
-
-r_refdef must be set before the first call
 ================
 */
 void R_RenderView (void)
 {
+	float	time1 = 0, time2 = 0;
+
 	if (r_norefresh.value)
 		return;
 
 	if (!r_worldentity.model || !r_worldmodel)
 		Sys_Error ("R_RenderView: NULL worldmodel");
 
-	RB_StartFrame ();
+	if (r_speeds.value) time1 = Sys_DoubleTime ();
+
+	// johnfitz -- rendering statistics
+	// mh - always so that we can use con_printf for debug output while developing
+	rs_brushpolys = rs_aliaspolys = rs_drawelements = rs_dynamiclightmaps = 0;
 
 	R_SetupView (); // this does everything that should be done once per frame
+	R_RenderScene ();
 
-	// stereo rendering -- full of hacky goodness
-	if (r_stereo.value)
+	if (r_speeds.value)
 	{
-		float eyesep = clamp(-8.0f, r_stereo.value, 8.0f);
-		float fdepth = clamp(32.0f, r_stereodepth.value, 1024.0f);
-		extern float frustum_skew;
+		time2 = Sys_DoubleTime ();
 
-		AngleVectors (r_refdef2.viewangles, vpn, vright, vup);
-
-		// render left eye (red)
-		qglColorMask(1, 0, 0, 1);
-		VectorMA (r_refdef2.vieworg, -0.5f * eyesep, vright, r_refdef2.vieworg);
-		frustum_skew = 0.5 * eyesep * NEARCLIP / fdepth;
-		srand((int) (cl.time * 1000)); // sync random stuff between eyes
-
-		R_RenderScene ();
-
-		// render right eye (cyan)
-		qglClear (GL_DEPTH_BUFFER_BIT);
-		qglColorMask(0, 1, 1, 1);
-		VectorMA (r_refdef2.vieworg, 1.0f * eyesep, vright, r_refdef2.vieworg);
-		frustum_skew = -frustum_skew;
-		srand((int) (cl.time * 1000)); // sync random stuff between eyes
-
-		R_RenderScene ();
-
-		// restore
-		qglColorMask(1, 1, 1, 1);
-		VectorMA (r_refdef2.vieworg, -0.5f * eyesep, vright, r_refdef2.vieworg);
-		frustum_skew = 0.0f;
+		Com_Printf ("%3i ms  %4i wpoly   %4i epoly   %4i draw   %3i lmap\n",
+			(int) ((time2 - time1) * 1000),
+			rs_brushpolys,
+			rs_aliaspolys,
+			rs_drawelements,
+			rs_dynamiclightmaps);
 	}
-	else
-	{
-		// render normal view
-		R_RenderScene ();
-	}
-
-	RB_EndFrame ();
 }
 
 
@@ -616,18 +729,11 @@ void gl_main_shutdown(void)
 
 void gl_main_newmap(void)
 {
-	r_framecount = 1; // no dlightcache
-
-	Sky_NewMap ();
-	Fog_NewMap ();
 }
 
 void GL_Main_Init(void)
 {
-	R_InitQuads ();
-
 	Cmd_AddCommand ("screenshot", R_ScreenShot_f);
-	Cmd_AddCommand ("loadsky", R_LoadSky_f);
 
 	Cvar_Register (&r_norefresh);
 	Cvar_Register (&r_lightmap);
@@ -648,18 +754,20 @@ void GL_Main_Init(void)
 	Cvar_Register (&r_stereo);
 	Cvar_Register (&r_stereodepth);
 	Cvar_Register (&r_showtris);
-	Cvar_Register (&r_primitives);
 	Cvar_Register (&r_lerpmodels);
 	Cvar_Register (&r_lerpmove);
 	Cvar_Register (&r_nolerp_list);
 	Cvar_Register (&r_lockpvs);
 	Cvar_Register (&r_lockfrustum);
+	Cvar_Register (&r_show_coronas);
+	Cvar_Register (&r_instancedlight);
 
 	Cvar_Register (&gl_nocolors);
 	Cvar_Register (&gl_finish);
 	Cvar_Register (&gl_fullbrights);
 	Cvar_Register (&gl_overbright);
-	Cvar_Register (&gl_farclip);
+
+	R_WarpRegisterCvars ();
 
 	R_RegisterModule("GL_Main", gl_main_start, gl_main_shutdown, gl_main_newmap);
 }
@@ -678,5 +786,6 @@ void R_Init (void)
 	TexMgr_Init ();
 	R_Draw_Init ();
 	Mod_Init ();
+	Sky_Init ();
 	Fog_Init ();
 }

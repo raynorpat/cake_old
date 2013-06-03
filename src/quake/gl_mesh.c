@@ -21,21 +21,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
-static int r_nummeshindexes = 0;
-int r_meshindexbuffer = 0;
+
+unsigned int r_meshindexbuffer = 0;
+unsigned int r_meshvertexbuffer = 0;
 
 void GL_MakeAliasModelDisplayLists (stvert_t *stverts, dtriangle_t *triangles)
 {
 	int i, j;
-	meshdesc_t *hunkdesc;
+	aliasmesh_t *hunkdesc;
 
 	// there can never be more than this number of verts
-	meshdesc_t *desc = (meshdesc_t *) malloc (sizeof (meshdesc_t) * pheader->numverts);
+	aliasmesh_t *desc = (aliasmesh_t *) malloc (sizeof (aliasmesh_t) * pheader->numverts);
 
 	// there will always be this number of indexes
 	unsigned short *indexes = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * pheader->numtris * 3);
 
-	pheader->indexes = (int) indexes - (int) pheader;
+	pheader->indexes = (intptr_t) indexes - (intptr_t) pheader;
 	pheader->numindexes = 0;
 	pheader->numverts = 0;
 
@@ -83,15 +84,15 @@ void GL_MakeAliasModelDisplayLists (stvert_t *stverts, dtriangle_t *triangles)
 	}
 
 	// create a hunk buffer for the final mesh we'll actually use
-	hunkdesc = (meshdesc_t *) Hunk_Alloc (sizeof (meshdesc_t) * pheader->numverts);
-	pheader->meshdescs = (int) hunkdesc - (int) pheader;
+	hunkdesc = (aliasmesh_t *) Hunk_Alloc (sizeof (aliasmesh_t) * pheader->numverts);
+	pheader->aliasmesh = (intptr_t) hunkdesc - (intptr_t) pheader;
 
 	// tidy up the verts by calculating final s and t and copying out to the hunk
 	for (i = 0; i < pheader->numverts; i++)
 	{
 		hunkdesc[i].vertindex = desc[i].vertindex;
-		hunkdesc[i].st[0] = (((float) desc[i].st[0] + 0.5f) / (float) pheader->skinwidth);
-		hunkdesc[i].st[1] = (((float) desc[i].st[1] + 0.5f) / (float) pheader->skinheight);
+		hunkdesc[i].st[0] = ((float) desc[i].st[0] + 0.5f) / (float) pheader->skinwidth;
+		hunkdesc[i].st[1] = ((float) desc[i].st[1] + 0.5f) / (float) pheader->skinheight;
 	}
 
 	// don't forget!!!
@@ -101,63 +102,4 @@ void GL_MakeAliasModelDisplayLists (stvert_t *stverts, dtriangle_t *triangles)
 
 void R_CreateMeshIndexBuffer (void)
 {
-	if (gl_support_arb_vertex_buffer_object)
-	{
-		int i;
-		model_t *m;
-		aliashdr_t *hdr;
-		unsigned short *ndx;
-
-		if (r_meshindexbuffer)
-		{
-			qglDeleteBuffersARB (1, &r_meshindexbuffer);
-			r_meshindexbuffer = 0;
-		}
-
-		// count the indexes used
-		// this can't be done at load time owing to the caching system meaning that some models may not be loaded for a new map!!!
-		r_nummeshindexes = 0;
-
-		// fill in indexes for the alias models
-		for (i = 1; i < MAX_MODELS; i++)
-		{
-			if (!(m = cl.model_precache[i])) break;
-			if (m->type != mod_alias) continue;
-
-			hdr = (aliashdr_t *) Mod_Extradata (m);
-			r_nummeshindexes += hdr->numindexes;
-		}
-
-		qglGenBuffersARB (1, &r_meshindexbuffer);
-		qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, r_meshindexbuffer);
-		qglBufferDataARB (GL_ELEMENT_ARRAY_BUFFER_ARB, r_nummeshindexes * sizeof (unsigned short), NULL, GL_STATIC_DRAW_ARB);
-
-		// begin counting again for offsets
-		r_nummeshindexes = 0;
-
-		// fill in indexes for the alias models
-		for (i = 1; i < MAX_MODELS; i++)
-		{
-			if (!(m = cl.model_precache[i]))
-				break;
-			if (m->type != mod_alias)
-				continue;
-
-			hdr = (aliashdr_t *) Mod_Extradata (m);
-
-			// this stores the offset to the index, not the index of it (fixme; rename it)
-			hdr->firstindex = r_nummeshindexes * sizeof (unsigned short);
-			r_nummeshindexes += hdr->numindexes;
-
-			ndx = (unsigned short *) ((byte *) hdr + hdr->indexes);
-			qglBufferSubDataARB (GL_ELEMENT_ARRAY_BUFFER_ARB, hdr->firstindex, hdr->numindexes * sizeof (unsigned short), ndx);
-		}
-
-		// unbind the buffer when done
-		qglBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-	}
-
-	// for the next map
-	r_nummeshindexes = 0;
 }
-
