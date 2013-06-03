@@ -36,11 +36,11 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 	int		sample, samplefrac, fracstep;
 	sfxcache_t	*sc;
 
-	sc = Cache_Check (&sfx->cache);
+	sc = (sfxcache_t *) Cache_Check (&sfx->cache);
 	if (!sc)
 		return;
 
-	stepscale = (float)inrate / dma.speed;	// this is usually 0.5, 1, or 2
+	stepscale = (float) inrate / dma.speed;	// this is usually 0.5, 1, or 2
 
 	outcount = sc->length / stepscale;
 	sc->length = outcount;
@@ -127,7 +127,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	len = len * info.width * info.channels;
 
-	sc = Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
+	sc = (sfxcache_t *) Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
 	if (!sc)
 		return NULL;
 

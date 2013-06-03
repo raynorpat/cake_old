@@ -228,10 +228,12 @@ sfx_t *S_FindName (char *name)
 
 // see if already loaded
 	for (i=0 ; i < num_sfx ; i++)
+	{
 		if (!strcmp(known_sfx[i].name, name))
 		{
 			return &known_sfx[i];
 		}
+	}
 
 	if (num_sfx == MAX_SFX)
 		Sys_Error ("S_FindName: out of sfx_t");
@@ -518,8 +520,10 @@ void S_StopAllSounds (qbool clear)
 	total_channels = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS;	// no statics
 
 	for (i=0 ; i<MAX_CHANNELS ; i++)
+	{
 		if (channels[i].sfx)
 			channels[i].sfx = NULL;
+	}
 
 	memset(channels, 0, MAX_CHANNELS * sizeof(channel_t));
 
@@ -780,8 +784,10 @@ void S_Update (vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 		// search for one
 			combine = channels+MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS;
 			for (j=MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS ; j<i; j++, combine++)
+			{
 				if (combine->sfx == ch->sfx)
 					break;
+			}
 					
 			if (j == total_channels)
 			{
@@ -808,11 +814,13 @@ void S_Update (vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 		total = 0;
 		ch = channels;
 		for (i=0 ; i<total_channels; i++, ch++)
+		{
 			if (ch->sfx && (ch->leftvol || ch->rightvol) )
 			{
 				//Com_Printf ("%3i %3i %s\n", ch->leftvol, ch->rightvol, ch->sfx->name);
 				total++;
 			}
+		}
 		
 		Com_Printf ("----(%i)----\n", total);
 	}
@@ -839,12 +847,14 @@ void GetSoundtime (void)
 		buffers++;					// buffer wrapped
 		
 		if (paintedtime > 0x40000000)
-		{	// time to chop things off to avoid 32 bit limits
+		{
+			// time to chop things off to avoid 32 bit limits
 			buffers = 0;
 			paintedtime = fullsamples;
 			S_StopAllSounds (true);
 		}
 	}
+
 	oldsamplepos = samplepos;
 
 	soundtime = buffers*fullsamples + samplepos/dma.channels;
@@ -946,7 +956,7 @@ void S_SoundList_f (void)
 	total = 0;
 	for (sfx=known_sfx, i=0 ; i<num_sfx ; i++, sfx++)
 	{
-		sc = Cache_Check (&sfx->cache);
+		sc = (sfxcache_t *) Cache_Check (&sfx->cache);
 		if (!sc)
 			continue;
 		size = sc->length*sc->width*(sc->stereo+1);

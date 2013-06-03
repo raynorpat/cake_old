@@ -106,8 +106,8 @@ void	S_Activate (qbool active);
 
 //====================================================================
 
-#define	MAX_CHANNELS			128
-#define	MAX_DYNAMIC_CHANNELS	8
+#define	MAX_CHANNELS			1028
+#define	MAX_DYNAMIC_CHANNELS	512
 
 extern	channel_t   channels[MAX_CHANNELS];
 // 0 to MAX_DYNAMIC_CHANNELS-1	= normal entity sounds
