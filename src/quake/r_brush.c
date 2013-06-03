@@ -942,14 +942,14 @@ void R_AddDynamicLights (msurface_t *surf)
 		dist = DotProduct (r_refdef2.dlights[lnum].origin, surf->plane->normal) - surf->plane->dist;
 		rad -= fabs(dist);
 		minlight = r_refdef2.dlights[lnum].minlight;
+
 		if (rad < minlight)
 			continue;
+
 		minlight = rad - minlight;
 
 		for (i=0 ; i<3 ; i++)
-		{
 			impact[i] = r_refdef2.dlights[lnum].origin[i] -	surf->plane->normal[i]*dist;
-		}
 
 		local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
 		local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];

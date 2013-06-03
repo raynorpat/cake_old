@@ -808,15 +808,15 @@ int		 main (int argc, char **argv)
 	myargc = argc;
 	myargv = argv;
 
-	if (CheckParm ("?", 0, true, false) || CheckParm ("h", 0, true, false))
+	if (CheckParm ("?", 0, true, false))
 	{
-		printf ("Usage: zqcc [<options>]\n");
+		printf ("Usage: qcc [<options>]\n");
 		printf ("Where <options> may be one or more of the following:\n");
-		printf ("  -srcdir <dir>   zqcc looks for progs.src in given <dir> instead of current\n");
+		printf ("  -src <dir>      qcc looks for progs.src in given <dir> instead of current\n");
 		printf ("  -idcomp         enable vanilla id software code compatibility\n");
 		printf ("  -progdefs       dump progdefs.h after successful compile\n");
 		printf ("  -D<name>        #define <name>\n");
-		printf ("  -progs <file>   zqcc reads <file> instead of \"progs.src\"\n");
+		printf ("  -progs <file>   qcc reads <file> instead of \"progs.src\"\n");
 		printf ("  -dest <file>    force writing to <file> instead of the one given in progs.src\n");
 		printf ("  -asm <f1> [<f2>...] print pseudo-assembler code for function(s) to stdout\n");
 		return 0;	// or should I return 1?
