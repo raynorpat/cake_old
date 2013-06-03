@@ -302,8 +302,8 @@ void VWepModel_NextDownload (void)
 	}
 
 	if (cls.downloadnumber == 0) {
-		if (!com_serveractive || developer.value)
-			Com_Printf ("Checking vwep models...\n");
+		if (!com_serveractive)
+			Com_DPrintf ("Checking vwep models...\n");
 		//cls.downloadnumber = 0;
 	}
 
@@ -356,8 +356,8 @@ void Model_NextDownload (void)
 
 	if (cls.downloadnumber == 0)
 	{
-		if (!com_serveractive || developer.value)
-			Com_Printf ("Checking models...\n");
+		if (!com_serveractive)
+			Com_DPrintf ("Checking models...\n");
 		cls.downloadnumber = 1;
 	}
 
@@ -418,8 +418,8 @@ void Sound_NextDownload (void)
 
 	if (cls.downloadnumber == 0)
 	{
-		if (!com_serveractive || developer.value)
-			Com_Printf ("Checking sounds...\n");
+		if (!com_serveractive)
+			Com_DPrintf ("Checking sounds...\n");
 		cls.downloadnumber = 1;
 	}
 
@@ -499,8 +499,8 @@ void Skin_NextDownload (void)
 		goto done;
 
 	if (cls.downloadnumber == 0) {
-		if (!com_serveractive || developer.value)
-			Com_Printf ("Checking skins...\n");
+		if (!com_serveractive)
+			Com_DPrintf ("Checking skins...\n");
 	}
 	cls.downloadtype = dl_skin;
 
