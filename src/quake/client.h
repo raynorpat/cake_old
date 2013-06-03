@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CLIENT_H_
 #define _CLIENT_H_
 
+#include "pmove.h"
+
 #define MAX_STATIC_SOUNDS	256
 typedef struct
 {
@@ -78,7 +80,6 @@ typedef struct
 
 #ifdef VWEP_TEST
 	byte		vw_index;
-	byte		vw_frame;
 #endif
 
 	// prediction info
@@ -109,6 +110,11 @@ typedef struct player_info_s
 	int		topcolor;
 	int		bottomcolor;
 	char    skin[32];
+
+#ifdef MVDPLAY
+	int		stats[MAX_CL_STATS];	// health, etc
+	int		prevcount; // for delta update from previous
+#endif
 } player_info_t;
 
 
@@ -116,11 +122,11 @@ typedef struct
 {
 	// generated on client side
 	usercmd_t	cmd;		// cmd that generated the frame
-	double		senttime;	// time cmd was sent off
+	double		senttime;	// cls.realtime when cmd was sent off
 	int			delta_sequence;		// sequence number to delta from, -1 = full update
 
 	// received from server
-	double		receivedtime;	// time message was received, or -1
+	double		receivedtime;	// cls.realtime when message was received, or -1
 	player_state_t	playerstate[MAX_CLIENTS];	// message received that reflects performing
 							// the usercmd
 	packet_entities_t	packet_entities;
@@ -132,10 +138,16 @@ typedef struct
 	entity_state_t	baseline;
 	entity_state_t	previous;
 	entity_state_t	current;
-
 	int				lastframe;
 	int				prevframe;
-	vec3_t			lerp_origin;
+	vec3_t			trail_origin;	// for particle trail
+	double			framelerp_start;
+	int				oldframe;
+	double			monsterlerp_start;
+	vec3_t			monsterlerp_origin;
+	double			monsterlerp_angles_start;
+	vec3_t			monsterlerp_angles;
+	double			gib_start;
 } centity_t;
 
 typedef struct
@@ -171,6 +183,13 @@ typedef struct
 } cdlight_t;
 
 typedef enum {
+	mi_generic,
+	mi_monster,
+	mi_gib,
+	mi_no_lerp_hack,
+} modelinfo_t;
+
+typedef enum {
 	ca_disconnected, 	// full screen console with no connection
 	ca_demostart,		// starting up a demo
 	ca_connected,		// netchan_t established, waiting for svc_serverdata
@@ -202,12 +221,15 @@ typedef struct
 
 // connection information
 	cactive_t	state;
+	qbool		nqprotocol;
 
 	int			framecount;		// incremented every frame, never reset
 	double		realtime;		// scaled by cl_demospeed
 	double		demotime;		// scaled by cl_demospeed, reset when starting a demo
 	double		trueframetime;	// time since last frame
 	double		frametime;		// time since last frame, scaled by cl_demospeed
+	qbool		physframe;
+	double		physframetime;	// time between network packets sent
 
 // network stuff
 	netchan_t	netchan;
@@ -241,7 +263,14 @@ typedef struct
 // entering a map (and clearing client_state_t)
 	qbool		demorecording;
 	qbool		demoplayback;
-	qbool		nqdemoplayback;
+#ifdef MVDPLAY
+	qbool   	mvdplayback; // playing mvd 
+	int			mvd_lastto;
+	int			mvd_lasttype;
+	qbool   	mvd_findtarget;
+	float		mvd_newtime;
+	float		mvd_oldtime;
+#endif
 	FILE		*demofile;
 	byte		demomessage_data[MAX_MSGLEN * 2 /* FIXME */];
 	sizebuf_t	demomessage;
@@ -287,10 +316,12 @@ typedef struct
 	float		maxfps;
 	float		minpitch;
 	float		maxpitch;
-	qbool		allow_truelightning;
+	qbool		allow_fbskins;
+	qbool		allow_fakeshaft;
 	qbool		allow_frj;
 
 	int			parsecount;		// server message counter
+	int			oldparsecount;	// previouse server message counter
 	int			validsequence;	// this is the sequence number of the last good
 								// packetentity_t we got.  If this is 0, we can't
 								// render a frame yet
@@ -301,10 +332,10 @@ typedef struct
 	int			spectator;
 
 	double		last_ping_request;	// while showing scoreboard
-	double		last_servermessage;
 
 // sentcmds[cl.netchan.outgoing_sequence & UPDATE_MASK] = cmd
 	frame_t		frames[UPDATE_BACKUP];
+	usercmd_t	lastcmd;			// observer intentions (demo playback only)
 
 // information for local display
 	double		servertime;			// for display on solo status bar
@@ -322,6 +353,7 @@ typedef struct
 // the client simulates or interpolates movement to get these values
 	double		time;			// this is the time value that the client
 								// is rendering at
+	double		entlatency;
 	vec3_t		simorg;
 	vec3_t		simvel;
 	vec3_t		simangles;
@@ -333,7 +365,9 @@ typedef struct
 	double		laststop;
 
 	qbool		onground;
+	qbool		waterlevel;
 	float		crouch;			// local amount for smoothing stepups
+	float		landtime;
 	float		viewheight;
 
 	int			paused;			// a combination of PAUSED_SERVER and PAUSED_DEMO flags
@@ -361,6 +395,7 @@ typedef struct
 #endif
 	struct sfx_s	*sound_precache[MAX_SOUNDS];
 
+	modelinfo_t	modelinfos[MAX_MODELS];
 	cmodel_t	*clipmodels[MAX_MODELS];
 	unsigned	map_checksum2;
 
@@ -369,12 +404,12 @@ typedef struct
 
 	char		levelname[40];	// for display on solo scoreboard
 	int			playernum;
-	int			viewplayernum;	// either playernum or spec_track (in chase camera mode)
 
 // refresh related state
 	struct efrag_s	*free_efrags;
 	int			num_entities;	// stored bottom up in cl_entities array
 	int			num_statics;	// stored top down in cl_entities
+	int			num_nails;
 
 	int			cdtrack;		// cd audio
 
@@ -383,14 +418,18 @@ typedef struct
 // all player information
 	player_info_t	players[MAX_CLIENTS];
 
+#ifdef MVDPLAY
+// interpolation stuff
+	int			mvd_fixangle;
+#endif
+
 // sprint buffer
 	int			sprint_level;
 	char		sprint_buf[1024];
 
 // localized movement vars
-	float		entgravity;
-	float		maxspeed;
-	float		bunnyspeedcap;
+	movevars_t	movevars;
+	playermove_t	pmove;
 } client_state_t;
 
 extern client_state_t	cl;
@@ -414,12 +453,13 @@ extern cvar_t	cl_gibfilter;
 extern cvar_t	cl_deadbodyfilter;
 extern cvar_t	cl_explosion;
 extern cvar_t	cl_muzzleflash;
-extern cvar_t	cl_trueLightning;
+extern cvar_t	cl_fakeshaft;
 extern cvar_t	r_rocketlight;
 extern cvar_t	r_rockettrail;
 extern cvar_t	r_grenadetrail;
 extern cvar_t	r_powerupglow;
 extern cvar_t	r_lightflicker;
+extern cvar_t	cl_independentPhysics;
 
 #define	MAX_EFRAGS			2048
 #define	MAX_STATIC_ENTITIES	512	// torches, etc
@@ -446,7 +486,7 @@ void CL_Disconnect (void);
 void CL_Disconnect_f (void);
 void CL_NextDemo (void);
 
-extern int			cl_entframecount, cl_oldentframecount;
+extern int			cl_entframecount;
 
 extern int			cl_numvisedicts;
 extern entity_t		cl_visedicts[MAX_VISEDICTS];
@@ -481,6 +521,7 @@ void CL_StartDemos_f (void);
 void NQD_ReadPackets (void);
 void NQD_StartPlayback (void);
 void NQD_LinkEntities (void);
+void CLNQ_ParseServerMessage (void);
 
 //
 // cl_parse.c
@@ -503,7 +544,7 @@ void CL_ParseParticleEffect (void);
 //
 // cl_tent.c
 //
-void CL_PrecacheTEntSounds (void);
+void CL_InitTEnts (void);
 void CL_ClearTEnts (void);
 void CL_ParseTEnt (void);
 void CL_UpdateTEnts (void);
@@ -524,12 +565,12 @@ void CL_ParticleExplosion (vec3_t org);
 void CL_ParticleExplosion2 (vec3_t org, int colorStart, int colorLength);
 void CL_LavaSplash (vec3_t org);
 void CL_TeleportSplash (vec3_t org);
-void CL_SlightBloodTrail (vec3_t start, vec3_t end);
-void CL_BloodTrail (vec3_t start, vec3_t end);
-void CL_VoorTrail (vec3_t start, vec3_t end);
-void CL_GrenadeTrail (vec3_t start, vec3_t end);
-void CL_RocketTrail (vec3_t start, vec3_t end);
-void CL_TracerTrail (vec3_t start, vec3_t end, int color);
+void CL_SlightBloodTrail (vec3_t start, vec3_t end, vec3_t trail_origin);
+void CL_BloodTrail (vec3_t start, vec3_t end, vec3_t trail_origin);
+void CL_VoorTrail (vec3_t start, vec3_t end, vec3_t trail_origin);
+void CL_GrenadeTrail (vec3_t start, vec3_t end, vec3_t trail_origin);
+void CL_RocketTrail (vec3_t start, vec3_t end, vec3_t trail_origin);
+void CL_TracerTrail (vec3_t start, vec3_t end, vec3_t trail_origin, int color);
 void CL_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count);
 void CL_RunParticleEffect2 (vec3_t org, vec3_t dir, int color, int count, int scale);
 void CL_EntityParticles (vec3_t org);
@@ -537,14 +578,25 @@ void CL_EntityParticles (vec3_t org);
 //
 // cl_ents.c
 //
+void CL_Ents_Init (void);
 void CL_SetSolidPlayers (int playernum);
 void CL_SetUpPlayerPrediction (qbool dopred);
 void CL_EmitEntities (void);
-void CL_ClearProjectiles (void);
-void CL_ParseProjectiles (void);
+void CL_ClearNails (void);
+#ifdef MVDPLAY
+void CL_ParseNails (qbool nail2);
+#else
+void CL_ParseNails (void);
+#endif
 void CL_ParsePacketEntities (qbool delta);
 void CL_SetSolidEntities (void);
 void CL_ParsePlayerState (void);
+#ifdef MVDPLAY
+void MVD_InitInterpolation(void);
+void MVD_ClearPredict(void);
+void MVD_Interpolate(void);
+#endif
+
 
 //
 // cl_pred.c
@@ -556,17 +608,24 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u);
 //
 // cl_cam.c
 //
+#define CAM_NOTARGET	-1
+
 extern qbool	cam_track;
 extern int		cam_target;		// playernum of who we're tracking or wish to track
 extern qbool	cam_locked;
+extern int		cam_curtarget;	// who we're tracking, or CAM_NOTARGET
 
 qbool Cam_DrawViewModel (void);
 qbool Cam_DrawPlayer (int playernum);
+int Cam_PlayerNum (void);
 int Cam_TargetCount (void);
 void Cam_FinishMove (usercmd_t *cmd);
 void Cam_Reset (void);
-void Cam_SetViewPlayer (void);
 void CL_InitCam (void);
+void Cam_TryLock (void);
+#ifdef MVDPLAY
+void Cam_Lock(int playernum);
+#endif
 
 //
 // cl_cin.c

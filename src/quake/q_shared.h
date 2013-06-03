@@ -29,9 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 #include <assert.h>
 
-#include "sys.h"
-#include "mathlib.h"
-
 #ifdef _MSC_VER
 #pragma warning( disable : 4201 4244 4127 4201 4214 4514 4305 4115 4018 4996 )
 #define strcasecmp _stricmp 
@@ -42,6 +39,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define inline __inline
 #define HAVE_INLINE
 #endif
+
+#include "sys.h"
+#include "mathlib.h"
 
 #undef gamma	// math.h defines this
 
@@ -145,7 +145,8 @@ char *Q_ftos (float value);		// removes trailing zero chars
 
 size_t strlcpy (char *dst, const char *src, size_t size);
 size_t strlcat (char *dst, const char *src, size_t size);
-void Q_snprintfz (char *dest, size_t size, char *fmt, ...);
+int snprintf(char *buffer, size_t count, char const *format, ...);
+#define Q_snprintfz snprintf 	// nuke this one day
 
 qbool Q_glob_match (const char *pattern, const char *text);
 
@@ -154,6 +155,7 @@ int Com_HashKey (char *name);
 //============================================================================
 
 void *Q_malloc (size_t size);
+void *Q_calloc (size_t count, size_t size);
 char *Q_strdup (const char *src);
 // might be turned into a function that makes sure all Q_*alloc calls are matched with Q_free
 #define Q_free(ptr) free(ptr)
@@ -165,7 +167,19 @@ char *Q_strdup (const char *src);
 #define	MAX_DATAGRAM	1450		// max length of unreliable message
 #define	MAX_BIG_MSGLEN	8000		// max length of a demo or loop message, >= MAX_MSGLEN + header
 
+#define	MAX_NQMSGLEN	8000		// max length of a reliable message
+#define MAX_OVERALLMSGLEN	MAX_NQMSGLEN
+#define	MAX_NQDATAGRAM	1024		// max length of unreliable message
+
 //============================================================================
+
+#ifndef NOMVDPLAY
+#ifndef SERVERONLY
+#define MVDPLAY
+#endif
+#endif
+
+#define WITH_NQPROGS
 
 #endif /* _Q_SHARED_H_ */
 

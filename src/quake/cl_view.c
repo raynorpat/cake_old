@@ -623,6 +623,9 @@ void V_AddViewWeapon (float bob)
 	vec3_t		forward, up;
 	entity_t	ent;
 	extern cvar_t	scr_fov;
+	// FIXME, move the statics to a structure like cl
+	static int oldweapon, curframe, oldframe;
+	static double start_lerp_time;
 
 	if (!cl_drawgun.value || (cl_drawgun.value == 2 && scr_fov.value > 90)
 		|| view_message.flags & (PF_GIB|PF_DEAD)
@@ -631,12 +634,31 @@ void V_AddViewWeapon (float bob)
 
 	memset (&ent, 0, sizeof(ent));
 
+	if ((unsigned int)cl.stats[STAT_WEAPON] >= MAX_MODELS)
+		Host_Error ("STAT_WEAPON >= MAX_MODELS");
 	ent.model = cl.model_precache[cl.stats[STAT_WEAPON]];
 	if (!ent.model)
 		return;
 	ent.frame = view_message.weaponframe;
 	ent.colormap = 0;
 	ent.renderfx = RF_WEAPONMODEL;
+
+	if (cl.stats[STAT_WEAPON] != oldweapon) {
+		oldweapon = cl.stats[STAT_WEAPON];
+		curframe = -1;
+		start_lerp_time = -1;
+	}
+	if (ent.frame != curframe) {
+		oldframe = curframe;
+		curframe = ent.frame;
+		start_lerp_time = cl.time;
+	}
+	ent.oldframe = oldframe;
+	ent.backlerp = 1 - (cl.time - start_lerp_time)*10;
+	ent.backlerp = bound (0, ent.backlerp, 1);
+
+//	if (r_lerpmuzzlehack.value && cl.modelinfos[cl.stats[STAT_WEAPON]] != mi_no_lerp_hack)
+//		ent.renderfx |= RF_LIMITLERP;
 
 	if (cl.stats[STAT_ITEMS] & IT_INVISIBILITY) {
 		ent.renderfx |= RF_TRANSLUCENT;
@@ -701,9 +723,7 @@ void V_CalcRefdef (void)
 
 	bob = V_CalcBob ();
 
-//	
-// set up the refresh position
-//
+	// set up the refresh position
 	VectorCopy (cl.simorg, r_refdef2.vieworg);
 
 	// never let it sit exactly on a node line, because a water plane can
@@ -728,6 +748,22 @@ void V_CalcRefdef (void)
 		r_refdef2.vieworg[2] += cl.crouch;
 	}
 
+	if (cl.landtime) {
+		const float tt = 350;
+		const float lt = 90;
+		const float lh = 6;
+		float _landtime = 350 - (cl.time - cl.landtime) * 1000;
+
+		if (_landtime <= 0)
+			cl.landtime = 0;
+		else {
+			if (_landtime >= (tt - lt))
+				r_refdef2.vieworg[2] -= ((tt - _landtime) / lt) * lh;
+			else
+				r_refdef2.vieworg[2] -= _landtime / (tt - lt) * lh;
+		}
+	}
+
 //
 // set up refresh view angles
 //
@@ -737,7 +773,7 @@ void V_CalcRefdef (void)
 
 	if (v_kickback.value)
 	{
-		if (cls.nqdemoplayback)
+		if (cls.nqprotocol)
 			r_refdef2.viewangles[PITCH] += cl.punchangle;
 		else
 		{
@@ -763,7 +799,7 @@ DropPunchAngle
 */
 void DropPunchAngle (void)
 {
-	if (cls.nqdemoplayback)
+	if (cls.nqprotocol)
 		return;
 
 	if (cl.ideal_punchangle < cl.punchangle)
@@ -875,7 +911,7 @@ cl.simangles[ROLL] = 0;	// FIXME @@@
 		return;
 
 	if (cl.validsequence)
-		view_message = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.viewplayernum];
+		view_message = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[Cam_PlayerNum()];
 
 	DropPunchAngle ();
 	if (cl.intermission)
@@ -890,7 +926,7 @@ cl.simangles[ROLL] = 0;	// FIXME @@@
 	
 	r_refdef2.time = cl.time;
 //	r_refdef2.allowCheats = false;
-	r_refdef2.viewplayernum = cl.viewplayernum;
+	r_refdef2.viewplayernum = Cam_PlayerNum();
 	r_refdef2.watervis = (atoi(Info_ValueForKey(cl.serverinfo, "watervis")) != 0);
 
 	r_refdef2.lightstyles = cl_lightstyle;

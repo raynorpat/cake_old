@@ -208,8 +208,6 @@ void SCR_CheckDrawCenterString (void)
 		return;
 	if (key_dest != key_game)
 		return;
-	if (cl.paused)
-		return;
 
 	SCR_DrawCenterString ();
 }
@@ -290,8 +288,8 @@ void SCR_CalcRefdef (void)
 // bound field of view
 	if (scr_fov.value < 10)
 		Cvar_Set (&scr_fov, "10");
-	if (scr_fov.value > (r_refdef2.allowCheats ? 170 : 140))
-		Cvar_SetValue (&scr_fov, r_refdef2.allowCheats ? 170 : 140);
+	if (scr_fov.value > (r_refdef2.allow_cheats ? 170 : 140))
+		Cvar_SetValue (&scr_fov, r_refdef2.allow_cheats ? 170 : 140);
 
 // intermission is always full screen	
 	if (cl.intermission) {
@@ -487,6 +485,8 @@ void SCR_DrawFPS (void)
 	R_DrawString(x, y, st);
 }
 
+float nq_speed;
+
 void SCR_DrawSpeed (void)
 {
 	int x, y;
@@ -509,6 +509,10 @@ void SCR_DrawSpeed (void)
 		maxspeed = 0;
 	}
 
+if (cls.nqprotocol) {
+	speed = nq_speed;
+} else
+{
 	if (show_speed.value == 2) {
 		VectorCopy (cl.simvel, vel);	// predicted velocity
 	} else if (cl.validsequence)
@@ -517,6 +521,7 @@ void SCR_DrawSpeed (void)
 		VectorClear (vel);
 	vel[2] = 0;
 	speed = VectorLength(vel);
+}
 
 	if (speed > maxspeed)
 		maxspeed = speed;

@@ -44,37 +44,33 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u)
 		return;
 	}
 
-	VectorCopy (from->origin, pmove.origin);
+	VectorCopy (from->origin, cl.pmove.origin);
 //	VectorCopy (from->viewangles, pmove.angles);
-	VectorCopy (u->angles, pmove.angles);
-	VectorCopy (from->velocity, pmove.velocity);
+	VectorCopy (u->angles, cl.pmove.angles);
+	VectorCopy (from->velocity, cl.pmove.velocity);
 
 	if (cl.z_ext & Z_EXT_PM_TYPE)
-		pmove.jump_msec = 0;
+		cl.pmove.jump_msec = 0;
 	else
-		pmove.jump_msec = from->jump_msec;
-	pmove.jump_held = from->jump_held;
-	pmove.waterjumptime = from->waterjumptime;
-	pmove.pm_type = from->pm_type;
-	pmove.onground = from->onground;
-	pmove.cmd = *u;
+		cl.pmove.jump_msec = from->jump_msec;
+	cl.pmove.jump_held = from->jump_held;
+	cl.pmove.waterjumptime = from->waterjumptime;
+	cl.pmove.pm_type = from->pm_type;
+	cl.pmove.onground = from->onground;
+	cl.pmove.cmd = *u;
 
-	movevars.entgravity = cl.entgravity;
-	movevars.maxspeed = cl.maxspeed;
-	movevars.bunnyspeedcap = cl.bunnyspeedcap;
+	PM_PlayerMove (&cl.pmove, &cl.movevars);
 
-	PM_PlayerMove ();
+	to->waterjumptime = cl.pmove.waterjumptime;
+	to->pm_type = cl.pmove.pm_type;
+	to->jump_held = cl.pmove.jump_held;
+	to->jump_msec = cl.pmove.jump_msec;
+	cl.pmove.jump_msec = 0;
 
-	to->waterjumptime = pmove.waterjumptime;
-	to->pm_type = pmove.pm_type;
-	to->jump_held = pmove.jump_held;
-	to->jump_msec = pmove.jump_msec;
-	pmove.jump_msec = 0;
-
-	VectorCopy (pmove.origin, to->origin);
-	VectorCopy (pmove.angles, to->viewangles);
-	VectorCopy (pmove.velocity, to->velocity);
-	to->onground = pmove.onground;
+	VectorCopy (cl.pmove.origin, to->origin);
+	VectorCopy (cl.pmove.angles, to->viewangles);
+	VectorCopy (cl.pmove.velocity, to->velocity);
+	to->onground = cl.pmove.onground;
 
 	to->weaponframe = from->weaponframe;
 }
@@ -90,15 +86,17 @@ otherwise stepup smoothing code produces ugly jump physics
 */
 void CL_CategorizePosition (void)
 {
-	if (cl.spectator && cl.playernum == cl.viewplayernum) {
+	if (cl.spectator && cam_curtarget == CAM_NOTARGET) {
 		cl.onground = false;	// in air
+		cl.waterlevel = 0;
 		return;
 	}
-	VectorClear (pmove.velocity);
-	VectorCopy (cl.simorg, pmove.origin);
-	pmove.numtouch = 0;
-	PM_CategorizePosition ();
-	cl.onground = pmove.onground;
+	VectorClear (cl.pmove.velocity);
+	VectorCopy (cl.simorg, cl.pmove.origin);
+	cl.pmove.numtouch = 0;
+	PM_CategorizePosition (&cl.pmove);
+	cl.onground = cl.pmove.onground;
+	cl.waterlevel = cl.pmove.waterlevel;
 }
 
 
@@ -248,18 +246,118 @@ static void CL_LerpMove (float msgtime)
 	frac = (simtime - lerp_times[from]) / (lerp_times[to] - lerp_times[from]);
 	frac = bound (0, frac, 1);
 
-	for (i = 0; i < 3; i++)
-		cl.simorg[i] = lerp_origin[from][i] + (lerp_origin[to][i] - lerp_origin[from][i]) * frac;
+	LerpVector (lerp_origin[from], lerp_origin[to], frac, cl.simorg);
+	LerpAngles (lerp_angles[from], lerp_angles[to], frac, cl.simangles);
+}
 
-	for (i = 0; i < 3; i++) {
-		float delta = lerp_angles[to][i] - lerp_angles[from][i];
-		if (delta > 180)
-			delta -= 360;
-		else if (delta < -180)
-			delta += 360;
-		cl.simangles[i] = lerp_angles[from][i] + delta * frac;
+
+static void CL_LerpMovePhys (double msgtime, float f)
+{	
+	static int		lastsequence = 0;
+	static vec3_t	lerp_origin[3];
+	static double	lerp_times[3];
+	static qbool	nolerp[2];
+	static double	demo_latency = 0.01;
+	float	frac;
+	float	simtime;
+	int		i;
+	int		from, to;
+	extern cvar_t cl_nolerp;
+
+	if (cl_nolerp.value) 
+	{
+		lastsequence = ((unsigned)-1) >> 1;	//reset
+		return;
 	}
 
+	if (cls.netchan.outgoing_sequence < lastsequence) 
+	{
+		// reset
+		lastsequence = -1;
+		lerp_times[0] = -1;
+		demo_latency = 0.01;
+	}
+
+	if (cls.physframe) 
+	{
+		lastsequence = cls.netchan.outgoing_sequence;
+
+		// move along
+		lerp_times[2] = lerp_times[1];
+		lerp_times[1] = lerp_times[0];
+		lerp_times[0] = msgtime;
+
+		VectorCopy (lerp_origin[1], lerp_origin[2]);
+		VectorCopy (lerp_origin[0], lerp_origin[1]);
+		VectorCopy (cl.simorg, lerp_origin[0]);
+
+		nolerp[1] = nolerp[0];
+		nolerp[0] = false;
+
+	for (i = 0; i < 3; i++)
+	{
+			if (fabs(lerp_origin[0][i] - lerp_origin[1][i]) > 100)
+			{
+				break;
+			}
+		}
+
+		if (i < 3)
+		{
+			// a teleport or something
+			nolerp[0] = true;	
+		}
+	}
+
+	simtime = cls.realtime - demo_latency;
+
+	// Adjust latency
+	if (simtime > lerp_times[0]) {
+		// High clamp
+		demo_latency = cls.realtime - lerp_times[0];
+	}
+	else if (simtime < lerp_times[2]) {
+		// Low clamp
+		demo_latency = cls.realtime - lerp_times[2];
+	}
+	else
+	{
+		// Drift towards ideal latency.
+		float ideal_latency = 0;
+
+		if (cls.physframe) {
+			if (demo_latency > ideal_latency)
+				demo_latency = max(demo_latency - cls.frametime * 0.1, ideal_latency);
+			
+			if (demo_latency < ideal_latency)
+				demo_latency = min(demo_latency + cls.frametime * 0.1, ideal_latency);
+		}
+	}
+
+	// decide where to lerp from
+	if (simtime > lerp_times[1]) 
+	{
+		from = 1;
+		to = 0;
+	} 
+	else 
+	{
+		from = 2;
+		to = 1;
+	}
+
+	if (nolerp[to])
+	{
+		return;
+	}
+
+    frac = (simtime - lerp_times[from]) / (lerp_times[to] - lerp_times[from]);
+    frac = bound (0, frac, 1);
+
+	for (i = 0; i < 3; i++)
+	{
+		cl.simorg[i] = lerp_origin[from][i] + (lerp_origin[to][i] - lerp_origin[from][i]) * frac;
+	}
 }
 
 /*
@@ -273,17 +371,13 @@ static void CL_PredictLocalPlayer (void)
 	int			i;
 	frame_t		*from = NULL, *to;
 	int			oldphysent;
+	float		landspeed = 0;
 
-	if (cl.paused)
-		return;
-
-	if (cl.intermission) {
-		cl.crouch = 0;
-		return;
-	}
-
-	if (cls.nqdemoplayback)
+	if (cls.nqprotocol) {
+		if (!cls.demoplayback)
+			VectorCopy (cl.viewangles, cl.simangles);
 		goto out;
+	}
 
 	if (!cl.validsequence || cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
 		return;
@@ -296,10 +390,9 @@ static void CL_PredictLocalPlayer (void)
 	to = &cl.frames[cl.validsequence & UPDATE_MASK];
 
 	// setup cl.simangles + decide whether to predict local player
-	if (cls.demoplayback && cl.spectator && cl.viewplayernum != cl.playernum) {
-		VectorCopy (to->playerstate[cl.viewplayernum].viewangles, cl.simangles);
+	if (cls.demoplayback && cl.spectator && cam_curtarget != CAM_NOTARGET) {
+		VectorCopy (to->playerstate[Cam_PlayerNum()].viewangles, cl.simangles);
 		nopred = true;		// FIXME
-
 	} else {
 		VectorCopy (cl.viewangles, cl.simangles);
 		nopred = (cl_nopred.value || cls.netchan.outgoing_sequence - cl.validsequence <= 1);
@@ -307,17 +400,19 @@ static void CL_PredictLocalPlayer (void)
 
 	if (nopred)
 	{
-		VectorCopy (to->playerstate[cl.viewplayernum].velocity, cl.simvel);
-		VectorCopy (to->playerstate[cl.viewplayernum].origin, cl.simorg);
-		if (cl.z_ext & Z_EXT_PF_ONGROUND)
-			cl.onground = to->playerstate[cl.viewplayernum].onground;
+		VectorCopy (to->playerstate[Cam_PlayerNum()].velocity, cl.simvel);
+		VectorCopy (to->playerstate[Cam_PlayerNum()].origin, cl.simorg);
+		if (cl.z_ext & Z_EXT_PF_ONGROUND) {
+			cl.onground = to->playerstate[Cam_PlayerNum()].onground;
+			landspeed = cl.pmove.landspeed;
+		}
 		else
 			CL_CategorizePosition ();
 		goto out;
 	}
 
 
-	oldphysent = pmove.numphysent;
+	oldphysent = cl.pmove.numphysent;
 	CL_SetSolidPlayers (cl.playernum);
 
 	// run frames
@@ -327,10 +422,11 @@ static void CL_PredictLocalPlayer (void)
 		to = &cl.frames[(cl.validsequence+i) & UPDATE_MASK];
 		CL_PredictUsercmd (&from->playerstate[cl.playernum]
 			, &to->playerstate[cl.playernum], &to->cmd);
-		cl.onground = pmove.onground;
+		cl.onground = cl.pmove.onground;
+		cl.waterlevel = cl.pmove.waterlevel;
 	}
 
-	pmove.numphysent = oldphysent;
+	cl.pmove.numphysent = oldphysent;
 
 	// copy results out for rendering
 	VectorCopy (to->playerstate[cl.playernum].velocity, cl.simvel);
@@ -338,9 +434,14 @@ static void CL_PredictLocalPlayer (void)
 
 	if (cls.demoplayback)
 		CL_LerpMove (to->senttime);
+	else if (cl_independentPhysics.value)
+		CL_LerpMovePhys (cls.realtime, to->senttime);
 
 out:
 	CL_CalcCrouch ();
+
+	if (cl.pmove.landspeed < -650 && !cl.landtime)
+		cl.landtime = cl.time;
 }
 
 
@@ -354,6 +455,43 @@ Predict the local player and other players
 void CL_PredictMovement (void)
 {
 	if (cls.state != ca_active)
+		return;
+
+	if (cl.intermission) {
+		cl.crouch = 0;
+
+		if ((cl.intermission == 2 || cl.intermission == 3) && !cls.nqprotocol)
+			// svc_finale and svc_cutscene don't send origin or angles;
+			// we expect progs to move the player to the intermission spot
+			// and set their angles correctly.  This is unlike qwcl, but
+			// QW never used svc_finale so this should't break anything
+			VectorCopy (cl.frames[cl.validsequence & UPDATE_MASK]
+				.playerstate[Cam_PlayerNum()].origin, cl.simorg);
+
+		return;
+	}
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback && !cam_track)
+	{
+		player_state_t	state;
+
+		memset (&state, 0, sizeof(state));
+		state.pm_type = PM_SPECTATOR;
+		VectorCopy (cl.simorg, state.origin);
+		VectorCopy (cl.simvel, state.velocity);
+
+		CL_PredictUsercmd (&state, &state, &cl.lastcmd);
+
+		VectorCopy (state.origin, cl.simorg);
+		VectorCopy (state.velocity, cl.simvel);
+		VectorCopy (cl.viewangles, cl.simangles);
+		cl.onground = false;
+		return;
+	}
+#endif
+
+	if (cl.paused)
 		return;
 
 	// set up prediction for other players

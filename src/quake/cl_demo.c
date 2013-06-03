@@ -22,14 +22,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pmove.h"
 #include "teamplay.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 #define dem_cmd		0
 #define dem_read	1
 #define dem_set		2
 
+#ifdef MVDPLAY
+#define dem_multiple	3
+#define	dem_single		4
+#define dem_stats		5
+#define dem_all			6
+#endif
 
 void Cam_TryLock (void);
 void CL_FinishTimeDemo (void);
@@ -75,7 +78,10 @@ void CL_StopPlayback (void)
 		fclose (cls.demofile);
 	cls.demofile = NULL;
 	cls.demoplayback = false;
-	cls.nqdemoplayback = false;
+	cls.nqprotocol = false;
+#ifdef MVDPLAY
+	cls.mvdplayback = false;
+#endif
 
 #ifdef _WIN32
 	if (qwz_playback)
@@ -171,17 +177,29 @@ qbool CL_GetDemoMessage (void)
 	float	demotime;
 	byte	c;
 	usercmd_t *pcmd;
+#ifdef MVDPLAY
+	byte	msec;
+#endif
 
 	if (qwz_unpacking)
-		return 0;
+		return false;
 
 	if (cl.paused & PAUSED_DEMO)
-		return 0;
+		return false;
 
 readnext:
 	// read the time from the packet
-	fread(&demotime, sizeof(demotime), 1, cls.demofile);
-	demotime = LittleFloat(demotime);
+#ifdef MVDPLAY
+	if (cls.mvdplayback) {
+		fread(&msec, sizeof(msec), 1, cls.demofile);
+		demotime = cls.mvd_newtime + msec * 0.001;
+	}
+	else
+#endif
+	{
+		fread(&demotime, sizeof(demotime), 1, cls.demofile);
+		demotime = LittleFloat(demotime);
+    }
 
 // decide if it is time to grab the next message		
 	if (cls.timedemo) {
@@ -190,7 +208,13 @@ readnext:
 		else if (demotime > cls.td_lastframe) {
 			cls.td_lastframe = demotime;
 			// rewind back to time
-			fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
+#ifdef MVDPLAY
+			if (cls.mvdplayback) {
+				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msec),
+					SEEK_SET);
+			} else 
+#endif
+				fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
 					SEEK_SET);
 			return false;	// already read this frame's message
 		}
@@ -200,14 +224,20 @@ readnext:
 		}
 		cls.demotime = demotime; // warp
 	} else if (!(cl.paused & PAUSED_SERVER) && cls.state >= ca_active) {	// always grab until active
-		if (cls.demotime + 1.0 < demotime) {
-			// too far back
-			cls.demotime = demotime - 1.0;
-			// rewind back to time
-			fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
+#ifdef MVDPLAY
+		if (cls.mvdplayback)
+		{
+			if (msec/* a hack! */ && cls.demotime < cls.mvd_newtime) {
+				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msec),
 					SEEK_SET);
-			return 0;
-		} else if (cls.demotime < demotime) {
+				return false;
+			}
+		}
+        else
+#endif
+		if (cls.demotime < demotime) {
+            if (cls.demotime + 1.0 < demotime)
+                cls.demotime = demotime - 1.0; // too far back
 			// rewind back to time
 			fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
 					SEEK_SET);
@@ -216,23 +246,44 @@ readnext:
 	} else
 		cls.demotime = demotime; // we're warping
 
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback)
+	{
+		if (msec)
+		{
+			extern void CL_ParseClientdata ();
+
+			cls.mvd_oldtime = cls.mvd_newtime;
+			cls.mvd_newtime = demotime;
+			cls.netchan.incoming_sequence++;
+			cls.netchan.incoming_acknowledged++;
+
+			CL_ParseClientdata();
+		}
+	}
+#endif
+
 	if (cls.state < ca_demostart)
 		Host_Error ("CL_GetDemoMessage: cls.state < ca_demostart");
 	
 	// get the msg type
 	r = fread (&c, sizeof(c), 1, cls.demofile);
-	if (r != 1) {
+	if (r != 1)
 		Host_Error ("Unexpected end of demo");
-	}
 	
+#ifdef MVDPLAY
+    switch (cls.mvdplayback ? c&7 : c) {
+#else
 	switch (c) {
+#endif
 	case dem_cmd :
 		// user sent input
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 		pcmd = &cl.frames[i].cmd;
 		r = fread (pcmd, sizeof(*pcmd), 1, cls.demofile);
 		if (r != 1)
-			Host_Error ("Corrupted demo");
+			Host_Error ("Unexpected end of demo");
 		// byte order stuff
 		for (j = 0; j < 3; j++)
 			pcmd->angles[j] = LittleFloat(pcmd->angles[j]);
@@ -251,6 +302,9 @@ readnext:
 		goto readnext;
 
 	case dem_read:
+#ifdef MVDPLAY
+readit:
+#endif
 		// get the next message
 		fread (&net_message.cursize, 4, 1, cls.demofile);
 		net_message.cursize = LittleLong (net_message.cursize);
@@ -258,7 +312,23 @@ readnext:
 			Host_Error ("Demo message > MAX_BIG_MSGLEN");
 		r = fread (net_message.data, net_message.cursize, 1, cls.demofile);
 		if (r != 1)
-			Host_Error ("Corrupted demo");
+			Host_Error ("Unexpected end of demo");
+
+#ifdef MVDPLAY
+		if (cls.mvdplayback) {
+			switch(cls.mvd_lasttype) {
+			case dem_multiple:
+				if (!cam_locked || !(cls.mvd_lastto & (1 << cam_curtarget)))
+					goto readnext;	
+				break;
+			case dem_single:
+				if (!cam_locked || cls.mvd_lastto != cam_curtarget)
+					goto readnext;
+				break;
+			}
+		}
+#endif
+
 		return true;
 
 	case dem_set:
@@ -266,10 +336,39 @@ readnext:
 		cls.netchan.outgoing_sequence = LittleLong(i);
 		fread (&i, 4, 1, cls.demofile);
 		cls.netchan.incoming_sequence = LittleLong(i);
+#ifdef MVDPLAY
+		if (cls.mvdplayback)
+			cls.netchan.incoming_acknowledged = cls.netchan.incoming_sequence;
+#endif
 		goto readnext;
 
+#ifdef MVDPLAY
+	case dem_multiple:
+		r = fread (&i, 4, 1, cls.demofile);
+		if (r != 1)
+			Host_Error ("Unexpected end of demo");
+		cls.mvd_lastto = LittleLong(i);
+		cls.mvd_lasttype = dem_multiple;
+		goto readit;
+
+	case dem_single:
+		cls.mvd_lastto = c>>3;
+		cls.mvd_lasttype = dem_single;
+		goto readit;
+
+	case dem_stats:
+		cls.mvd_lastto = c>>3;
+		cls.mvd_lasttype = dem_stats;
+		goto readit;
+
+	case dem_all:
+		cls.mvd_lastto = 0;
+		cls.mvd_lasttype = dem_all;
+		goto readit;
+#endif
+
 	default:
-		Host_Error ("Corrupted demo");
+		Host_Error ("Corrupted demo 3 -> c='%d'", c);
 		return false;
 	}
 }
@@ -408,6 +507,12 @@ static void CL_Record (void)
 	player_info_t *player;
 	int seq = 1;
 
+#ifdef MVDPLAY
+	if (cls.mvdplayback) {
+		Com_Printf ("Can't record while playing MVD demo.\n");
+		return;
+	}
+#endif
 	cls.demorecording = true;
 
 /*-------------------------------------------------*/
@@ -431,16 +536,16 @@ static void CL_Record (void)
 	MSG_WriteString (&buf, cl.levelname);
 
 	// send the movevars
-	MSG_WriteFloat(&buf, movevars.gravity);
-	MSG_WriteFloat(&buf, movevars.stopspeed);
-	MSG_WriteFloat(&buf, cl.maxspeed);
-	MSG_WriteFloat(&buf, movevars.spectatormaxspeed);
-	MSG_WriteFloat(&buf, movevars.accelerate);
-	MSG_WriteFloat(&buf, movevars.airaccelerate);
-	MSG_WriteFloat(&buf, movevars.wateraccelerate);
-	MSG_WriteFloat(&buf, movevars.friction);
-	MSG_WriteFloat(&buf, movevars.waterfriction);
-	MSG_WriteFloat(&buf, cl.entgravity);
+	MSG_WriteFloat(&buf, cl.movevars.gravity);
+	MSG_WriteFloat(&buf, cl.movevars.stopspeed);
+	MSG_WriteFloat(&buf, cl.movevars.maxspeed);
+	MSG_WriteFloat(&buf, cl.movevars.spectatormaxspeed);
+	MSG_WriteFloat(&buf, cl.movevars.accelerate);
+	MSG_WriteFloat(&buf, cl.movevars.airaccelerate);
+	MSG_WriteFloat(&buf, cl.movevars.wateraccelerate);
+	MSG_WriteFloat(&buf, cl.movevars.friction);
+	MSG_WriteFloat(&buf, cl.movevars.waterfriction);
+	MSG_WriteFloat(&buf, cl.movevars.entgravity);
 
 	// send music
 	MSG_WriteByte (&buf, svc_cdtrack);
@@ -708,7 +813,7 @@ void CL_Record_f (void)
 	if (cls.demorecording)
 		CL_Stop_f();
   
-	Q_snprintfz (name, sizeof(name), "%s/%s", cls.gamedir, Cmd_Argv(1));
+	snprintf (name, sizeof(name), "%s/%s", cls.gamedir, Cmd_Argv(1));
 
 //
 // open the demo file
@@ -765,10 +870,10 @@ void CL_EasyRecord_f (void)
 /// FIXME: check buffer sizes!!!
 
 	if (c == 2)
-		Q_snprintfz (name, sizeof(name), "%s", Cmd_Argv(1));
+		snprintf (name, sizeof(name), "%s", Cmd_Argv(1));
 	else if (cl.spectator) {
 		// FIXME: if tracking a player, use his name
-		Q_snprintfz (name, sizeof(name), "spec_%s_%s",
+		snprintf (name, sizeof(name), "spec_%s_%s",
 			TP_PlayerName(),
 			TP_MapName());
 	} else {
@@ -777,7 +882,7 @@ void CL_EasyRecord_f (void)
 		if (cl.teamplay && i >= 3)
 		{
 			// Teamplay
-			Q_snprintfz (name, sizeof(name), "%s_%s_vs_%s_%s",
+			snprintf (name, sizeof(name), "%s_%s_vs_%s_%s",
 				TP_PlayerName(),
 				TP_PlayerTeam(),
 				TP_EnemyTeam(),
@@ -785,20 +890,20 @@ void CL_EasyRecord_f (void)
 		} else {
 			if (i == 2) {
 				// Duel
-				Q_snprintfz (name, sizeof(name), "%s_vs_%s_%s",
+				snprintf (name, sizeof(name), "%s_vs_%s_%s",
 					TP_PlayerName(),
 					TP_EnemyName(),
 					TP_MapName());
 			}
 			else if (i > 2) {
 				// FFA
-				Q_snprintfz (name, sizeof(name), "%s_ffa_%s",
+				snprintf (name, sizeof(name), "%s_ffa_%s",
 					TP_PlayerName(), 
 					TP_MapName());
 			}
 			else {
 				// one player
-				Q_snprintfz (name, sizeof(name), "%s_%s",
+				snprintf (name, sizeof(name), "%s_%s",
 					TP_PlayerName(),
 					TP_MapName());
 			}
@@ -1067,15 +1172,27 @@ try_again:
 
 	Com_Printf ("Playing demo from %s.\n", COM_SkipPath(name));
 
-	cls.nqdemoplayback = !Q_stricmp(COM_FileExtension(name), "dem");
-	if (cls.nqdemoplayback) {
+	cls.nqprotocol = !Q_stricmp(COM_FileExtension(name), "dem");
+	if (cls.nqprotocol) {
 		NQD_StartPlayback ();
 	}
+
+#ifdef MVDPLAY
+	cls.mvdplayback = !Q_stricmp(COM_FileExtension(name), "mvd");
+#endif
 
 	cls.demoplayback = true;
 	cls.state = ca_demostart;
 	Netchan_Setup (NS_CLIENT, &cls.netchan, net_null, 0);
 	cls.demotime = 0;
+
+#ifdef MVDPLAY
+	cls.mvd_newtime = cls.mvd_oldtime = 0;
+	cls.mvd_findtarget = true;
+	cls.mvd_lasttype = 0;
+	cls.mvd_lastto = 0;
+	MVD_ClearPredict();
+#endif
 }
 
 /*

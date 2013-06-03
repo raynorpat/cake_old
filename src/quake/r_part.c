@@ -167,3 +167,14 @@ void R_DrawParticles (void)
 		R_AddParticlesToAlphaList (pt);
 	}
 }
+
+void CL_WipeParticles (void)
+{
+	extern particle_type_t *active_particle_types, *free_particle_types;
+	extern particle_t *free_particles;
+
+	// these need to be wiped immediately on going to a new server
+	active_particle_types = NULL;
+	free_particle_types = NULL;
+	free_particles = NULL;
+}

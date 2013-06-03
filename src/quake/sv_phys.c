@@ -359,7 +359,7 @@ SV_AddGravity
 */
 void SV_AddGravity (edict_t *ent, float scale)
 {
-	ent->v.velocity[2] -= scale * movevars.gravity * sv_frametime;
+	ent->v.velocity[2] -= scale * sv.movevars.gravity * sv_frametime;
 }
 
 /*
@@ -783,7 +783,7 @@ void SV_Physics_Step (edict_t *ent)
 // frefall if not onground
 	if ( ! ((int)ent->v.flags & (FL_ONGROUND | FL_FLY | FL_SWIM) ) )
 	{
-		if (ent->v.velocity[2] < movevars.gravity*-0.1)
+		if (ent->v.velocity[2] < sv.movevars.gravity*-0.1)
 			hitsound = true;
 		else
 			hitsound = false;
@@ -820,7 +820,7 @@ void SV_ProgStartFrame (void)
 	pr_global_struct->self = EDICT_TO_PROG(sv.edicts);
 	pr_global_struct->other = EDICT_TO_PROG(sv.edicts);
 	pr_global_struct->time = sv.time;
-	PR_ExecuteProgram (pr_global_struct->StartFrame);
+	PR_ExecuteProgram (PR_GLOBAL(StartFrame));
 }
 
 /*
@@ -861,6 +861,40 @@ void SV_RunEntity (edict_t *ent)
 }
 
 /*
+** SV_RunNQNewmis
+** 
+** sv_player will be valid
+*/
+void SV_RunNQNewmis (void)
+{
+	edict_t	*ent;
+	double save_frametime;
+	int i, pl;
+
+	pl = EDICT_TO_PROG(sv_player);
+	ent = NEXT_EDICT(sv.edicts);
+	for (i=1 ; i<sv.num_edicts ; i++, ent = NEXT_EDICT(ent))
+	{
+		if (!ent->inuse)
+			continue;
+		if (ent->lastruntime || ent->v.owner != pl)
+			continue;
+		if (ent->v.movetype != MOVETYPE_FLY &&
+			ent->v.movetype != MOVETYPE_FLYMISSILE && 
+			ent->v.movetype != MOVETYPE_BOUNCE) 
+			continue;
+		if (ent->v.solid != SOLID_BBOX && ent->v.solid != SOLID_TRIGGER)
+			continue;
+
+		save_frametime = sv_frametime;
+		sv_frametime = 0.05;
+		SV_RunEntity (ent);
+		sv_frametime = save_frametime;
+		return;
+	}
+}
+
+/*
 ================
 SV_RunNewmis
 
@@ -870,6 +904,9 @@ void SV_RunNewmis (void)
 {
 	edict_t	*ent;
 	double save_frametime;
+
+	if (pr_nqprogs)
+		return;
 
 	if (!pr_global_struct->newmis)
 		return;
@@ -912,7 +949,10 @@ void SV_Physics (void)
 	else
 		sv_frametime = 0.1;		// initialization frame
 
-	pr_global_struct->frametime = sv_frametime;
+	if (pr_nqprogs)
+		NQP_Reset ();
+
+	PR_GLOBAL(frametime) = sv_frametime;
 
 	SV_ProgStartFrame ();
 
@@ -926,7 +966,7 @@ void SV_Physics (void)
 		if (!ent->inuse)
 			continue;
 
-		if (pr_global_struct->force_retouch)
+		if (PR_GLOBAL(force_retouch))
 			SV_LinkEdict (ent, true);	// force retouch even for stationary
 
 		if (i > 0 && i <= MAX_CLIENTS)
@@ -936,29 +976,29 @@ void SV_Physics (void)
 		SV_RunNewmis ();
 	}
 	
-	if (pr_global_struct->force_retouch)
-		pr_global_struct->force_retouch--;
+	if (PR_GLOBAL(force_retouch))
+		PR_GLOBAL(force_retouch)--;
 
 	SV_RunBots ();
 }
 
 void SV_SetMoveVars(void)
 {
-	movevars.gravity			= sv_gravity.value; 
-	movevars.stopspeed			= pm_stopspeed.value;
-	movevars.maxspeed			= pm_maxspeed.value;
-	movevars.spectatormaxspeed	= pm_spectatormaxspeed.value;
-	movevars.accelerate 		= pm_accelerate.value;
-	movevars.airaccelerate		= pm_airaccelerate.value;
-	movevars.wateraccelerate	= pm_wateraccelerate.value;
-	movevars.friction			= pm_friction.value;
-	movevars.waterfriction		= pm_waterfriction.value;
-	movevars.entgravity 		= 1.0;
+	sv.movevars.gravity				= sv_gravity.value; 
+	sv.movevars.stopspeed			= pm_stopspeed.value;
+	sv.movevars.maxspeed			= pm_maxspeed.value;
+	sv.movevars.spectatormaxspeed	= pm_spectatormaxspeed.value;
+	sv.movevars.accelerate 			= pm_accelerate.value;
+	sv.movevars.airaccelerate		= pm_airaccelerate.value;
+	sv.movevars.wateraccelerate		= pm_wateraccelerate.value;
+	sv.movevars.friction			= pm_friction.value;
+	sv.movevars.waterfriction		= pm_waterfriction.value;
+	sv.movevars.entgravity 			= 1.0;
 
 // redundant as we set them in every SV_RunCmd call anyway
-//	movevars.slidefix			= pm_slidefix.value;
-//	movevars.airstep			= pm_airstep.value;
-//	movevars.ktjump 			= pm_ktjump.value;
+//	sv.movevars.slidefix		= pm_slidefix.value;
+//	sv.movevars.airstep			= pm_airstep.value;
+//	sv.movevars.ktjump 			= pm_ktjump.value;
 }
 
 /* vi: set noet ts=4 sts=4 ai sw=4: */

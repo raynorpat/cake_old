@@ -63,14 +63,21 @@ static struct model_s	*cl_bolt2_mod;
 static struct model_s	*cl_bolt3_mod;
 static struct model_s	*cl_beam_mod;
 
+cvar_t	cl_fakeshaft = {"cl_fakeshaft", "0"};
+cvar_t	r_shaftalpha = {"r_shaftalpha", "1"};
+
+
 /*
 =================
-CL_PrecacheTEntSounds
+CL_InitTEnts
 =================
 */
-void CL_PrecacheTEntSounds (void)
+void CL_InitTEnts (void)
 {
 	extern sfx_t *ambient_sfx[NUM_AMBIENTS];
+
+	Cvar_Register (&cl_fakeshaft);
+	Cvar_Register (&r_shaftalpha);
 
 	cl_sfx_wizhit = S_PrecacheSound ("wizard/hit.wav");
 	cl_sfx_knighthit = S_PrecacheSound ("hknight/hit.wav");
@@ -200,8 +207,8 @@ void CL_ParseBeam (int type)
 		break;
 	}
 
-	if (ent == cl.viewplayernum + 1)
-		VectorCopy (end, playerbeam_end);	// for cl_trueLightning
+	if (ent == Cam_PlayerNum() + 1)
+		VectorCopy (end, playerbeam_end);	// for cl_fakeshaft
 
 // override any beam with the same entity
 	for (i = 0, b = cl_beams; i < MAX_BEAMS; i++, b++)
@@ -409,7 +416,7 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TE_GUNSHOT:			// bullet hitting wall
-		if (cls.nqdemoplayback)
+		if (cls.nqprotocol)
 			cnt = 1;
 		else
 			cnt = MSG_ReadByte ();
@@ -420,7 +427,7 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TE_BLOOD:				// bullets hitting body
-		if (cls.nqdemoplayback) {
+		if (cls.nqprotocol) {
 			// NQ_TE_EXPLOSION2
 			int colorStart, colorLength;
 			pos[0] = MSG_ReadCoord ();
@@ -445,7 +452,7 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TE_LIGHTNINGBLOOD:		// lightning hitting body
-		if (cls.nqdemoplayback) {
+		if (cls.nqprotocol) {
 			// NQ_TE_BEAM - grappling hook beam
 			CL_ParseBeam (4);
 			break;
@@ -487,11 +494,11 @@ void CL_UpdateBeams (void)
 			continue;
 
 	// if coming from the player, update the start position
-		if (b->entity == cl.viewplayernum + 1 && !cl.intermission)
+		if (b->entity == Cam_PlayerNum() + 1 && !cl.intermission)
 		{
 			VectorCopy (cl.simorg, b->start);
 			b->start[2] += cl.crouch;
-			if (cl_trueLightning.value && cl.allow_truelightning)
+			if (cl_fakeshaft.value && cl.allow_fakeshaft)
 			{
 				vec3_t	forward;
 				vec3_t	v, org;
@@ -499,7 +506,7 @@ void CL_UpdateBeams (void)
 				float	f, delta;
 				trace_t	trace;
 
-				f = max(0, min(1, cl_trueLightning.value));
+				f = max(0, min(1, cl_fakeshaft.value));
 
 				VectorSubtract (playerbeam_end, cl.simorg, v);
 				v[2] -= 22;		// adjust for view height
@@ -526,7 +533,7 @@ void CL_UpdateBeams (void)
 				org[2] += 16;
 				VectorAdd (org, forward, b->end);
 
-				trace = PM_TraceLine (org, b->end);
+				trace = PM_TraceLine (&cl.pmove, org, b->end);
 				if (trace.fraction < 1)
 					VectorCopy (trace.endpos, b->end);
 			}
@@ -548,6 +555,10 @@ void CL_UpdateBeams (void)
 			ent.angles[PITCH] = angles[PITCH];
 			ent.angles[YAW] = angles[YAW];
 			ent.angles[ROLL] = rand()%360;
+			if (b->model == cl_bolt2_mod) {
+				ent.alpha = r_shaftalpha.value;
+				ent.renderfx |= RF_TRANSLUCENT;
+			}
 
 			V_AddEntity (&ent);
 

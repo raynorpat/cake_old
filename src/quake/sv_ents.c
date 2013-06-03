@@ -162,6 +162,20 @@ int SV_TranslateEntnum (int num)
 
 //=============================================================================
 
+static int TranslateEffects (edict_t *ent)
+{
+	int fx = (int)ent->v.effects;
+	if (pr_nqprogs)
+		fx &= ~EF_MUZZLEFLASH;
+	if (pr_nqprogs && (fx & EF_DIMLIGHT)) {
+		if ((int)ent->v.items & IT_QUAD)
+			fx |= EF_BLUE;
+		if ((int)ent->v.items & IT_INVULNERABILITY)
+			fx |= EF_RED;
+	}
+	return fx;
+}
+
 
 /*
 =============
@@ -303,9 +317,8 @@ void SV_WritePlayersToClient (client_t *client, byte *pvs, sizebuf_t *msg)
 #ifdef VWEP_TEST
 			// @@VWep test
 			if ((client->extensions & Z_EXT_VWEP) && sv.vw_model_name[0]
-					&& fofs_vw_index && fofs_vw_frame) {
+			&& fofs_vw_index) {
 				cmd.impulse = EdictFieldFloat (ent, fofs_vw_index);
-				cmd.msec = EdictFieldFloat (ent, fofs_vw_frame);
 			}
 #endif
 
@@ -323,7 +336,7 @@ void SV_WritePlayersToClient (client_t *client, byte *pvs, sizebuf_t *msg)
 			MSG_WriteByte (msg, ent->v.skin);
 
 		if (pflags & PF_EFFECTS)
-			MSG_WriteByte (msg, ent->v.effects);
+			MSG_WriteByte (msg, TranslateEffects(ent));
 
 		if (pflags & PF_WEAPONFRAME)
 			MSG_WriteByte (msg, ent->v.weaponframe);
@@ -363,6 +376,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg)
 	edict_t	*clent;
 	client_frame_t	*frame;
 	entity_state_t	*state;
+	entity_state_t	newents[MAX_PACKET_ENTITIES];
 
 	// this is the frame we are creating
 	frame = &client->frames[client->netchan.incoming_sequence & UPDATE_MASK];
@@ -407,7 +421,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg)
 		if (pack->num_entities == MAX_PACKET_ENTITIES)
 			continue;	// all full
 
-		state = &pack->entities[pack->num_entities];
+		state = &newents[pack->num_entities];
 		pack->num_entities++;
 
 		state->number = SV_TranslateEntnum(e);
@@ -418,11 +432,15 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg)
 		state->frame = ent->v.frame;
 		state->colormap = ent->v.colormap;
 		state->skinnum = ent->v.skin;
-		state->effects = ent->v.effects;
+		state->effects = TranslateEffects(ent);
 	}
 
 	// entity translation might have broken original entnum order, so sort them
-	qsort (pack->entities, pack->num_entities, sizeof(pack->entities[0]), entity_state_compare);
+	qsort (newents, pack->num_entities, sizeof(newents[0]), entity_state_compare);
+
+	Q_free (pack->entities);
+	pack->entities = Q_malloc (sizeof(newents[0]) * pack->num_entities);
+	memcpy (pack->entities, newents, sizeof(newents[0]) * pack->num_entities);
 
 	if (client->delta_sequence != -1) {
 		// encode the packet entities as a delta from the
@@ -437,6 +455,26 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg)
 
 	// now add the specialized nail update
 	SV_EmitNailUpdate (msg);
+
+	// Translate NQ progs' EF_MUZZLEFLASH to svc_muzzleflash
+	if (pr_nqprogs)
+		for (e=1, ent=EDICT_NUM(e) ; e < sv.num_edicts ; e++, ent = NEXT_EDICT(ent))
+		{
+			// ignore ents without visible models
+			if (!ent->v.modelindex || !*PR_GetString(ent->v.model))
+				continue;
+	
+			// ignore if not touching a PV leaf
+			for (i=0 ; i < ent->num_leafs ; i++)
+				if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
+					break;
+	
+			if ((int)ent->v.effects & EF_MUZZLEFLASH) {
+				ent->v.effects = (int)ent->v.effects & ~EF_MUZZLEFLASH;
+				MSG_WriteByte (msg, svc_muzzleflash);
+				MSG_WriteShort (msg, e);
+			}
+		}			
 }
 
 /* vi: set noet ts=4 sts=4 ai sw=4: */

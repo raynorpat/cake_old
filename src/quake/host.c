@@ -95,7 +95,7 @@ void Host_Error (char *error, ...)
 	va_end (argptr);
 
 	Com_Printf ("\n===========================\n");
-	Com_Printf ("Host_Error: %s\n",string);
+	Com_Printf ("Host_Error: %s\n", string);
 	Com_Printf ("===========================\n\n");
 	
 	SV_Shutdown (va("server crashed: %s\n", string));

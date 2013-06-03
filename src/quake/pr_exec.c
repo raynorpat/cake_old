@@ -562,7 +562,7 @@ while (1)
 #endif
 		if (ed == (edict_t *)sv.edicts && sv.state == ss_game)
 			PR_RunError ("assignment to world entity");
-		c->_int = (byte *)((int *)&ed->v + b->_int) - (byte *)sv.edicts;
+		c->_int = (byte *)((int *)&ed->v + PR_FIELDOFS(b->_int)) - (byte *)sv.edicts;
 		break;
 
 	case OP_LOAD_F:
@@ -574,7 +574,7 @@ while (1)
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
-		a = (eval_t *)((int *)&ed->v + b->_int);
+		a = (eval_t *)((int *)&ed->v + PR_FIELDOFS(b->_int));
 		c->_int = a->_int;
 		break;
 
@@ -583,7 +583,7 @@ while (1)
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
-		a = (eval_t *)((int *)&ed->v + b->_int);
+		a = (eval_t *)((int *)&ed->v + PR_FIELDOFS(b->_int));
 		c->vector[0] = a->vector[0];
 		c->vector[1] = a->vector[1];
 		c->vector[2] = a->vector[2];
@@ -623,12 +623,8 @@ while (1)
 		if (newf->first_statement < 0)
 		{	// negative statements are built-in functions
 			i = -newf->first_statement;
-			if (i >= pr_numbuiltins) {
-				if (i < ZQ_BUILTINS || i >= ZQ_BUILTINS + pr_numextbuiltins)
-					PR_RunError ("Bad builtin call number");
-				pr_extbuiltins[i - ZQ_BUILTINS] ();
-				break;
-			}
+			if (i >= pr_numbuiltins)
+				PR_RunError ("Bad builtin call number");
 			pr_builtins[i] ();
 			break;
 		}

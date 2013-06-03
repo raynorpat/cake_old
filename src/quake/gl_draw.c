@@ -942,6 +942,7 @@ R_DrawStretchRaw
 */
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data)
 {
+/*
 	unsigned	image32[256*256];
 	int			i, j, trows;
 	byte		*source;
@@ -1005,6 +1006,7 @@ void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *dat
 	qglTexCoord2f (0, t);
 	qglVertex2f (x, y+h);
 	qglEnd ();
+	*/
 }
 
 //====================================================================

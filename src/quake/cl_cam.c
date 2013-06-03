@@ -22,25 +22,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "pmove.h"
 #include "cl_sbar.h"
+#include "teamplay.h"
 
-
-#define NOTARGET	-1
 
 qbool		cam_track;
 int			cam_target;
 qbool		cam_locked;
-static int	cam_curtarget;		// playernum or NOTARGET
+int			cam_curtarget;		// playernum or CAM_NOTARGET
 
 static int	cam_oldbuttons;
 
 cvar_t cl_hightrack = {"cl_hightrack", "0" };	// track high fragger
 
-void Cam_SetViewPlayer (void)
+int Cam_PlayerNum (void)
 {
-	if (cl.spectator && cam_curtarget != NOTARGET)
-		cl.viewplayernum = cam_curtarget;
+	if (cl.spectator && cam_curtarget != CAM_NOTARGET)
+		return cam_curtarget;
 	else
-		cl.viewplayernum = cl.playernum;
+		return cl.playernum;
 }
 
 // returns true if weapon model should be drawn in camera mode
@@ -49,7 +48,7 @@ qbool Cam_DrawViewModel (void)
 	if (!cl.spectator)
 		return true;
 
-	if (cam_curtarget != NOTARGET)
+	if (cam_curtarget != CAM_NOTARGET)
 		return true;
 
 	return false;
@@ -62,6 +61,21 @@ qbool Cam_DrawPlayer (int playernum)
 		return false;
 	return true;
 }
+
+#ifdef MVDPLAY
+void Cam_Lock (int playernum)
+{
+	cam_track = true;
+	cam_target = playernum;
+	// not sure about the following two
+	cam_locked = true;
+	cam_curtarget = playernum;
+
+	memcpy(cl.stats, cl.players[playernum].stats, sizeof(cl.stats));
+
+    CL_UpdateSkins ();
+}
+#endif
 
 int Cam_TargetCount (void)
 {
@@ -109,6 +123,16 @@ ok:
 	cam_track = true;
 	cam_target = num;
 	cam_locked = false;		// not yet
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback) {
+		cam_curtarget = cam_target;
+		cam_locked = true;
+		memcpy(cl.stats, cl.players[num].stats, sizeof(cl.stats));
+	}
+#endif
+
+    CL_UpdateSkins ();
 	Cam_SendPTrackCommand (num);
 }
 
@@ -131,6 +155,16 @@ static void Cam_FindNextTarget (void)
 ok:
 	cam_target = num;
 	cam_locked = false;		// not yet
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback) {
+		cam_curtarget = cam_target;
+		cam_locked = true;
+		memcpy(cl.stats, cl.players[num].stats, sizeof(cl.stats));
+	}
+#endif
+
+    CL_UpdateSkins ();
 	Cam_SendPTrackCommand (num);
 }
 
@@ -151,7 +185,8 @@ void Cam_FinishMove (usercmd_t *cmd)
 			// leave tracking mode
 			cam_track = false;
 			cam_locked = false;
-			cam_curtarget = NOTARGET;
+			cam_curtarget = CAM_NOTARGET;
+            CL_UpdateSkins ();
 			Cam_SendUnlockCommand ();
 		}
 		else {
@@ -173,7 +208,7 @@ void Cam_FinishMove (usercmd_t *cmd)
 		}
 	}
 
-	if (cam_curtarget != NOTARGET) {
+	if (cam_curtarget != CAM_NOTARGET) {
 		player_state_t	*state;
 		state = &cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cam_curtarget];
 		if (state->messagenum == cl.parsecount) {
@@ -189,7 +224,7 @@ void Cam_FinishMove (usercmd_t *cmd)
 		}
 		else {
 			// lost target (player disconnected?)
-			cam_curtarget = NOTARGET;
+			cam_curtarget = CAM_NOTARGET;
 			if (cam_locked) {
 				// try next guy
 				cam_locked = false;		// in case we don't find anyone
@@ -214,7 +249,7 @@ void Cam_Reset (void)
 	cam_track = 0;
 	cam_locked = false;
 	cam_target = 0;
-	cam_curtarget = NOTARGET;
+	cam_curtarget = CAM_NOTARGET;
 	cam_oldbuttons = 0;
 }
 
@@ -269,7 +304,11 @@ void Cam_TryLock (void)
 		// the spectator switched to free spectator mode
 		cam_track = false;
 		cam_locked = false;
-		cam_curtarget = NOTARGET;
+		cam_curtarget = CAM_NOTARGET;
+	}
+
+	if (cam_target != old_target || cam_locked != old_locked) {
+        CL_UpdateSkins ();
 	}
 }
 

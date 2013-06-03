@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common.h"
 #include "progs.h"
+#include "pmove.h"
 
 
 #define	MAX_MASTERS	8				// max recipients for heartbeat packets
@@ -65,6 +66,8 @@ typedef struct
 	int			lastcheck;			// used by PF_checkclient
 	double		lastchecktime;		// for monster ai
 
+	double		pausedstart;		// curtime when pause started
+
 	qbool		loadgame;			// handle connections specially
 
 	// check player/eyes models for hacks
@@ -83,6 +86,7 @@ typedef struct
 	char		*sound_name[MAX_SOUNDS];	// NULL terminated
 	char		*lightstyles[MAX_LIGHTSTYLES];
 	cmodel_t	*models[MAX_MODELS];
+	movevars_t	movevars;
 
 	int			num_edicts;			// increases towards MAX_EDICTS
 	edict_t		*edicts;			// can NOT be array indexed, because
@@ -190,6 +194,7 @@ typedef struct client_s
 	char			stufftext_buf[MAX_STUFFTEXT];
 	char			sprint_buf[256];
 	int				sprint_level;
+	qbool			sprint_nq_low_level;
 
 	double			connection_started;	// or time of disconnect for zombies
 	qbool			send_message;		// set on frames a datagram arived on
@@ -419,6 +424,7 @@ void SV_Physics (void);
 void SV_CheckVelocity (edict_t *ent);
 qbool SV_RunThink (edict_t *ent);
 void SV_RunNewmis (void);
+void SV_RunNQNewmis (void);
 void SV_SetMoveVars(void);
 
 //
@@ -445,7 +451,7 @@ void SV_FindModelNumbers (void);
 // sv_user.c
 //
 void SV_ExecuteClientMessage (client_t *cl);
-void SV_TogglePause (const char *msg);
+void SV_TogglePause (qbool menu, const char *msg);
 
 
 //

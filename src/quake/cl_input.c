@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "input.h"
+#include "pmove.h"		// PM_FLY
 
 cvar_t	cl_nodelta = {"cl_nodelta","0"};
 cvar_t	cl_c2spps = {"cl_c2spps","0"};
@@ -53,6 +54,7 @@ kbutton_t	in_mlook, in_klook;
 kbutton_t	in_left, in_right, in_forward, in_back;
 kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 kbutton_t	in_strafe, in_speed, in_use, in_jump, in_attack;
+kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7;
 kbutton_t	in_up, in_down;
 
 int			in_impulse;
@@ -100,7 +102,8 @@ void KeyUp (kbutton_t *b)
 	else
 	{ // typed manually at the console, assume for unsticking, so clear all
 		b->down[0] = b->down[1] = 0;
-		b->state = 4;	// impulse up
+		b->state &= ~1;		// now up
+		b->state |= 4; 		// impulse up
 		return;
 	}
 
@@ -155,9 +158,18 @@ void IN_StrafeUp(void) {KeyUp(&in_strafe);}
 
 void IN_AttackDown(void) {KeyDown(&in_attack);}
 void IN_AttackUp(void) {KeyUp(&in_attack);}
-
 void IN_UseDown (void) {KeyDown(&in_use);}
 void IN_UseUp (void) {KeyUp(&in_use);}
+void IN_Button3Down(void) {KeyDown(&in_button3);}
+void IN_Button3Up(void) {KeyUp(&in_button3);}
+void IN_Button4Down(void) {KeyDown(&in_button4);}
+void IN_Button4Up(void) {KeyUp(&in_button4);}
+void IN_Button5Down(void) {KeyDown(&in_button5);}
+void IN_Button5Up(void) {KeyUp(&in_button5);}
+void IN_Button6Down(void) {KeyDown(&in_button6);}
+void IN_Button6Up(void) {KeyUp(&in_button6);}
+void IN_Button7Down(void) {KeyDown(&in_button7);}
+void IN_Button7Up(void) {KeyUp(&in_button7);}
 void IN_JumpDown (void) {KeyDown(&in_jump);}
 void IN_JumpUp (void) {KeyUp(&in_jump);}
 
@@ -259,7 +271,7 @@ Returns 0.25 if a key was pressed and released during the frame,
 1.0 if held for the entire time
 ===============
 */
-float CL_KeyState (kbutton_t *key)
+float CL_KeyState (kbutton_t *key, qbool lookbutton)
 {
 	float	val;
 	qbool	impulsedown, impulseup, down;
@@ -272,7 +284,9 @@ float CL_KeyState (kbutton_t *key)
 	if (impulsedown && !impulseup)
 	{
 		if (down)
-			val = 0.5;	// pressed and held this frame
+			// pressed and held this frame
+			val = lookbutton ? 0.5	/* frj scripts compatibility */
+				: 1.0;	
 		else
 			val = 0;	//	I_Error ();
 	}
@@ -299,6 +313,7 @@ float CL_KeyState (kbutton_t *key)
 	}
 
 	key->state &= 1;		// clear impulses
+
 	return val;
 }
 
@@ -307,12 +322,12 @@ float CL_KeyState (kbutton_t *key)
 
 //==========================================================================
 
-cvar_t	cl_upspeed = {"cl_upspeed", "200"};
-cvar_t	cl_forwardspeed = {"cl_forwardspeed", "200", CVAR_ARCHIVE};
-cvar_t	cl_backspeed = {"cl_backspeed", "200", CVAR_ARCHIVE};
-cvar_t	cl_sidespeed = {"cl_sidespeed", "200", CVAR_ARCHIVE};
+cvar_t	cl_upspeed = {"cl_upspeed", "400"};
+cvar_t	cl_forwardspeed = {"cl_forwardspeed", "400", CVAR_ARCHIVE};
+cvar_t	cl_backspeed = {"cl_backspeed", "400", CVAR_ARCHIVE};
+cvar_t	cl_sidespeed = {"cl_sidespeed", "400", CVAR_ARCHIVE};
 
-cvar_t	cl_run = {"cl_run", "1", CVAR_ARCHIVE};
+cvar_t	cl_run = {"cl_run", "0", CVAR_ARCHIVE};
 cvar_t	cl_movespeedkey = {"cl_movespeedkey", "2.0", CVAR_ARCHIVE};
 cvar_t	cl_anglespeedkey = {"cl_anglespeedkey", "1.5"};
 
@@ -321,7 +336,7 @@ cvar_t	cl_pitchspeed = {"cl_pitchspeed","150"};
 
 cvar_t	lookspring = {"lookspring","0",CVAR_ARCHIVE};
 cvar_t	lookstrafe = {"lookstrafe","0",CVAR_ARCHIVE};
-cvar_t	sensitivity = {"sensitivity","6",CVAR_ARCHIVE};
+cvar_t	sensitivity = {"sensitivity","12",CVAR_ARCHIVE};
 cvar_t	freelook = {"freelook","1",CVAR_ARCHIVE};
 
 cvar_t	m_pitch = {"m_pitch","0.022", CVAR_ARCHIVE};
@@ -359,19 +374,19 @@ void CL_AdjustAngles (void)
 			yawspeed = bound (-1000, yawspeed, 1000);
 			yawspeed *= cls.frametime;
 		}
-		cl.viewangles[YAW] -= yawspeed * CL_KeyState (&in_right);
-		cl.viewangles[YAW] += yawspeed * CL_KeyState (&in_left);
+		cl.viewangles[YAW] -= yawspeed * CL_KeyState (&in_right, true);
+		cl.viewangles[YAW] += yawspeed * CL_KeyState (&in_left, true);
 		cl.viewangles[YAW] = anglemod(cl.viewangles[YAW]);
 	}
 	if (in_klook.state & 1)
 	{
 		V_StopPitchDrift ();
-		cl.viewangles[PITCH] -= speed*cl_pitchspeed.value * CL_KeyState (&in_forward);
-		cl.viewangles[PITCH] += speed*cl_pitchspeed.value * CL_KeyState (&in_back);
+		cl.viewangles[PITCH] -= speed*cl_pitchspeed.value * CL_KeyState (&in_forward, true);
+		cl.viewangles[PITCH] += speed*cl_pitchspeed.value * CL_KeyState (&in_back, true);
 	}
 	
-	up = CL_KeyState (&in_lookup);
-	down = CL_KeyState(&in_lookdown);
+	up = CL_KeyState (&in_lookup, true);
+	down = CL_KeyState(&in_lookdown, true);
 	
 	cl.viewangles[PITCH] -= speed*cl_pitchspeed.value * up;
 	cl.viewangles[PITCH] += speed*cl_pitchspeed.value * down;
@@ -407,20 +422,20 @@ void CL_BaseMove (usercmd_t *cmd)
 	VectorCopy (cl.viewangles, cmd->angles);
 	if (in_strafe.state & 1)
 	{
-		cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_right);
-		cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_left);
+		cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_right, false);
+		cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_left, false);
 	}
 
-	cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_moveright);
-	cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_moveleft);
+	cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_moveright, false);
+	cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_moveleft, false);
 
-	cmd->upmove += cl_upspeed.value * CL_KeyState (&in_up);
-	cmd->upmove -= cl_upspeed.value * CL_KeyState (&in_down);
+	cmd->upmove += cl_upspeed.value * CL_KeyState (&in_up, false);
+	cmd->upmove -= cl_upspeed.value * CL_KeyState (&in_down, false);
 
 	if (! (in_klook.state & 1) )
 	{	
-		cmd->forwardmove += cl_forwardspeed.value * CL_KeyState (&in_forward);
-		cmd->forwardmove -= cl_backspeed.value * CL_KeyState (&in_back);
+		cmd->forwardmove += cl_forwardspeed.value * CL_KeyState (&in_forward, false);
+		cmd->forwardmove -= cl_backspeed.value * CL_KeyState (&in_back, false);
 	}	
 
 //
@@ -470,8 +485,24 @@ void CL_FinishMove (usercmd_t *cmd)
 		cmd->buttons |= 4;
 	in_use.state &= ~2;
 
+	if (in_button3.state & 3)
+		cmd->buttons |= 1 << 3;
+	in_button3.state &= ~2;
+	if (in_button4.state & 3)
+		cmd->buttons |= 1 << 4;
+	in_button4.state &= ~2;
+	if (in_button5.state & 3)
+		cmd->buttons |= 1 << 5;
+	in_button5.state &= ~2;
+	if (in_button6.state & 3)
+		cmd->buttons |= 1 << 6;
+	in_button6.state &= ~2;
+	if (in_button7.state & 3)
+		cmd->buttons |= 1 << 7;
+	in_button7.state &= ~2;
+	
 	// send milliseconds of time to apply the move
-	extramsec += cls.frametime * 1000;
+	extramsec += (cl_independentPhysics.value ? cls.physframetime : cls.trueframetime) * 1000;
 	ms = extramsec;
 	extramsec -= ms;
 
@@ -492,7 +523,6 @@ void CL_FinishMove (usercmd_t *cmd)
 		in_invertview = false;
 	}
 
-
 //
 // chop down so no extra bits are kept that the server wouldn't get
 //
@@ -502,6 +532,47 @@ void CL_FinishMove (usercmd_t *cmd)
 
 	for (i = 0; i < 3; i++)
 		cmd->angles[i] = (Q_rint(cmd->angles[i]*65536.0/360.0)&65535) * (360.0/65536.0);
+}
+
+static void CL_Move (usercmd_t *cmd)
+{
+	// get basic movement from keyboard
+	CL_BaseMove (cmd);
+
+	// allow mice or other external controllers to add to the move
+	IN_Move (cmd);
+
+	CL_FinishMove(cmd);
+
+	Cam_FinishMove(cmd);
+}
+
+
+void CLNQ_SendCmd (void)
+{
+	int i;
+	usercmd_t cmd;
+	sizebuf_t	buf;
+	byte		data[128];
+
+	SZ_Init (&buf, data, sizeof(data));
+
+	CL_Move(&cmd);
+	MSG_WriteByte (&buf, clc_move);
+	MSG_WriteFloat (&buf, cl.time);	// so server can get ping times
+	for (i=0 ; i<3 ; i++)
+		MSG_WriteAngle (&buf, cmd.angles[i]);
+	MSG_WriteShort (&buf, cmd.forwardmove);
+	MSG_WriteShort (&buf, cmd.sidemove);
+	MSG_WriteShort (&buf, cmd.upmove);
+	MSG_WriteByte (&buf, cmd.buttons);
+	MSG_WriteByte (&buf, cmd.impulse);
+
+//
+// deliver the message
+//
+	Netchan_Transmit (&cls.netchan, buf.cursize, buf.data);	
+
 }
 
 /*
@@ -521,8 +592,26 @@ void CL_SendCmd (void)
 	static int	dropcount = 0;
 	qbool		dontdrop;
 
+#ifdef MVDPLAY
+    if (cls.mvdplayback)
+    {
+		CL_Move(&cl.lastcmd);
+		cls.netchan.outgoing_sequence++;
+		SZ_Clear (&cls.netchan.message);	// don't overflow
+		return;
+    }
+#endif
+
 	if (cls.demoplayback)
-		return; // sendcmds come from the demo
+	{
+		SZ_Clear (&cls.netchan.message);	// don't overflow
+		return;
+	}
+
+	if (cls.nqprotocol) {
+		CLNQ_SendCmd ();
+		return;
+	}
 
 	// save this command off for prediction
 	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
@@ -530,15 +619,7 @@ void CL_SendCmd (void)
 	cl.frames[i].senttime = cls.realtime;
 	cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 
-	// get basic movement from keyboard
-	CL_BaseMove (cmd);
-
-	// allow mice or other external controllers to add to the move
-	IN_Move (cmd);
-
-	CL_FinishMove(cmd);
-
-	Cam_FinishMove(cmd);
+	CL_Move(cmd);
 
 	SZ_Init (&buf, data, sizeof(data));
 
@@ -600,7 +681,7 @@ void CL_SendCmd (void)
 		CL_WriteDemoCmd (cmd);
 
 	if (cl_c2spps.value) {
-		pps_balance += cls.frametime;
+		pps_balance += cls.physframetime;
 		// never drop more than 2 messages in a row -- that'll cause PL
 		// and don't drop if one of the last two movemessages have an impulse
 		if (pps_balance > 0 || dropcount >= 2 || dontdrop) {
@@ -670,7 +751,20 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-use", IN_UseUp);
 	Cmd_AddCommand ("+jump", IN_JumpDown);
 	Cmd_AddCommand ("-jump", IN_JumpUp);
+	Cmd_AddCommand ("+attack2", IN_Button3Down);
+	Cmd_AddCommand ("-attack2", IN_Button3Up);
+	Cmd_AddCommand ("+button3", IN_Button3Down);
+	Cmd_AddCommand ("-button3", IN_Button3Up);
+	Cmd_AddCommand ("+button4", IN_Button4Down);
+	Cmd_AddCommand ("-button4", IN_Button4Up);
+	Cmd_AddCommand ("+button5", IN_Button5Down);
+	Cmd_AddCommand ("-button5", IN_Button5Up);
+	Cmd_AddCommand ("+button6", IN_Button6Down);
+	Cmd_AddCommand ("-button6", IN_Button6Up);
+	Cmd_AddCommand ("+button7", IN_Button7Down);
+	Cmd_AddCommand ("-button7", IN_Button7Up);
 	Cmd_AddCommand ("impulse", IN_Impulse);
+	Cmd_AddCommand ("weapon", IN_Impulse);
 	Cmd_AddCommand ("+klook", IN_KLookDown);
 	Cmd_AddCommand ("-klook", IN_KLookUp);
 	Cmd_AddCommand ("+mlook", IN_MLookDown);

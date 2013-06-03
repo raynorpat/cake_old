@@ -137,7 +137,7 @@ Quake calls this before calling Sys_Quit or Sys_Error
 */
 void SV_Shutdown (char *finalmsg)
 {
-	int i;
+	int i, j;
 
 	SV_FinalMessage (finalmsg);
 
@@ -156,8 +156,13 @@ void SV_Shutdown (char *finalmsg)
 	sv.state = ss_dead;
 	com_serveractive = false;
 
-	for (i = 0; i < MAX_CLIENTS; i++)		
+	for (i = 0; i < MAX_CLIENTS; i++) {
 		SV_FreeDelayedPackets(&svs.clients[i]);
+		for (j = 0; j < UPDATE_BACKUP; j++) {
+			free(svs.clients[i].frames[j].entities.entities);
+			svs.clients[i].frames[j].entities.entities = NULL;
+		}
+	}
 
 	memset (svs.clients, 0, sizeof(svs.clients));
 	svs.lastuserid = 0;
@@ -175,6 +180,7 @@ or crashing.
 */
 void SV_DropClient (client_t *drop)
 {
+	int i;
 
 	if (drop->bot) {
 		SV_RemoveBot (drop);
@@ -191,7 +197,7 @@ void SV_DropClient (client_t *drop)
 			// call the prog function for removing a client
 			// this will set the body to a dead frame, among other things
 			pr_global_struct->self = EDICT_TO_PROG(drop->edict);
-			PR_ExecuteProgram (pr_global_struct->ClientDisconnect);
+			PR_ExecuteProgram (PR_GLOBAL(ClientDisconnect));
 		}
 		else if (SpectatorDisconnect)
 		{
@@ -229,6 +235,11 @@ void SV_DropClient (client_t *drop)
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
 
 	SV_FreeDelayedPackets(drop);
+
+	for (i = 0; i < UPDATE_BACKUP; i++) {
+			free(drop->frames[i].entities.entities);
+			drop->frames[i].entities.entities = NULL;
+	}
 
 // send notification to all remaining clients
 	SV_FullClientUpdate (drop, &sv.reliable_datagram);
@@ -712,9 +723,9 @@ void SVC_DirectConnect (void)
 	newcl->lockedtill = 0;
 
 	// call the progs to get default spawn parms for the new client
-	PR_ExecuteProgram (pr_global_struct->SetNewParms);
+	PR_ExecuteProgram (PR_GLOBAL(SetNewParms));
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		newcl->spawn_parms[i] = (&pr_global_struct->parm1)[i];
+		newcl->spawn_parms[i] = (&PR_GLOBAL(parm1))[i];
 
 	if (newcl->spectator)
 		Com_Printf ("Spectator %s connected\n", newcl->name);
@@ -1196,9 +1207,18 @@ void SV_CheckTimeouts (void)
 			cl->state = cs_free;	// can now be reused
 		}
 	}
+
 	if (((int) sv_paused.value & 1) && !nclients) {
 		// nobody left, unpause the server
-		SV_TogglePause("Pause released since no players are left.\n");
+		if (GE_ShouldPause) {
+			pr_global_struct->time = sv.time;
+			pr_global_struct->self = EDICT_TO_PROG(sv.edicts);
+			G_FLOAT(OFS_PARM0) = 0 /* newstate = false */;
+			PR_ExecuteProgram (GE_ShouldPause);
+			if (!G_FLOAT(OFS_RETURN))
+				return;		// progs said don't unpause
+		}
+		SV_TogglePause(false, "Pause released since no players are left.\n");
 	}
 }
 
@@ -1302,6 +1322,54 @@ void SV_CheckVars (void)
 
 /*
 ==================
+SV_TogglePause
+
+'menu' is set when the player pauses the game by bringing up the menu
+in single player games
+==================
+*/
+void SV_TogglePause (qbool menu, const char *msg)
+{
+	int i;
+	client_t *cl;
+	int	newval;
+
+	if (menu)
+		newval = (int)sv_paused.value ^ 2;
+	else
+		newval = (int)sv_paused.value ^ 1;
+
+	if (!sv_paused.value && newval)
+		sv.pausedstart = curtime;
+	Cvar_ForceSet (&sv_paused, va("%i", newval));
+
+	if (msg && *msg)
+		SV_BroadcastPrintf (PRINT_HIGH, "%s", msg);
+
+	// send notification to all clients
+	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	{
+		if (cl->state < cs_connected)
+			continue;
+		ClientReliableWrite_Begin (cl, svc_setpause);
+		ClientReliableWrite_Byte (sv_paused.value ? 1 : 0);
+		ClientReliableWrite_End ();
+
+		cl->lastservertimeupdate = -99;	// force an update to be sent
+	}
+}
+
+
+static void PausedTic (void)
+{
+	if (GE_PausedTic /* && pr_ext_enabled.zq_pause*/) {
+		G_FLOAT(OFS_PARM0) = curtime - sv.pausedstart;
+		PR_ExecuteProgram (GE_PausedTic);
+	}
+}
+
+/*
+==================
 SV_Frame
 
 ==================
@@ -1319,6 +1387,7 @@ void SV_Frame (double time)
 // decide the simulation time
 	if (!sv_paused.value)
 	{
+		// FIXME, would it be better to advance svs.realtime even when paused?
 		svs.realtime += time;
 		sv.time += time;
 	}
@@ -1332,8 +1401,10 @@ void SV_Frame (double time)
 // move autonomous things around if enough time has passed
 	if (!sv_paused.value)
 		SV_Physics ();
-	else
+	else {
+		PausedTic ();
 		SV_RunBots ();	// just update network stuff, but don't run physics
+	}
 
 // get packets
 	SV_ReadPackets ();
@@ -1627,8 +1698,6 @@ SV_Init
 */
 void SV_Init (void)
 {
-	Com_Printf("Initializing server\n");
-
 	PR_Init ();
 	SV_InitLocal ();
 

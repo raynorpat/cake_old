@@ -92,12 +92,13 @@ char *svc_strings[] =
 	"svc_setinfo",
 	"svc_serverinfo",
 	"svc_updatepl",
+
+	"MVD svc_nails2",
 };
 
 const int num_svc_strings = sizeof(svc_strings)/sizeof(svc_strings[0]);
 
 int		cl_spikeindex, cl_playerindex, cl_eyesindex, cl_flagindex;
-int		cl_h_playerindex, cl_gib1index, cl_gib2index, cl_gib3index;
 int		cl_rocketindex, cl_grenadeindex;
 
 //=============================================================================
@@ -205,32 +206,47 @@ qbool CL_CheckOrDownloadFile (char *filename)
 void CL_FindModelNumbers (void)
 {
 	int	i;
+	char s[MAX_QPATH];
 
 	cl_playerindex = cl_eyesindex = cl_spikeindex = cl_flagindex = -1;
-	cl_h_playerindex = cl_gib1index = cl_gib2index = cl_gib3index = -1;
 	cl_rocketindex = cl_grenadeindex = -1;
 
 	for (i = 1; i < MAX_MODELS; i++) {
-		if (!strcmp(cl.model_name[i],"progs/spike.mdl"))
+		if (strncmp(cl.model_name[i], "progs/", 6)
+		|| strcmp(cl.model_name[i] + strlen(cl.model_name[i]) - 4, ".mdl"))
+			continue;
+		strlcpy (s, cl.model_name[i] + 6, strlen(cl.model_name[i]) - 6 - 4 + 1);
+		if (!strcmp(s, "spike"))
 			cl_spikeindex = i;
-		else if (!strcmp(cl.model_name[i],"progs/player.mdl"))
+		else if (!strcmp(s, "player")) {
 			cl_playerindex = i;
-		else if (!strcmp(cl.model_name[i],"progs/eyes.mdl"))
+			if (!strcmp(host_mapname.string, "hipend"))
+				cl.modelinfos[i] = mi_monster;	// lerp the cutscene hero's movement
+		} else if (!strcmp(s, "eyes"))
 			cl_eyesindex = i;
-		else if (!strcmp(cl.model_name[i],"progs/flag.mdl"))
+		else if (!strcmp(s, "flag"))
 			cl_flagindex = i;
-		else if (!strcmp(cl.model_name[i],"progs/h_player.mdl"))
-			cl_h_playerindex = i;
-		else if (!strcmp(cl.model_name[i],"progs/gib1.mdl"))
-			cl_gib1index = i;
-		else if (!strcmp(cl.model_name[i],"progs/gib2.mdl"))
-			cl_gib2index = i;
-		else if (!strcmp(cl.model_name[i],"progs/gib3.mdl"))
-			cl_gib3index = i;
-		else if (!strcmp(cl.model_name[i],"progs/missile.mdl"))
+		else if (!strcmp(s, "gib1") || !strcmp(s, "gib2") || !strcmp(s, "gib3")
+		|| !strcmp(s, "h_player") || !strcmp(s, "h_demon") || !strcmp(s, "h_dog")
+		|| !strcmp(s, "h_guard") || !strcmp(s, "h_knight") || !strcmp(s, "h_ogre")
+		|| !strcmp(s, "h_shams") || !strcmp(s, "h_wizard") || !strcmp(s, "h_zombie")
+		|| !strcmp(s, "h_hellkn") || !strcmp(s, "h_mega") || !strcmp(s, "h_shal"))
+			cl.modelinfos[i] = mi_gib;
+		else if (!strcmp(s, "missile"))
 			cl_rocketindex = i;
-		else if (!strcmp(cl.model_name[i],"progs/grenade.mdl"))
+		else if (!strcmp(s, "grenade"))
 			cl_grenadeindex = i;
+		else if (!strcmp(s, "v_axe") || !strcmp(s, "v_bio") || !strcmp(s, "v_grap")
+		|| !strcmp(s, "v_knife") || !strcmp(s, "v_knife2") || !strcmp(s, "v_medi")
+		|| !strcmp(s, "v_span"))
+			cl.modelinfos[i] = mi_no_lerp_hack;
+		else if (!strcmp(s, "soldier") || !strcmp(s, "dog") || !strcmp(s, "demon")
+		|| !strcmp(s, "ogre") || !strcmp(s, "shambler") || !strcmp(s, "knight")
+		|| !strcmp(s, "zombie") || !strcmp(s, "wizard") || !strcmp(s, "enforcer")
+		|| !strcmp(s, "fish") || !strcmp(s, "hknight") || !strcmp(s, "shalrath")
+		|| !strcmp(s, "tarbaby") || !strcmp(s, "armabody") || !strcmp(s, "armalegs")
+		|| !strcmp(s, "grem") || !strcmp(s, "scor"))
+			cl.modelinfos[i] = mi_monster;
 	}
 }
 
@@ -252,13 +268,8 @@ CL_Prespawn
 */
 void CL_Prespawn (void)
 {
-	char	mapname[MAX_QPATH];
-
 	if (!cl.model_precache[1])
 		Host_Error ("CL_Prespawn: NULL worldmodel");
-
-	COM_StripExtension (COM_SkipPath (cl.model_name[1]), mapname);
-	Cvar_ForceSet (&host_mapname, mapname);
 
 	CL_FindModelNumbers ();
 	R_NewMap (cl.model_precache[1]);
@@ -300,7 +311,7 @@ void VWepModel_NextDownload (void)
 	for ( ; cls.downloadnumber < MAX_VWEP_MODELS; cls.downloadnumber++)
 	{
 		if (!cl.vw_model_name[cls.downloadnumber][0] ||
-			cl.vw_model_name[cls.downloadnumber][0] == '*')
+			!strcmp(cl.vw_model_name[cls.downloadnumber], "-"))
 			continue;
 		if (!CL_CheckOrDownloadFile(cl.vw_model_name[cls.downloadnumber]))
 			return;		// started a download
@@ -582,9 +593,9 @@ void CL_ParseDownload (void)
 	if (!cls.download)
 	{
 		if (strncmp(cls.downloadtempname,"skins/",6))
-			Q_snprintfz (name, sizeof(name), "%s/%s", cls.gamedir, cls.downloadtempname);
+			snprintf (name, sizeof(name), "%s/%s", cls.gamedir, cls.downloadtempname);
 		else
-			Q_snprintfz (name, sizeof(name), "qw/%s", cls.downloadtempname);
+			snprintf (name, sizeof(name), "qw/%s", cls.downloadtempname);
 
 		COM_CreatePath (name);
 
@@ -772,7 +783,7 @@ void CL_ParseServerData (void)
 		// save current config
 		CL_WriteConfiguration ();
 		strlcpy (cls.gamedirfile, str, sizeof(cls.gamedirfile));
-		Q_snprintfz (cls.gamedir, sizeof(cls.gamedir),
+		snprintf (cls.gamedir, sizeof(cls.gamedir),
 			"%s/%s", com_basedir, cls.gamedirfile);
 		cflag = true;
 	}
@@ -783,7 +794,7 @@ void CL_ParseServerData (void)
 	// run config.cfg and frontend.cfg in the gamedir if they exist
 	if (cflag) {
 		int cl_warncmd_val = cl_warncmd.value;
-		Q_snprintfz (fn, sizeof(fn), "%s/%s", cls.gamedir, "config.cfg");
+		snprintf (fn, sizeof(fn), "%s/%s", cls.gamedir, "config.cfg");
 		if ((f = fopen(fn, "r")) != NULL) {
 			fclose(f);
 			Cbuf_AddText ("cl_warncmd 0\n");
@@ -792,7 +803,7 @@ void CL_ParseServerData (void)
 			else
 				Cbuf_AddText (va("exec ../%s/config.cfg\n", cls.gamedirfile));
 		}
-		Q_snprintfz (fn, sizeof(fn), "%s/%s", cls.gamedir, "frontend.cfg");
+		snprintf (fn, sizeof(fn), "%s/%s", cls.gamedir, "frontend.cfg");
 		if ((f = fopen(fn, "r")) != NULL) {
 			fclose(f);
 			Cbuf_AddText ("cl_warncmd 0\n");
@@ -801,16 +812,27 @@ void CL_ParseServerData (void)
 			else
 				Cbuf_AddText (va("exec ../%s/frontend.cfg\n", cls.gamedirfile));
 		}
-		Q_snprintfz (fn, sizeof(fn), "cl_warncmd %d\n", cl_warncmd_val);
+		snprintf (fn, sizeof(fn), "cl_warncmd %d\n", cl_warncmd_val);
 		Cbuf_AddText (fn);
 	}
 
-	// parse player slot, high bit means spectator
-	cl.playernum = MSG_ReadByte ();
-	if (cl.playernum & 128) {
+#ifdef MVDPLAY
+	if (cls.mvdplayback)
+	{
+		// FIXME
+		cls.mvd_newtime = cls.mvd_oldtime = MSG_ReadFloat();
+		cl.playernum = MAX_CLIENTS - 1;
 		cl.spectator = true;
-		cl.playernum &= ~128;
-	}
+	} else
+#endif
+	{
+		// parse player slot, high bit means spectator
+		cl.playernum = MSG_ReadByte ();
+		if (cl.playernum & 128) {
+			cl.spectator = true;
+			cl.playernum &= ~128;
+		}
+    }
 
 	// get the full level name
 	str = MSG_ReadString ();
@@ -819,29 +841,29 @@ void CL_ParseServerData (void)
 	// get the movevars
 	if (cl.protocol >= 25)
 	{	// from QW 2.00 on
-		movevars.gravity			= MSG_ReadFloat();
-		movevars.stopspeed          = MSG_ReadFloat();
-		cl.maxspeed                 = MSG_ReadFloat();
-		movevars.spectatormaxspeed  = MSG_ReadFloat();
-		movevars.accelerate         = MSG_ReadFloat();
-		movevars.airaccelerate      = MSG_ReadFloat();
-		movevars.wateraccelerate    = MSG_ReadFloat();
-		movevars.friction           = MSG_ReadFloat();
-		movevars.waterfriction      = MSG_ReadFloat();
-		cl.entgravity               = MSG_ReadFloat();
+		cl.movevars.gravity			   = MSG_ReadFloat();
+		cl.movevars.stopspeed          = MSG_ReadFloat();
+		cl.movevars.maxspeed           = MSG_ReadFloat();
+		cl.movevars.spectatormaxspeed  = MSG_ReadFloat();
+		cl.movevars.accelerate         = MSG_ReadFloat();
+		cl.movevars.airaccelerate      = MSG_ReadFloat();
+		cl.movevars.wateraccelerate    = MSG_ReadFloat();
+		cl.movevars.friction           = MSG_ReadFloat();
+		cl.movevars.waterfriction      = MSG_ReadFloat();
+		cl.movevars.entgravity         = MSG_ReadFloat();
 	}
 	else
 	{
-		movevars.gravity = 800;
-		movevars.stopspeed = 100;
-		cl.maxspeed = 320;
-		movevars.spectatormaxspeed = 500;
-		movevars.accelerate = 10;
-		movevars.airaccelerate = 10;
-		movevars.wateraccelerate = 10;
-		movevars.friction = 4;
-		movevars.waterfriction = 4;
-		cl.entgravity = 1;
+		cl.movevars.gravity = 800;
+		cl.movevars.stopspeed = 100;
+		cl.movevars.maxspeed = 320;
+		cl.movevars.spectatormaxspeed = 500;
+		cl.movevars.accelerate = 10;
+		cl.movevars.airaccelerate = 10;
+		cl.movevars.wateraccelerate = 10;
+		cl.movevars.friction = 4;
+		cl.movevars.waterfriction = 4;
+		cl.movevars.entgravity = 1;
 	}
 
 	// separate the printfs so the server message can have a color
@@ -943,6 +965,13 @@ void CL_ParseModellist (void)
 			return;
 		}
 	}
+
+
+{
+	char	mapname[MAX_QPATH];
+	COM_StripExtension (COM_SkipPath (cl.model_name[1]), mapname);
+	Cvar_ForceSet (&host_mapname, mapname);
+}
 
 	cls.downloadnumber = 0;
 	cls.downloadtype = dl_model;
@@ -1081,6 +1110,14 @@ void CL_ParseStartSoundPacket(void)
 	if (ent > MAX_CL_EDICTS)
 		Host_Error ("CL_ParseStartSoundPacket: ent = %i", ent);
 	
+// FIXME oldman
+#ifdef MVDPLAY
+    if (cls.mvdplayback) {
+	    if (cl.spectator && cam_curtarget != CAM_NOTARGET && ent == cam_curtarget + 1)
+		    ent = cl.playernum + 1;
+    }
+#endif
+
     S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 	if (ent == cl.playernum+1)
 		TP_CheckPickupSound (cl.sound_name[sound_num], pos);
@@ -1100,26 +1137,29 @@ void CL_ParseClientdata (void)
 	frame_t		*frame;
 
 // calculate simulated time of message
+    cl.oldparsecount = cl.parsecount;
 	cl.parsecount = cls.netchan.incoming_acknowledged;
 	frame = &cl.frames[cl.parsecount & UPDATE_MASK];
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback)
+        frame->senttime = cls.realtime - cls.frametime;
+#endif
 
 	frame->receivedtime = cls.realtime;
 
 // calculate latency
 	latency = frame->receivedtime - frame->senttime;
 
-	if (latency < 0 || latency > 1.0)
-	{
-//		Com_Printf ("Odd latency: %5.2f\n", latency);
-	}
-	else
-	{
+	if (latency >= 0 && latency <= 1) {
 	// drift the average latency towards the observed latency
 		if (latency < cls.latency)
 			cls.latency = latency;
 		else
-			cls.latency += 0.001;	// drift up, so correction are needed
+			cls.latency += 0.001;	// drift up, so correction is needed
 	}	
+
+	cl.num_nails = 0;
 }
 
 /*
@@ -1157,14 +1197,18 @@ void CL_NewTranslation (int slot)
 	if ( !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_COLOR) ) {
 		qbool teammate;
 
-		strlcpy (myteam, cl.players[cl.playernum].team, sizeof(myteam));
+		if (cl.spectator && cam_curtarget != CAM_NOTARGET)
+			strlcpy (myteam, cl.players[Cam_PlayerNum()].team, sizeof(myteam));
+		else if (!cl.spectator)
+			strlcpy (myteam, cl.players[cl.playernum].team, sizeof(myteam));
 
 		teammate = (cl.teamplay && !strcmp(player->team, myteam)) ? true : false;
 		
 		if (teammate && cl_teamtopcolor >= 0) {
 			player->topcolor = cl_teamtopcolor;
 			player->bottomcolor = cl_teambottomcolor;
-		} else if (!teammate && cl_enemytopcolor >= 0 && slot != cl.playernum) {
+		}
+        else if (!teammate && cl_enemytopcolor >= 0 && slot != cl.playernum) {
 			player->topcolor = cl_enemytopcolor;
 			player->bottomcolor = cl_enemybottomcolor;
 		}
@@ -1214,7 +1258,11 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	else
 		player->spectator = false;
 
+#ifdef MVDPLAY
+	if (!cls.mvdplayback && slot == cl.playernum && player->name[0]) {
+#else
 	if (slot == cl.playernum && player->name[0]) {
+#endif
 		if (cl.spectator && !player->spectator)
 			Cam_Reset ();	// switching to player mode
 		cl.spectator = player->spectator;
@@ -1303,8 +1351,13 @@ void CL_ProcessServerInfo (void)
 
 	cl.maxfps = Q_atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
 
-	p = Info_ValueForKey (cl.serverinfo, "truelightning");
-	cl.allow_truelightning = *p ? (Q_atoi(p) != 0) : true;	// allowed by default
+	p = Info_ValueForKey (cl.serverinfo, "fakeshaft");
+	if (*p)
+		cl.allow_fakeshaft = Q_atoi(p);
+	else {
+		p = Info_ValueForKey (cl.serverinfo, "truelightning");
+		cl.allow_fakeshaft = *p ? (Q_atoi(p) != 0) : true;	// allowed by default
+	}
 
 	p = Info_ValueForKey (cl.serverinfo, "allow_frj");
 	cl.allow_frj = *p ? Q_atoi(p) : true;		// allowed by default
@@ -1327,13 +1380,13 @@ void CL_ProcessServerInfo (void)
 	cl.minpitch = *p ? Q_atof(p) : -70.0f;
 
 	// movement vars for prediction
-	cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
-	movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
-	movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
-	movevars.pground = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_pground")) != 0)
+	cl.movevars.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
+	cl.movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
+	cl.movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
+	cl.movevars.pground = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_pground")) != 0)
 		&& (cl.z_ext & Z_EXT_PF_ONGROUND) /* pground doesn't make sense without this */;
 	p = Info_ValueForKey(cl.serverinfo, "pm_ktjump");
-	movevars.ktjump = *p ? Q_atof(p) : (cl.teamfortress ? 0 : 0.5); 
+	cl.movevars.ktjump = *p ? Q_atof(p) : (cl.teamfortress ? 0 : 0.5); 
 
 	// deathmatch and teamplay
 	cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
@@ -1575,6 +1628,17 @@ void CL_ParseStufftext (void)
 	Com_DPrintf ("stufftext: %s\n", s);
 	Cbuf_AddTextEx (&cbuf_svc, s);
 
+	// This is how we transmit svc_cutscene via the QW protocol
+	if (!strcmp(s, "//cutscene\n") ||
+	// one day we may support a text message here
+	(!strncmp(s, "//cutscene ", 11) && s[strlen(s)-1] == '\n') ) {
+		cl.intermission = 3;
+		cl.completed_time = cl.time;
+		// we don't support cutscene messages... but no one seems
+		// to use them anyway so never mind 
+		SCR_CenterPrint ("");
+	}
+
 	// Execute stuffed commands immediately when starting a demo
 	if (cls.demoplayback && cls.state != ca_active)
 		Cbuf_ExecuteEx (&cbuf_svc); // FIXME: execute cbuf_main too?
@@ -1591,6 +1655,14 @@ void CL_SetStat (int stat, int value)
 	int	j;
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		Host_Error ("CL_SetStat: %i is invalid", stat);
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback) {
+		cl.players[cls.mvd_lastto].stats[stat]=value;
+		if (cam_curtarget != cls.mvd_lastto)
+			return;
+	}
+#endif
 
 	if (stat == STAT_ITEMS)
 	{
@@ -1777,16 +1849,12 @@ void CL_ParseQizmoVoice (void)
 CL_ParseServerMessage
 =====================
 */
-int	received_framecount;
+
 void CL_ParseServerMessage (void)
 {
 	int			cmd;
 	int			i, j;
 	int			old_readcount;
-
-	received_framecount = cls.framecount;
-	cl.last_servermessage = cls.realtime;
-	CL_ClearProjectiles ();
 
 //
 // if recording demos, copy the message out
@@ -1800,7 +1868,10 @@ void CL_ParseServerMessage (void)
 		Com_Printf ("------------------\n");
 
 
-	CL_ParseClientdata ();
+#ifdef MVDPLAY
+	if (!cls.mvdplayback)
+#endif
+		CL_ParseClientdata ();
 
 //
 // parse the message
@@ -1834,6 +1905,9 @@ void CL_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
+#ifdef MVDPLAY
+bad_message:
+#endif
 			Host_Error ("CL_ParseServerMessage: Illegible server message");
 			break;
 			
@@ -1882,9 +1956,31 @@ void CL_ParseServerMessage (void)
 			break;
 			
 		case svc_setangle:
-			for (i=0 ; i<3 ; i++)
-				cl.viewangles[i] = MSG_ReadAngle ();
+#ifdef MVDPLAY
+			if (cls.mvdplayback)
+			{
+				vec3_t ang;
+
+				j = MSG_ReadByte();
+				cl.mvd_fixangle |= 1 << j;
+				for (i = 0; i < 3; i++)
+					ang[i] = MSG_ReadAngle();
+				if (j == cam_curtarget)
+					VectorCopy (ang, cl.viewangles);
+			}
+			else
+#endif
+			{
+				for (i=0 ; i<3 ; i++)
+					cl.viewangles[i] = MSG_ReadAngle ();
+			}
 //			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
+			// svc_finale and svc_cutscene don't send origin or angles;
+			// we expect progs to move the player to the intermission spot
+			// and set their angles correctly.  This is unlike qwcl, but
+			// QW never used svc_finale so this should't break anything
+			if (cl.intermission == 2 || cl.intermission == 3)
+				VectorCopy (cl.viewangles, cl.simangles);
 			break;
 			
 		case svc_lightstyle:
@@ -2033,7 +2129,16 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_nails:
-			CL_ParseProjectiles ();
+#ifndef MVDPLAY
+			CL_ParseNails ();
+#else
+            CL_ParseNails (false);
+            break;
+        case svc_nails2:
+			if (!cls.mvdplayback)
+				goto bad_message;
+            CL_ParseNails (true);
+#endif
 			break;
 
 		case svc_chokecount:		// some preceding packets were choked
@@ -2065,11 +2170,11 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_maxspeed :
-			cl.maxspeed = MSG_ReadFloat();
+			cl.movevars.maxspeed = MSG_ReadFloat();
 			break;
 
 		case svc_entgravity :
-			cl.entgravity = MSG_ReadFloat();
+			cl.movevars.entgravity = MSG_ReadFloat();
 			break;
 
 		case svc_setpause:

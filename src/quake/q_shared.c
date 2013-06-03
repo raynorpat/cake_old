@@ -168,7 +168,7 @@ char *Q_ftos (float value)
 	static char str[128];
 	int	i;
 
-	Q_snprintfz (str, sizeof(str), "%f", value);
+	snprintf (str, sizeof(str), "%f", value);
 
 	for (i=strlen(str)-1 ; i>0 && str[i]=='0' ; i--)
 		str[i] = 0;
@@ -231,20 +231,21 @@ size_t strlcat (char *dst, const char *src, size_t size)
 #endif
 
 
-void Q_snprintfz (char *dest, size_t size, char *fmt, ...)
+#ifdef _WIN32
+int snprintf(char *buffer, size_t count, char const *format, ...)
 {
+	int ret;
 	va_list		argptr;
 
-	va_start (argptr, fmt);
-#ifdef _WIN32
-	_vsnprintf (dest, size, fmt, argptr);
-#else
-	vsnprintf (dest, size, fmt, argptr);
-#endif
+	if (!count)
+		return 0;
+	va_start(argptr, format);
+	ret = _vsnprintf(buffer, count, format, argptr);
+	buffer[count - 1] = 0;
 	va_end (argptr);
-
-	dest[size-1] = 0;
+	return ret;
 }
+#endif
 
 
 /*
@@ -449,6 +450,14 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 void *Q_malloc (size_t size)
 {
 	void *p = malloc(size);
+	if (!p)
+		Sys_Error ("Not enough memory free; check disk space");
+	return p;
+}
+
+void *Q_calloc (size_t count, size_t size)
+{
+	void *p = calloc(count, size);
 	if (!p)
 		Sys_Error ("Not enough memory free; check disk space");
 	return p;

@@ -68,7 +68,7 @@ static vec3_t	nq_last_fixangle;
 static int		nq_num_entities;
 static int		nq_viewentity;
 static int		nq_forcecdtrack;
-static int		nq_signon;
+int				nq_signon;
 static int		nq_maxclients;
 static float	nq_mtime[2];
 static vec3_t	nq_mvelocity[2];
@@ -353,9 +353,9 @@ static void NQD_ParseServerData (void)
 
 // parse signon message
 	str = MSG_ReadString ();
-	strncpy (cl.levelname, str, sizeof(cl.levelname)-1);
+	strlcpy (cl.levelname, str, sizeof(cl.levelname));
 
-// seperate the printfs so the server message can have a color
+// separate the printfs so the server message can have a color
 	Com_Printf("\n\n\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n\n");
 	Com_Printf ("%c%s\n", 2, str);
 
@@ -426,9 +426,45 @@ static void NQD_ParseServerData (void)
 	nq_num_entities = 0;
 	nq_drawpings = false;	// unless we have the ProQuake extension
 	cl.servertime_works = true;
-	r_refdef2.allowCheats = true;	// why not
+	r_refdef2.allow_cheats = true;	// why not
 	cls.state = ca_onserver;
 }
+
+void CLNQ_SignonReply (void)
+{
+	extern cvar_t name, topcolor, bottomcolor;
+
+	Com_DPrintf ("CL_SignonReply: %i\n", nq_signon);
+
+	switch (nq_signon)
+	{
+	case 1:
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, "prespawn");
+		break;
+
+	case 2:
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, va("name \"%s\"\n", name.string));
+	
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, va("color %i %i\n", (int)topcolor.value, (int)bottomcolor.value));
+	
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, "spawn");
+		break;
+
+	case 3:
+		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, "begin");
+		break;
+
+	case 4:
+		//SCR_EndLoadingPlaque ();		// allow normal screen updates
+		break;
+	}
+}
+
 
 /*
 ==================
@@ -613,7 +649,7 @@ static void NQD_ParseUpdate (int bits)
 	if ( forcelink )
 	{	// didn't have an update last message
 		VectorCopy (state->s_origin, ent->previous.s_origin);
-		MSG_UnpackOrigin (state->s_origin, ent->lerp_origin);
+		MSG_UnpackOrigin (state->s_origin, ent->trail_origin);
 		VectorCopy (state->s_angles, ent->previous.s_angles);
 		//ent->forcelink = true;
 	}
@@ -664,13 +700,10 @@ static float NQD_LerpPoint (void)
 
 
 extern int	cl_playerindex; 
-extern int	cl_h_playerindex, cl_gib1index, cl_gib2index, cl_gib3index;
 extern int	cl_rocketindex, cl_grenadeindex;
 
 static void NQD_LerpPlayerinfo (float f)
 {
-	int		i;
-
 	if (cl.intermission) {
 		// just stay there
 		return;
@@ -679,23 +712,15 @@ static void NQD_LerpPlayerinfo (float f)
 	if (nq_player_teleported) {
 		VectorCopy (nq_mvelocity[0], cl.simvel);
 		VectorCopy (nq_mviewangles[0], cl.viewangles);
-		VectorCopy (nq_mviewangles[0], cl.simangles);
+		if (cls.demoplayback)
+			VectorCopy (nq_mviewangles[0], cl.simangles);
 		return;
 	}
 
-	for (i=0 ; i<3 ; i++)
-		cl.simvel[i] = nq_mvelocity[1][i] + 
-			f * (nq_mvelocity[0][i] - nq_mvelocity[1][i]);
-
-	for (i = 0; i < 3; i++)
-	{
-		float	d;
-		d = nq_mviewangles[0][i] - nq_mviewangles[1][i];
-		if (d > 180)
-			d -= 360;
-		else if (d < -180)
-			d += 360;
-		cl.viewangles[i] = cl.simangles[i] = nq_mviewangles[1][i] + f*d;
+	LerpVector (nq_mvelocity[1], nq_mvelocity[0], f, cl.simvel);
+	if (cls.demoplayback) {
+		LerpAngles (nq_mviewangles[1], nq_mviewangles[0], f, cl.simangles);
+		VectorCopy (cl.simangles, cl.viewangles);
 	}
 }
 
@@ -831,20 +856,25 @@ void NQD_LinkEntities (void)
 		}
 		else
 		{
-			vec3_t	a1, a2;
+			vec3_t	old, cur;
 
-			MSG_UnpackAngles (cent->current.s_angles, a1);
-			MSG_UnpackAngles (cent->previous.s_angles, a2);
-
-			for (i = 0; i < 3; i++)
-			{
-				if (a1[i] - a2[i] > 180)
-					a1[i] -= 360;
-				if (a1[i] - a2[i] < -180)
-					a1[i] += 360;
-				ent.angles[i] = a2[i] + f * (a1[i] - a2[i]);
-			}
+			MSG_UnpackAngles (cent->current.s_angles, old);
+			MSG_UnpackAngles (cent->previous.s_angles, cur);
+			LerpAngles (old, cur, f, ent.angles);
 		}
+
+if (num == nq_viewentity) {
+extern float nq_speed;
+float f;
+nq_speed = 0;
+	for (i = 0; i < 3; i++) {
+		f = (cent->current.s_origin[i] - cent->previous.s_origin[i]) * 0.125;
+		nq_speed += f * f;
+	}
+if (nq_speed) nq_speed = sqrt(nq_speed);
+nq_speed /= nq_mtime[0] - nq_mtime[1];
+
+}
 
 		// calculate origin
 		for (i = 0; i < 3; i++)
@@ -861,7 +891,7 @@ void NQD_LinkEntities (void)
 		}
 
 		if (num == nq_viewentity) {
-			VectorCopy (ent.origin, cent->lerp_origin);	// FIXME?
+			VectorCopy (ent.origin, cent->trail_origin);	// FIXME?
 			continue;			// player entity
 		}
 
@@ -869,13 +899,11 @@ void NQD_LinkEntities (void)
 			&& ( (i=state->frame)==49 || i==60 || i==69 || i==84 || i==93 || i==102) )
 			continue;
 
-		if (cl_gibfilter.value &&
-			(state->modelindex == cl_h_playerindex || state->modelindex == cl_gib1index
-			|| state->modelindex == cl_gib2index || state->modelindex == cl_gib3index))
+		if (cl_gibfilter.value && cl.modelinfos[state->modelindex] == mi_gib)
 			continue;
 
 		// set colormap
-		if (state->colormap && (state->colormap < MAX_CLIENTS) 
+		if (state->colormap && state->colormap <= MAX_CLIENTS
 			&& state->modelindex == cl_playerindex)
 			ent.colormap = state->colormap;
 		else
@@ -896,7 +924,7 @@ void NQD_LinkEntities (void)
 			}
 			else
 			{
-				VectorCopy (cent->lerp_origin, old_origin);
+				VectorCopy (cent->trail_origin, old_origin);
 
 				for (i=0 ; i<3 ; i++)
 					if ( abs(old_origin[i] - ent.origin[i]) > 128)
@@ -910,10 +938,12 @@ void NQD_LinkEntities (void)
 			{
 				if (r_rockettrail.value) {
 					if (r_rockettrail.value == 2)
-						CL_GrenadeTrail (old_origin, ent.origin);
+						CL_GrenadeTrail (old_origin, ent.origin, cent->trail_origin);
 					else
-						CL_RocketTrail (old_origin, ent.origin);
-				}
+						CL_RocketTrail (old_origin, ent.origin, cent->trail_origin);
+				} else
+					VectorCopy (ent.origin, cent->trail_origin);
+
 
 				if (r_rocketlight.value) {
 					dl = CL_AllocDlight (state->number);
@@ -925,13 +955,13 @@ void NQD_LinkEntities (void)
 				}
 			}
 			else if (modelflags & MF_GRENADE && r_grenadetrail.value)
-				CL_GrenadeTrail (old_origin, ent.origin);
+				CL_GrenadeTrail (old_origin, ent.origin, cent->trail_origin);
 			else if (modelflags & MF_GIB)
-				CL_BloodTrail (old_origin, ent.origin);
+				CL_BloodTrail (old_origin, ent.origin, cent->trail_origin);
 			else if (modelflags & MF_ZOMGIB)
-				CL_SlightBloodTrail (old_origin, ent.origin);
+				CL_SlightBloodTrail (old_origin, ent.origin, cent->trail_origin);
 			else if (modelflags & MF_TRACER) {
-				CL_TracerTrail (old_origin, ent.origin, 52);
+				CL_TracerTrail (old_origin, ent.origin, cent->trail_origin, 52);
 
 				dl = CL_AllocDlight (state->number);
 				VectorCopy (ent.origin, dl->origin);
@@ -940,7 +970,7 @@ void NQD_LinkEntities (void)
 
 				R_ColorWizLight (dl);
 			} else if (modelflags & MF_TRACER2) {
-				CL_TracerTrail (old_origin, ent.origin, 230);
+				CL_TracerTrail (old_origin, ent.origin, cent->trail_origin, 230);
 
 				dl = CL_AllocDlight (state->number);
 				VectorCopy (ent.origin, dl->origin);
@@ -949,7 +979,7 @@ void NQD_LinkEntities (void)
 
 				R_ColorDLight (dl, 408, 242, 117);
 			} else if (modelflags & MF_TRACER3) {
-				CL_VoorTrail (old_origin, ent.origin);
+				CL_VoorTrail (old_origin, ent.origin, cent->trail_origin);
 
 				dl = CL_AllocDlight (state->number);
 				VectorCopy (ent.origin, dl->origin);
@@ -960,14 +990,13 @@ void NQD_LinkEntities (void)
 			}
 		}
 
-		VectorCopy (ent.origin, cent->lerp_origin);
 		cent->lastframe = cl_entframecount;
 		V_AddEntity (&ent);
 	}
 
 	if (nq_viewentity == 0)
 		Host_Error ("viewentity == 0");
-	VectorCopy (cl_entities[nq_viewentity].lerp_origin, cl.simorg);
+	VectorCopy (cl_entities[nq_viewentity].trail_origin, cl.simorg);
 }
 
 
@@ -979,7 +1008,7 @@ extern const int num_svc_strings;
 
 #define SHOWNET(x) {if(cl_shownet.value==2)Com_Printf ("%3i:%s\n", msg_readcount-1, x);}
 
-static void NQD_ParseServerMessage (void)
+void CLNQ_ParseServerMessage (void)
 {
 	int		cmd;
 	int		i;
@@ -988,7 +1017,6 @@ static void NQD_ParseServerMessage (void)
 
 	nq_player_teleported = false;		// OMG, it's a hack!
 	message_with_datagram = false;
-	cl_oldentframecount = cl_entframecount;
 	cl_entframecount++;
 
 	if (cl_shownet.value == 1)
@@ -1001,7 +1029,7 @@ static void NQD_ParseServerMessage (void)
 //
 // parse the message
 //
-	MSG_BeginReading ();
+	//MSG_BeginReading ();
 	
 	while (1)
 	{
@@ -1174,6 +1202,7 @@ static void NQD_ParseServerMessage (void)
 			if (i <= nq_signon)
 				Host_Error ("Received signon %i when at %i", i, nq_signon);
 			nq_signon = i;
+			CLNQ_SignonReply ();
 			break;
 
 		case svc_killedmonster:
@@ -1235,7 +1264,8 @@ static void NQD_ParseServerMessage (void)
 void NQD_ReadPackets (void)
 {
 	while (CL_GetNQDemoMessage()) {
-		NQD_ParseServerMessage();
+		MSG_BeginReading ();
+		CLNQ_ParseServerMessage();
 	}
 }
 

@@ -164,7 +164,7 @@ void SV_SaveSpawnparms (void)
 		return;		// no progs loaded yet
 
 	// serverflags is the only game related thing maintained
-	svs.serverflags = pr_global_struct->serverflags;
+	svs.serverflags = PR_GLOBAL(serverflags);
 
 	for (i=0, sv_client = svs.clients ; i<MAX_CLIENTS ; i++, sv_client++)
 	{
@@ -186,9 +186,9 @@ void SV_SaveSpawnparms (void)
 
 		// call the progs to get default spawn parms for the new client
 		pr_global_struct->self = EDICT_TO_PROG(sv_client->edict);
-		PR_ExecuteProgram (pr_global_struct->SetChangeParms);
+		PR_ExecuteProgram (PR_GLOBAL(SetChangeParms));
 		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-			sv_client->spawn_parms[j] = (&pr_global_struct->parm1)[j];
+			sv_client->spawn_parms[j] = (&PR_GLOBAL(parm1))[j];
 	}
 }
 
@@ -200,7 +200,14 @@ unsigned SV_CheckModel(char *mdl)
 
 	buf = (byte *)FS_LoadStackFile (mdl, stackbuf, sizeof(stackbuf));
 	if (!buf)
-		Host_Error ("SV_CheckModel: could not load %s\n", mdl);
+	{
+		if (!strcmp(mdl, "progs/player.mdl"))
+			return 33168;
+		else if (!strcmp(mdl, "progs/eyes.mdl"))
+			return 6967;
+		else
+			Host_Error ("SV_CheckModel: could not load %s\n", mdl);
+	}
 	crc = CRC_Block(buf, fs_filesize);
 
 	return crc;
@@ -290,9 +297,10 @@ void SV_SpawnServer (char *mapname, qbool devmap)
 	
 	strlcpy (sv.mapname, mapname, sizeof(sv.mapname));
 	Cvar_ForceSet (&host_mapname, sv.mapname);
+	snprintf (sv.modelname, sizeof(sv.modelname), "maps/%s.bsp", sv.mapname);
 
-	Q_snprintfz (sv.modelname, sizeof(sv.modelname), "maps/%s.bsp", sv.mapname);
 	sv.worldmodel = CM_LoadMap (sv.modelname, false, &sv.map_checksum, &sv.map_checksum2);
+	sv.map_checksum2 = Com_TranslateMapChecksum (sv.mapname, sv.map_checksum2);
 
 	//
 	// clear physics interaction links
@@ -327,9 +335,15 @@ void SV_SpawnServer (char *mapname, qbool devmap)
 	ent->v.solid = SOLID_BSP;
 	ent->v.movetype = MOVETYPE_PUSH;
 
-	pr_global_struct->mapname = PR_SetString(sv.mapname);
+	PR_GLOBAL(mapname) = PR_SetString(sv.mapname);
 	// serverflags are for cross level information (sigils)
-	pr_global_struct->serverflags = svs.serverflags;
+	PR_GLOBAL(serverflags) = svs.serverflags;
+	if (pr_nqprogs) {
+		pr_globals[35] = deathmatch.value;
+		pr_globals[36] = coop.value;
+		pr_globals[37] = teamplay.value;
+		NQP_Reset ();
+	}
 	
 	// run the frame start qc function to let progs check cvars
 	SV_ProgStartFrame ();

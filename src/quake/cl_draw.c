@@ -102,5 +102,8 @@ void Draw_Crosshair (void)
 {
 	extern cvar_t crosshaircolor, cl_crossx, cl_crossy;
 
+	if (cl.spectator && cam_curtarget == CAM_NOTARGET)
+		return;
+
 	R_DrawCrosshair (cl_crossx.value, cl_crossy.value, crosshaircolor.value);
 }

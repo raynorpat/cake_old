@@ -131,6 +131,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_serverinfo		52		// serverinfo
 #define svc_updatepl		53		// [byte] [byte]
 
+#ifdef MVDPLAY
+#define svc_nails2			54		// for interpolation, stores edict num
+#endif
+
 #define svc_qizmovoice		83
 
 //==============================================
@@ -253,6 +257,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	DEFAULT_VIEWHEIGHT	22
 
+#ifdef MVDPLAY
+#define DF_ORIGIN	1
+#define DF_ANGLES	(1<<3)
+#define DF_EFFECTS	(1<<6)
+#define DF_SKINNUM	(1<<7)
+#define DF_DEAD		(1<<8)
+#define DF_GIB		(1<<9)
+#define DF_WEAPONFRAME (1<<10)
+#define DF_MODEL	(1<<11)
+#endif
+
 //==============================================
 
 //
@@ -308,12 +323,22 @@ typedef struct entity_state_s
 } entity_state_t;
 
 
+// vanilla QW limit
 #define	MAX_PACKET_ENTITIES	64	// doesn't count nails
+
+// in MVD demos, and potentially over the network if negotiated
+#ifdef MVDPLAY
+#define	BIG_MAX_PACKET_ENTITIES		300
+#else
+#define	BIG_MAX_PACKET_ENTITIES		64
+#endif
+
 typedef struct packet_entities_s
 {
 	int		num_entities;
-	entity_state_t	entities[MAX_PACKET_ENTITIES];
+	entity_state_t	*entities;		// dynamically allocated
 } packet_entities_t;
+
 
 typedef struct usercmd_s
 {
@@ -330,6 +355,7 @@ typedef struct usercmd_s
 #define BUTTON_ATTACK	(1<<0)
 #define BUTTON_JUMP		(1<<1)
 #define BUTTON_USE		(1<<2)
+#define BUTTON_ATTACK2	(1<<3)
 
 #endif /* _PROTOCOL_H_ */
 

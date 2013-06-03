@@ -159,7 +159,7 @@ void CL_Say (qbool team)
 		char buf[1024];
 		Cmd_ExpandString (cl_fakename.string, buf);
 		strcpy (buf, TP_ParseMacroString (buf));
-		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
+		snprintf (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
 	}
 
 	strlcat (sendtext, text, sizeof(sendtext));
@@ -305,7 +305,7 @@ void CL_PrintQStatReply (char *s)
 		while (p)
 		{
 			sscanf (p, "%d %d %d %d \"%32[^\"]\" \"%16[^\"]\" %d %d",
-				&userid, &frags, &time, &ping, &name, &skin, &topcolor, &bottomcolor);
+				&userid, &frags, &time, &ping, (char *)&name, (char *)&skin, &topcolor, &bottomcolor);
 			Com_Printf("%4d %4d %4d  %-16.16s\n", ping, time, frags, name);
 			p = strtok (NULL, "\n");
 		}
@@ -423,7 +423,7 @@ void CL_Download_f (void)
 		return;
 	}
 
-	Q_snprintfz (cls.downloadname, sizeof(cls.downloadname),
+	snprintf (cls.downloadname, sizeof(cls.downloadname),
 		"%s/%s", cls.gamedir, Cmd_Argv(1));
 
 	p = cls.downloadname;
@@ -992,9 +992,12 @@ void CL_FullServerinfo_f (void)
 	if (*p) {
 		Com_Printf ("*** cheats are enabled ***\n");
 		// allow renderer cheats only if running a local server
-		r_refdef2.allowCheats = com_serveractive;
+		r_refdef2.allow_cheats = com_serveractive;
 	} else
-		r_refdef2.allowCheats = false;
+		r_refdef2.allow_cheats = false;
+
+	if (cls.demoplayback)
+		r_refdef2.allow_cheats = true;
 
 	CL_ProcessServerInfo ();
 

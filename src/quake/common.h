@@ -36,7 +36,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	MAX_CL_EDICTS	768			// the protocol can only handle 512, but not changing for compatibility (QW svc_startsound & NQ demos)
 #define	MAX_EDICTS		1024		// server limit, can be increased if needed
 #define	MAX_LIGHTSTYLES	64
-
 #define	MAX_MODELS		256			// these are sent over the net as bytes
 #define MAX_VWEP_MODELS 32			// could be increased to 256
 #define	MAX_SOUNDS		256			// so they cannot be blindly increased
@@ -224,6 +223,7 @@ extern qbool	file_from_gamedir;	// set if file came from a gamedir (and gamedir 
 void FS_InitFilesystem (void);
 void FS_SetGamedir (char *dir);
 int FS_FOpenFile (char *filename, FILE **file);
+qbool FS_FindFile (char *filename);
 byte *FS_LoadStackFile (char *path, void *buffer, int bufsize);
 byte *FS_LoadTempFile (char *path);
 byte *FS_LoadHunkFile (char *path);
@@ -254,6 +254,11 @@ void Info_Print (char *s);
 unsigned Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 byte	COM_BlockSequenceCRCByte (byte *base, int length, int sequence);
+
+//============================================================================
+
+// com_mapcheck.c
+int Com_TranslateMapChecksum (char *mapname, int checksum);
 
 //============================================================================
 

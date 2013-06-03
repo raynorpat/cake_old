@@ -140,16 +140,16 @@ static void Cmd_New_f (void)
 	ClientReliableWrite_String (PR_GetString(sv.edicts->v.message));
 
 	// send the movevars
-	ClientReliableWrite_Float (movevars.gravity);
-	ClientReliableWrite_Float (movevars.stopspeed);
-	ClientReliableWrite_Float (movevars.maxspeed);
-	ClientReliableWrite_Float (movevars.spectatormaxspeed);
-	ClientReliableWrite_Float (movevars.accelerate);
-	ClientReliableWrite_Float (movevars.airaccelerate);
-	ClientReliableWrite_Float (movevars.wateraccelerate);
-	ClientReliableWrite_Float (movevars.friction);
-	ClientReliableWrite_Float (movevars.waterfriction);
-	ClientReliableWrite_Float (movevars.entgravity);
+	ClientReliableWrite_Float (sv.movevars.gravity);
+	ClientReliableWrite_Float (sv.movevars.stopspeed);
+	ClientReliableWrite_Float (sv_client->maxspeed);
+	ClientReliableWrite_Float (sv.movevars.spectatormaxspeed);
+	ClientReliableWrite_Float (sv.movevars.accelerate);
+	ClientReliableWrite_Float (sv.movevars.airaccelerate);
+	ClientReliableWrite_Float (sv.movevars.wateraccelerate);
+	ClientReliableWrite_Float (sv.movevars.friction);
+	ClientReliableWrite_Float (sv.movevars.waterfriction);
+	ClientReliableWrite_Float (sv_client->entgravity);
 	ClientReliableWrite_End ();
 
 	// send music
@@ -376,9 +376,9 @@ static void Cmd_PreSpawn_f (void)
 
 //		Com_DPrintf ("Client check = %d\n", check);
 
-		if (sv_mapcheck.value && check != sv.map_checksum && check != sv.map_checksum2) {
+		if (sv_mapcheck.value && check != sv.map_checksum && check != sv.map_checksum2 && Com_TranslateMapChecksum(sv.mapname, check) != sv.map_checksum2) {
 			SV_ClientPrintf (sv_client, PRINT_HIGH, 
-				"Map model file does not match (%s), %i != %i/%i.\n"
+				"Map model file does not match (%s), 0x%x != 0x%x/0x%x.\n"
 				"You may need a new version of the map, or the proper install files.\n",
 				sv.modelname, check, sv.map_checksum, sv.map_checksum2);
 			SV_DropClient (sv_client); 
@@ -480,22 +480,22 @@ static void Cmd_Spawn_f (void)
 
 	ClientReliableWrite_Begin (sv_client, svc_updatestatlong);
 	ClientReliableWrite_Byte (STAT_TOTALSECRETS);
-	ClientReliableWrite_Long (pr_global_struct->total_secrets);
+	ClientReliableWrite_Long (PR_GLOBAL(total_secrets));
 	ClientReliableWrite_End ();
 
 	ClientReliableWrite_Begin (sv_client, svc_updatestatlong);
 	ClientReliableWrite_Byte (STAT_TOTALMONSTERS);
-	ClientReliableWrite_Long (pr_global_struct->total_monsters);
+	ClientReliableWrite_Long (PR_GLOBAL(total_monsters));
 	ClientReliableWrite_End ();
 
 	ClientReliableWrite_Begin (sv_client, svc_updatestatlong);
 	ClientReliableWrite_Byte (STAT_SECRETS);
-	ClientReliableWrite_Long (pr_global_struct->found_secrets);
+	ClientReliableWrite_Long (PR_GLOBAL(found_secrets));
 	ClientReliableWrite_End ();
 
 	ClientReliableWrite_Begin (sv_client, svc_updatestatlong);
 	ClientReliableWrite_Byte (STAT_MONSTERS);
-	ClientReliableWrite_Long (pr_global_struct->killed_monsters);
+	ClientReliableWrite_Long (PR_GLOBAL(killed_monsters));
 	ClientReliableWrite_End ();
 
 	// get the client to check and download skins
@@ -571,7 +571,7 @@ static void Cmd_Begin_f (void)
 			if (SpectatorConnect) {
 				// copy spawn parms out of the client_t
 				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-					(&pr_global_struct->parm1)[i] = sv_client->spawn_parms[i];
+					(&PR_GLOBAL(parm1))[i] = sv_client->spawn_parms[i];
 				
 				// call the spawn function
 				pr_global_struct->time = sv.time;
@@ -583,17 +583,17 @@ static void Cmd_Begin_f (void)
 		{
 			// copy spawn parms out of the client_t
 			for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-				(&pr_global_struct->parm1)[i] = sv_client->spawn_parms[i];
+				(&PR_GLOBAL(parm1))[i] = sv_client->spawn_parms[i];
 			
 			// call the spawn function
 			pr_global_struct->time = sv.time;
 			pr_global_struct->self = EDICT_TO_PROG(sv_player);
-			PR_ExecuteProgram (pr_global_struct->ClientConnect);
+			PR_ExecuteProgram (PR_GLOBAL(ClientConnect));
 			
 			// actually spawn the player
 			pr_global_struct->time = sv.time;
 			pr_global_struct->self = EDICT_TO_PROG(sv_player);
-			PR_ExecuteProgram (pr_global_struct->PutClientInServer);	
+			PR_ExecuteProgram (PR_GLOBAL(PutClientInServer));	
 		}
 	}
 
@@ -1019,10 +1019,10 @@ static void Cmd_Pings_f (void)
 
 /*
 ==================
-SV_Kill_f
+Cmd_Kill_f
 ==================
 */
-static void SV_Kill_f (void)
+static void Cmd_Kill_f (void)
 {
 	if (sv_player->v.health <= 0)
 	{
@@ -1032,43 +1032,8 @@ static void SV_Kill_f (void)
 	
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(sv_player);
-	PR_ExecuteProgram (pr_global_struct->ClientKill);
+	PR_ExecuteProgram (PR_GLOBAL(ClientKill));
 }
-
-/*
-==================
-SV_TogglePause
-==================
-*/
-void SV_TogglePause (const char *msg)
-{
-	int i;
-	client_t *cl;
-	int	newval;
-
-	if (!msg)
-		newval = (int)sv_paused.value ^ 2;
-	else
-		newval = (int)sv_paused.value ^ 1;
-
-	Cvar_ForceSet (&sv_paused, va("%i", newval));
-
-	if (msg)
-		SV_BroadcastPrintf (PRINT_HIGH, "%s", msg);
-
-	// send notification to all clients
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
-	{
-		if (cl->state < cs_connected)
-			continue;
-		ClientReliableWrite_Begin (cl, svc_setpause);
-		ClientReliableWrite_Byte (sv_paused.value ? 1 : 0);
-		ClientReliableWrite_End ();
-
-		cl->lastservertimeupdate = -99;	// force an update to be sent
-	}
-}
-
 
 /*
 ==================
@@ -1078,6 +1043,9 @@ Cmd_Pause_f
 static void Cmd_Pause_f (void)
 {
 	char st[sizeof(sv_client->name) + 32];
+	qbool newstate;
+
+	newstate = !((int)sv_paused.value & 1);
 
 	if (!sv_pausable.value) {
 		SV_ClientPrintf (sv_client, PRINT_HIGH, "Pause not allowed.\n");
@@ -1089,12 +1057,21 @@ static void Cmd_Pause_f (void)
 		return;
 	}
 
-	if (!((int)sv_paused.value & 1))
+	if (GE_ShouldPause) {
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(sv_player);
+		G_FLOAT(OFS_PARM0) = newstate;
+		PR_ExecuteProgram (GE_ShouldPause);
+		if (!G_FLOAT(OFS_RETURN))
+			return;		// progs said ignore the request
+	}
+
+	if (newstate)
 		sprintf (st, "%s paused the game\n", sv_client->name);
 	else
 		sprintf (st, "%s unpaused the game\n", sv_client->name);
 
-	SV_TogglePause(st);
+	SV_TogglePause (false, st);
 }
 
 
@@ -1117,7 +1094,7 @@ static void Cmd_Drop_f (void)
 =================
 Cmd_PTrack_f
 
-Change the bandwidth estimate for a client
+Client wants to track a (different) player, or go into free fly
 =================
 */
 static void Cmd_PTrack_f (void)
@@ -1368,6 +1345,7 @@ static void Cmd_Join_f (void)
 		PR_ExecuteProgram (SpectatorDisconnect);
 
 	sv_client->old_frags = 0;
+	sv_client->spec_track = 0;
 	SetUpClientEdict (sv_client, sv_client->edict);
 
 	// turn the spectator into a player
@@ -1375,19 +1353,19 @@ static void Cmd_Join_f (void)
 	Info_RemoveKey (sv_client->userinfo, "*spectator");
 
 	// call the progs to get default spawn parms for the new client
-	PR_ExecuteProgram (pr_global_struct->SetNewParms);
+	PR_ExecuteProgram (PR_GLOBAL(SetNewParms));
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		sv_client->spawn_parms[i] = (&pr_global_struct->parm1)[i];
+		sv_client->spawn_parms[i] = (&PR_GLOBAL(parm1))[i];
 
 	// call the spawn function
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(sv_player);
-	PR_ExecuteProgram (pr_global_struct->ClientConnect);
+	PR_ExecuteProgram (PR_GLOBAL(ClientConnect));
 	
 	// actually spawn the player
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(sv_player);
-	PR_ExecuteProgram (pr_global_struct->PutClientInServer);	
+	PR_ExecuteProgram (PR_GLOBAL(PutClientInServer));	
 
 	// send notification to all clients
 	sv_client->sendinfo = true;
@@ -1437,9 +1415,10 @@ static void Cmd_Observe_f (void)
 	// call the prog function for removing a client
 	// this will set the body to a dead frame, among other things
 	pr_global_struct->self = EDICT_TO_PROG(sv_player);
-	PR_ExecuteProgram (pr_global_struct->ClientDisconnect);
+	PR_ExecuteProgram (PR_GLOBAL(ClientDisconnect));
 
 	sv_client->old_frags = 0;
+	sv_client->spec_track = 0;
 	SetUpClientEdict (sv_client, sv_client->edict);
 
 	// turn the player into a spectator
@@ -1447,9 +1426,9 @@ static void Cmd_Observe_f (void)
 	Info_SetValueForStarKey (sv_client->userinfo, "*spectator", "1", MAX_INFO_STRING);
 
 	// call the progs to get default spawn parms for the new client
-	PR_ExecuteProgram (pr_global_struct->SetNewParms);
+	PR_ExecuteProgram (PR_GLOBAL(SetNewParms));
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		sv_client->spawn_parms[i] = (&pr_global_struct->parm1)[i];
+		sv_client->spawn_parms[i] = (&PR_GLOBAL(parm1))[i];
 
 	SV_SpawnSpectator ();
 	
@@ -1624,7 +1603,7 @@ typedef struct
 	void	(*func) (void);
 } ucmd_t;
 
-ucmd_t ucmds[] =
+static ucmd_t ucmds[] =
 {
 // connection commands
 	{"new", Cmd_New_f},
@@ -1636,23 +1615,33 @@ ucmd_t ucmds[] =
 
 	{"download", Cmd_Download_f},
 	{"nextdl", Cmd_NextDL_f},
-
-	{"drop", Cmd_Drop_f},
 	{"pings", Cmd_Pings_f},
+	{"snap", Cmd_Snap_f},
+	{"setinfo", Cmd_SetInfo_f},
 
+// this will be made progs-overridable when we provide a way for
+// progs to change client->spec_track
 	{"ptrack", Cmd_PTrack_f},	// used with autocam
 
-	{"snap", Cmd_Snap_f},
+	{NULL, NULL}
+};
 	
-// issued by hand at client consoles	
+// these can be handled by progs or by the engine
+static ucmd_t ucmds2[] =
+{
+	{"drop", Cmd_Drop_f},		// client is disconnecting
 	{"pause", Cmd_Pause_f},
-
-	{"say", Cmd_Say_f},
-	{"say_team", Cmd_Say_Team_f},
-
-	{"setinfo", Cmd_SetInfo_f},
 	{"info", Cmd_Info_f},
 	{"serverinfo", Cmd_Serverinfo_f},
+	{"say", Cmd_Say_f},
+	{"say_team", Cmd_Say_Team_f},
+	{"kill", Cmd_Kill_f},
+	{"god", Cmd_God_f},
+	{"give", Cmd_Give_f},
+	{"noclip", Cmd_Noclip_f},
+	{"fly", Cmd_Fly_f},
+	{"join", Cmd_Join_f},
+	{"observe", Cmd_Observe_f},
 
 	{NULL, NULL}
 };
@@ -1665,9 +1654,7 @@ SV_ExecuteUserCommand
 static void SV_ExecuteUserCommand (char *s)
 {
 	ucmd_t	*u;
-	pr_cmdfunction_t *cmdfunc;
 	char	*cmd;
-	int		i, j;
 	
 	Cmd_TokenizeString (s);
 	sv_player = sv_client->edict;
@@ -1680,34 +1667,35 @@ static void SV_ExecuteUserCommand (char *s)
 			return;
 		}
 
-	for (i = 0, cmdfunc = pr_cmdfunctions; i < pr_numcmdfunctions; i++, cmdfunc++) {
-		if (!Q_stricmp(cmdfunc->name, cmd)) {
-			pr_global_struct->time = sv.time;
-			pr_global_struct->self = EDICT_TO_PROG(sv_player);
-			for (j = 0; j < 8; j++)
-				*(string_t *)&pr_globals[OFS_PARM0 + j*3] = PR_SetString(Cmd_Argv(j + 1));
-			PR_ExecuteProgram (cmdfunc->funcnum);
+	// ZQ_CLIENTCOMMAND extension: does the progs want this command?
+	if (GE_ClientCommand /*&& pr_ext_enabled.zq_clientcommand*/) {
+		static char cmd_copy[128], args_copy[1024] /* Ouch! */;
+		char *p;
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(sv_player);
+		strlcpy (cmd_copy, cmd, sizeof(cmd_copy));
+		strlcpy (args_copy, Cmd_Args(), sizeof(args_copy));
+		// lowercase command to rule out the possibility of a user executing
+		// a command the mod wants to block (e.g. 'join') by using uppercase
+		for (p = cmd_copy; *p; p++)
+			*p = (char)tolower(*p);
+		((int *)pr_globals)[OFS_PARM0] = PR_SetString (cmd_copy);
+		((int *)pr_globals)[OFS_PARM1] = PR_SetString (args_copy);
+		PR_ExecuteProgram (GE_ClientCommand);
+		if (G_FLOAT(OFS_RETURN) != 0)
+			return;		// the command was handled by the mod
+		}
+
+	// progs didn't handle it, let's see if we have a default handler
+	for (u=ucmds2 ; u->name ; u++)
+		if (!strcmp (cmd, u->name) )
+		{
+			u->func ();
 			return;
 		}
-	}
 
-	// check other commands (progs may override them)
-	if (!Q_stricmp(cmd, "kill"))
-		SV_Kill_f ();
-	else if (!Q_stricmp(cmd, "god"))
-		Cmd_God_f ();
-	else if (!Q_stricmp(cmd, "give"))
-		Cmd_Give_f ();
-	else if (!Q_stricmp(cmd, "noclip"))
-		Cmd_Noclip_f ();
-	else if (!Q_stricmp(cmd, "fly"))
-		Cmd_Fly_f ();
-	else if (!Q_stricmp(cmd, "join"))
-		Cmd_Join_f ();
-	else if (!Q_stricmp(cmd, "observe"))
-		Cmd_Observe_f ();
-	else
-		SV_ClientPrintf (sv_client, PRINT_HIGH, "Bad user command: %s\n", cmd);
+	// sorry it didn't work out; God knows we tried
+	SV_ClientPrintf (sv_client, PRINT_HIGH, "Bad user command: %s\n", cmd);
 }
 
 /*
@@ -1717,6 +1705,8 @@ USER CMD EXECUTION
 
 ===========================================================================
 */
+
+static playermove_t pmove;
 
 /*
 ====================
@@ -1875,13 +1865,13 @@ int SV_PMTypeForClient (client_t *cl)
 		return PM_OLD_SPECTATOR;
 	}
 
-	if (sv_player->v.movetype == MOVETYPE_FLY)
+	if (cl->edict->v.movetype == MOVETYPE_FLY)
 		return PM_FLY;
 
-	if (sv_player->v.movetype == MOVETYPE_NONE)
+	if (cl->edict->v.movetype == MOVETYPE_NONE)
 		return PM_NONE;
 
-	if (sv_player->v.health <= 0)
+	if (cl->edict->v.health <= 0)
 		return PM_DEAD;
 
 	return PM_NORMAL;
@@ -1929,13 +1919,13 @@ void SV_RunCmd (usercmd_t *ucmd)
 	if (sv_client->bot)
 	{
 		// bots make their decisions here
-		pr_global_struct->frametime = sv_frametime;
+		PR_GLOBAL(frametime) = sv_frametime;
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);
 		if (BotPreThink)
 			PR_ExecuteProgram (BotPreThink);
 		else
-			PR_ExecuteProgram (pr_global_struct->PlayerPreThink);
+			PR_ExecuteProgram (PR_GLOBAL(PlayerPreThink));
 
 		// create a move command
 		VectorCopy (sv_player->v.v_angle, ucmd->angles);
@@ -1952,8 +1942,12 @@ void SV_RunCmd (usercmd_t *ucmd)
 	{
 		// copy humans' intentions to progs
 		sv_player->v.button0 = ucmd->buttons & 1;
-		sv_player->v.button2 = (ucmd->buttons & 2)>>1;
-		sv_player->v.button1 = (ucmd->buttons & 4)>>2;
+		sv_player->v.button2 = (ucmd->buttons >> 1) & 1;
+		sv_player->v.button1 = (ucmd->buttons >> 2) & 1;
+		// ZQ_INPUTBUTTONS
+		for (i = 3; i < 8; i++)
+			if (fofs_buttonX[i-3])
+				EdictFieldFloat (sv_player, fofs_buttonX[i-3]) = (ucmd->buttons >> i) & 1;
 		if (ucmd->impulse)
 			sv_player->v.impulse = ucmd->impulse;
 	}
@@ -1978,24 +1972,31 @@ void SV_RunCmd (usercmd_t *ucmd)
 
 	if (!sv_client->spectator && !sv_client->bot)
 	{
-		qbool	old_onground;
-		vec3_t	originalvel;
+		int	oldflags;
+		vec3_t	oldvelocity;
+		float	old_teleport_time;
 
-		VectorCopy (sv_player->v.velocity, originalvel);
-		old_onground = (int)sv_player->v.flags & FL_ONGROUND;
+		VectorCopy (sv_player->v.velocity, oldvelocity);
+		oldflags = (int)sv_player->v.flags;
+		old_teleport_time = sv_player->v.teleport_time;
 
-		pr_global_struct->frametime = sv_frametime;
+		PR_GLOBAL(frametime) = sv_frametime;
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);
 
-		PR_ExecuteProgram (pr_global_struct->PlayerPreThink);
+		PR_ExecuteProgram (PR_GLOBAL(PlayerPreThink));
 
-		if (old_onground && originalvel[2] < 0 && sv_player->v.velocity[2] == 0
-			&& originalvel[0] == sv_player->v.velocity[0]
-			&& originalvel[1] == sv_player->v.velocity[1])
+		if (pr_nqprogs) {
+			sv_player->v.teleport_time = old_teleport_time;
+			VectorCopy (oldvelocity, sv_player->v.velocity);
+		} else
+
+		if ((oldflags & FL_ONGROUND) && oldvelocity[2] < 0 && sv_player->v.velocity[2] == 0
+			&& oldvelocity[0] == sv_player->v.velocity[0]
+			&& oldvelocity[1] == sv_player->v.velocity[1])
 		{
 			// don't let KTeams mess with physics
-			sv_player->v.velocity[2] = originalvel[2];
+			sv_player->v.velocity[2] = oldvelocity[2];
 		}
 
 		SV_RunThink (sv_player);
@@ -2021,22 +2022,24 @@ void SV_RunCmd (usercmd_t *ucmd)
 	AddLinksToPmove ( sv_areanodes );
 
 	// fill in movevars
-	movevars.entgravity = sv_client->entgravity;
-	movevars.maxspeed = sv_client->maxspeed;
-	movevars.bunnyspeedcap = pm_bunnyspeedcap.value;
-	movevars.ktjump = pm_ktjump.value;
-	movevars.slidefix = (pm_slidefix.value != 0);
-	movevars.airstep = (pm_airstep.value != 0);
-	movevars.pground = (pm_pground.value != 0);
+	sv.movevars.entgravity = sv_client->entgravity;
+	sv.movevars.maxspeed = sv_client->maxspeed;
+	sv.movevars.bunnyspeedcap = pm_bunnyspeedcap.value;
+	sv.movevars.ktjump = pm_ktjump.value;
+	sv.movevars.slidefix = (pm_slidefix.value != 0);
+	sv.movevars.airstep = (pm_airstep.value != 0);
+	sv.movevars.pground = (pm_pground.value != 0);
 
 
 	// do the move
-	PM_PlayerMove ();
+	PM_PlayerMove (&pmove, &sv.movevars);
 
 
 	// get player state back out of pmove
 	sv_client->jump_held = pmove.jump_held;
 	sv_player->v.teleport_time = pmove.waterjumptime;
+	if (pr_nqprogs)
+		sv_player->v.flags = ((int)sv_player->v.flags & ~FL_WATERJUMP) | (pmove.waterjumptime ? FL_WATERJUMP : 0);
 	sv_player->v.waterlevel = pmove.waterlevel;
 	sv_player->v.watertype = pmove.watertype;
 
@@ -2081,7 +2084,7 @@ Done after running a player command.
 */
 void SV_PostRunCmd (void)
 {
-	vec3_t		originalvel;
+	vec3_t		oldvelocity;
 
 	// run post-think
 
@@ -2090,22 +2093,28 @@ void SV_PostRunCmd (void)
 
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);
-		VectorCopy (sv_player->v.velocity, originalvel);
+		VectorCopy (sv_player->v.velocity, oldvelocity);
 
 		if (sv_client->bot && BotPostThink)
 			PR_ExecuteProgram (BotPostThink);
 		else
-			PR_ExecuteProgram (pr_global_struct->PlayerPostThink);
+			PR_ExecuteProgram (PR_GLOBAL(PlayerPostThink));
 
-		if (onground && originalvel[2] < 0 && sv_player->v.velocity[2] == 0
-			&& originalvel[0] == sv_player->v.velocity[0]
-			&& originalvel[1] == sv_player->v.velocity[1])
+		if (pr_nqprogs)
+			VectorCopy (oldvelocity, sv_player->v.velocity);
+		else
+		if (onground && oldvelocity[2] < 0 && sv_player->v.velocity[2] == 0
+			&& oldvelocity[0] == sv_player->v.velocity[0]
+			&& oldvelocity[1] == sv_player->v.velocity[1])
 		{
 			// don't let KTeams mess with physics
-			sv_player->v.velocity[2] = originalvel[2];
+			sv_player->v.velocity[2] = oldvelocity[2];
 		}
 
-		SV_RunNewmis ();
+		if (pr_nqprogs)
+			SV_RunNQNewmis ();
+		else
+			SV_RunNewmis ();
 	}
 	else if (SpectatorThink) {
 		pr_global_struct->time = sv.time;

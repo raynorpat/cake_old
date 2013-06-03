@@ -33,20 +33,31 @@ globalvars_t	*pr_global_struct;
 float			*pr_globals;			// same as pr_global_struct
 int				pr_edict_size;	// in bytes
 
-qbool			pr_z_ext_clientcommand;
-pr_cmdfunction_t	pr_cmdfunctions[MAX_PR_CMDFUNCTIONS];
-int				pr_numcmdfunctions;
+struct pr_ext_enabled_s	pr_ext_enabled;
+
+#define NQ_PROGHEADER_CRC 5927
+
+#ifdef WITH_NQPROGS
+qbool pr_nqprogs;
+int pr_fieldoffsetpatch[106];
+int pr_globaloffsetpatch[62];
+static int pr_globaloffsetpatch_nq[62] = {0,0,0,0,0,666,-4,-4,8,8,
+8,8,8,8,8,8,8,8,8,8, 8,8,8,8,8,8,8,8,8,8, 8,8,8,8,8,8,8,8,8,8, 
+8,8,8,8,8,8,8,8,8,8, 8,8,8,8,8,8,8,8,8,8, 8,8};
+#endif
 
 int		type_size[8] = {1,sizeof(void *)/4,1,3,1,1,sizeof(void *)/4,sizeof(void *)/4};
 
 func_t SpectatorConnect, SpectatorThink, SpectatorDisconnect;
 func_t BotConnect, BotDisconnect, BotPreThink, BotPostThink;
+func_t GE_ClientCommand, GE_ConsoleCommand, GE_PausedTic, GE_ShouldPause;
 
-int		fofs_maxspeed, fofs_gravity;
+int		fofs_maxspeed, fofs_gravity, fofs_items2;
 int		fofs_forwardmove, fofs_sidemove, fofs_upmove;
 #ifdef VWEP_TEST
-int		fofs_vw_index, fofs_vw_frame;
+int		fofs_vw_index;
 #endif
+int		fofs_buttonX[8-3];
 
 
 ddef_t *ED_FieldAtOfs (int ofs);
@@ -63,6 +74,7 @@ Sets everything to NULL and mark as used
 void ED_ClearEdict (edict_t *e)
 {
 	memset (&e->v, 0, progs->entityfields * 4);
+	e->lastruntime = 0;
 	e->inuse = true;
 }
 
@@ -960,69 +972,114 @@ void ED_LoadFromFile (char *data)
 }
 
 
-void PR_CheckExtensions (void)
-{
-	pr_z_ext_clientcommand = false;
-
-	if (ED_FindGlobal("z_ext_clientcommand"))
-		pr_z_ext_clientcommand = true;
-}
-
-/*
-===============
-PR_FindCmdFunctions
-
-Enumerate all Cmd_* functions (z_ext_clientcommand extension)
-===============
-*/
-void PR_FindCmdFunctions (void)
-{
-	int	i;
-	dfunction_t	*func;
-	char	*name;
-
-	pr_numcmdfunctions = 0;
-
-	if (!pr_z_ext_clientcommand)
-		return;
-
-	for (i=0 ; i<progs->numfunctions ; i++)
-	{
-		func = &pr_functions[i];
-		name = PR_GetString(func->s_name);
-		if (!strncmp(name, "Cmd_", 4)) {
-			strlcpy (pr_cmdfunctions[pr_numcmdfunctions].name, name + 4, sizeof(pr_cmdfunctions[0].name));
-			pr_cmdfunctions[pr_numcmdfunctions].funcnum = i;
-			pr_numcmdfunctions++;
-			if (pr_numcmdfunctions == MAX_PR_CMDFUNCTIONS)
-				break;
-		}
-	}
-}
-
 /*
 ===============
 PR_LoadProgs
 ===============
 */
+extern qbool FS_FindFile (char *filename);
 void PR_LoadProgs (void)
 {
-	int		i;
+	int	i;
 	char	num[32];
 	static int lumpsize[6] = { sizeof(dstatement_t), sizeof(ddef_t),
 		sizeof(ddef_t), sizeof(dfunction_t), 4, 4 };
+	int	filesize = 0;
+	char	*progsname;
 
-	progs = (dprograms_t *)FS_LoadHunkFile ("progs.dat");
+	progs = NULL;
+
+	// decide whether to load qwprogs.dat, progs.dat or spprogs.dat
+
+#ifdef WITH_NQPROGS
+	if (Cvar_FindVar("sv_forcenqprogs"))
+		goto use_progs;
+#endif
+
+	if (!deathmatch.value)
+	{
+		if (Q_stricmp(com_gamedirfile, "qw") && 
+			strcmp(com_gamedirfile, ""))
+		{
+			// if we're using a custom mod, anything
+			// in gamedir is preferred to stock *progs.dat
+			qbool check;
+			check = FS_FindFile ("spprogs.dat");
+			if (check && file_from_gamedir)
+				goto use_spprogs;
+#ifdef WITH_NQPROGS
+			check = FS_FindFile ("progs.dat");
+			if (check && file_from_gamedir)
+				goto use_progs;
+#endif
+			check = FS_FindFile ("qwprogs.dat");
+			if (check && file_from_gamedir)
+				goto use_qwprogs;
+		}
+
+use_spprogs:
+		progs = (dprograms_t *) FS_LoadHunkFile ("spprogs.dat");
+		progsname = "spprogs.dat";
+		pr_nqprogs = false;
+
+		if (!progs) {
+#ifdef WITH_NQPROGS
+use_progs:
+			progs = (dprograms_t *)FS_LoadHunkFile ("progs.dat");
+			progsname = "progs.dat";
+			pr_nqprogs = true;
+		}
+#endif
+		if (!progs) {
+use_qwprogs:
+			progs = (dprograms_t *)FS_LoadHunkFile ("qwprogs.dat");
+			progsname = "qwprogs.dat";
+			pr_nqprogs = false;
+		}
+	}
+	else	// deathmatch
+	{
+		if (Q_stricmp(com_gamedirfile, "qw") && 
+			strcmp(com_gamedirfile, ""))
+		{
+			qbool check;
+			check = FS_FindFile ("qwprogs.dat");
+			if (check && file_from_gamedir)
+				goto dm_use_qwprogs;
+#ifdef WITH_NQPROGS
+			check = FS_FindFile ("progs.dat");
+			if (check && file_from_gamedir)
+				goto dm_use_progs;
+#endif
+		}
+
+dm_use_qwprogs:
+		progs = (dprograms_t *) FS_LoadHunkFile ("qwprogs.dat");
+		progsname = "qwprogs.dat";
+		pr_nqprogs = false;
+
+		if (!progs) {
+#ifdef WITH_NQPROGS
+dm_use_progs:
+			progs = (dprograms_t *)FS_LoadHunkFile ("progs.dat");
+			progsname = "progs.dat";
+			pr_nqprogs = true;
+		}
+#endif
+	}
+
 	if (!progs)
 		Host_Error ("PR_LoadProgs: couldn't load progs.dat");
 
-	if (fs_filesize < sizeof(*progs))
-		Host_Error("progs.dat is corrupt");
+	filesize = fs_filesize;
 
-	Com_DPrintf ("Programs occupy %iK.\n", fs_filesize/1024);
+	if (filesize < (int)sizeof(*progs))
+		Host_Error("%s is corrupt", progsname);
+
+	Com_DPrintf ("Using %s (%i bytes).\n", progsname, filesize);
 
 // add prog crc to the serverinfo
-	sprintf (num, "%i", CRC_Block ((byte *)progs, fs_filesize));
+	sprintf (num, "%i", CRC_Block ((byte *)progs, filesize));
 	Info_SetValueForStarKey (svs.info, "*progs", num, MAX_SERVERINFO_STRING);
 
 // byte swap the header
@@ -1031,13 +1088,13 @@ void PR_LoadProgs (void)
 
 	if (progs->version != PROG_VERSION)
 		Host_Error ("progs.dat has wrong version number (%i should be %i)", progs->version, PROG_VERSION);
-	if (progs->crc != PROGHEADER_CRC)
-		Host_Error ("progs.dat has wrong crc (%i should be %i)", progs->crc, PROGHEADER_CRC);
+	if (progs->crc != (pr_nqprogs ? NQ_PROGHEADER_CRC : PROGHEADER_CRC))
+		Host_Error ("You must have the progs.dat from QuakeWorld installed");
 
 // check lump offsets and sizes
 	for (i = 0; i < 6; i ++) {
 		if (((int *)progs)[i*2 + 2] < sizeof(*progs)
-			|| ((int *)progs)[i*2 + 2] + ((int *)progs)[i*2 + 3]*lumpsize[i] > fs_filesize)
+			|| ((int *)progs)[i*2 + 2] + ((int *)progs)[i*2 + 3]*lumpsize[i] > filesize)
 		Host_Error("progs.dat is corrupt");
 	}
 
@@ -1046,8 +1103,8 @@ void PR_LoadProgs (void)
 	pr_globaldefs = (ddef_t *)((byte *)progs + progs->ofs_globaldefs);
 	pr_fielddefs = (ddef_t *)((byte *)progs + progs->ofs_fielddefs);
 	pr_statements = (dstatement_t *)((byte *)progs + progs->ofs_statements);
-
 	pr_global_struct = (globalvars_t *)((byte *)progs + progs->ofs_globals);
+
 	pr_globals = (float *)pr_global_struct;
 
 	PR_InitStrings ();
@@ -1092,6 +1149,29 @@ void PR_LoadProgs (void)
 	for (i=0 ; i<progs->numglobals ; i++)
 		((int *)pr_globals)[i] = LittleLong (((int *)pr_globals)[i]);
 
+
+#ifdef WITH_NQPROGS
+	if (pr_nqprogs) {
+		memcpy (&pr_globaloffsetpatch, &pr_globaloffsetpatch_nq, sizeof(pr_globaloffsetpatch));
+		for (i = 0; i < 106; i++) {
+			pr_fieldoffsetpatch[i] = (i < 8) ? i : (i < 25) ? i + 1 :
+				(i < 28) ? i + (102 - 25) : (i < 73) ? i - 2 :
+				(i < 74) ? i + (105 - 73) : (i < 105) ? i - 3 : /* (i == 105) */ 8;
+		}
+
+		for (i=0 ; i<progs->numfielddefs ; i++)
+			pr_fielddefs[i].ofs = PR_FIELDOFS(pr_fielddefs[i].ofs);
+
+	}
+	else
+	{
+		memset (&pr_globaloffsetpatch, sizeof(pr_globaloffsetpatch), 0);
+
+		for (i = 0; i < 106; i++)
+			pr_fieldoffsetpatch[i] = i;
+	}
+#endif
+
 	// find optional QC-exported functions
 	SpectatorConnect = ED_FindFunctionOffset ("SpectatorConnect");
 	SpectatorThink = ED_FindFunctionOffset ("SpectatorThink");
@@ -1100,20 +1180,26 @@ void PR_LoadProgs (void)
 	BotDisconnect = ED_FindFunctionOffset ("BotDisconnect");
 	BotPreThink = ED_FindFunctionOffset ("BotPreThink");
 	BotPostThink = ED_FindFunctionOffset ("BotPostThink");
+	GE_ClientCommand = ED_FindFunctionOffset ("GE_ClientCommand");
+	GE_ConsoleCommand = ED_FindFunctionOffset ("GE_ConsoleCommand");
+	GE_PausedTic = ED_FindFunctionOffset ("GE_PausedTic");
+	GE_ShouldPause = ED_FindFunctionOffset ("GE_ShouldPause");
 
 	// find optional QC-exported fields
 	fofs_maxspeed = ED_FindFieldOffset ("maxspeed");
 	fofs_gravity = ED_FindFieldOffset ("gravity");
+	fofs_items2 = ED_FindFieldOffset ("items2");
 	fofs_forwardmove = ED_FindFieldOffset ("forwardmove");
 	fofs_sidemove = ED_FindFieldOffset ("sidemove");
 	fofs_upmove = ED_FindFieldOffset ("upmove");
 #ifdef VWEP_TEST
 	fofs_vw_index = ED_FindFieldOffset ("vw_index");
-	fofs_vw_frame = ED_FindFieldOffset ("vw_frame");
 #endif
+	for (i = 3; i < 8; i++)
+		fofs_buttonX[i-3] = ED_FindFieldOffset(va("button%i", i));
 
-	PR_CheckExtensions ();
-	PR_FindCmdFunctions ();
+	// reset stuff like ZQ_CLIENTCOMMAND, progs must enable it explicitly
+	memset (&pr_ext_enabled, sizeof(pr_ext_enabled), 0);
 }
 
 
@@ -1124,6 +1210,8 @@ PR_Init
 */
 void PR_Init (void)
 {
+	PR_InitBuiltins ();
+
 	Cmd_AddCommand ("edict", ED_PrintEdict_f);
 	Cmd_AddCommand ("edicts", ED_PrintEdicts_f);
 	Cmd_AddCommand ("edictcount", ED_EdictCount_f);
@@ -1150,5 +1238,3 @@ int NUM_FOR_EDICT(edict_t *e)
 		Host_Error ("NUM_FOR_EDICT: bad pointer");
 	return b;
 }
-
-

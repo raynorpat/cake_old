@@ -643,6 +643,8 @@ inlineskin:
 R_NewMap
 ===============
 */
+void CL_WipeParticles (void);
+
 void R_NewMap (struct model_s *worldmodel)
 {
 	int		i;
@@ -651,6 +653,8 @@ void R_NewMap (struct model_s *worldmodel)
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
 	r_worldentity.model = r_worldmodel;
+
+	CL_WipeParticles ();
 
 	R_Modules_NewMap();
 

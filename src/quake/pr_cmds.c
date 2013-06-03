@@ -127,7 +127,7 @@ void makevectors(entity e) = #1
 */
 static void PF_makevectors (void)
 {
-	AngleVectors (G_VECTOR(OFS_PARM0), pr_global_struct->v_forward, pr_global_struct->v_right, pr_global_struct->v_up);
+	AngleVectors (G_VECTOR(OFS_PARM0), PR_GLOBAL(v_forward), PR_GLOBAL(v_right), PR_GLOBAL(v_up));
 }
 
 
@@ -213,7 +213,19 @@ ok:
 		VectorSubtract (mod->maxs, mod->mins, e->v.size);
 		SV_LinkEdict (e, false);
 	}
-
+	else if (pr_nqprogs) {
+		// hacks to make NQ progs happy
+		if (!strcmp(PR_GetString(e->v.model), "maps/b_explob.bsp")) {
+			VectorClear (e->v.mins);
+			VectorSet (e->v.maxs, 32, 32, 64);
+		} else {
+			// FTE does this, so we do, too; I'm not sure if it makes a difference
+			VectorSet (e->v.mins, -16, -16, -16);
+			VectorSet (e->v.maxs, 16, 16, 16);
+		}
+		VectorSubtract (e->v.maxs, e->v.mins, e->v.size);
+		SV_LinkEdict (e, false);
+	}
 }
 
 
@@ -231,9 +243,14 @@ static void PF_bprint (void)
 	char		*s;
 	int			level;
 	
-	level = G_FLOAT(OFS_PARM0);
+	if (pr_nqprogs) {
+		level = PRINT_HIGH;
+		s = PF_VarString(0);
+	} else {
+		level = G_FLOAT(OFS_PARM0);
+		s = PF_VarString(1);
+	}
 
-	s = PF_VarString(1);
 	SV_BroadcastPrintf (level, "%s", s);
 }
 
@@ -258,9 +275,13 @@ static void PF_sprint (void)
 	qbool		flush = false, flushboth = false;
 	
 	entnum = G_EDICTNUM(OFS_PARM0);
-	level = G_FLOAT(OFS_PARM1);
-
-	str = PF_VarString(2);
+	if (pr_nqprogs) {
+		level = PRINT_HIGH;
+		str = PF_VarString(1);
+	} else {
+		level = G_FLOAT(OFS_PARM1);
+		str = PF_VarString(2);
+	}
 	
 	if (entnum < 1 || entnum > MAX_CLIENTS)
 	{
@@ -273,6 +294,20 @@ static void PF_sprint (void)
 	buf = cl->sprint_buf;
 	buflen = strlen (buf);
 	len = strlen (str);
+
+	if (pr_nqprogs) {
+		// This is a hack to prevent pickup messages from showing up with msg 1
+		if (!buflen) {
+			cl->sprint_nq_low_level = false;
+			if (!strncmp(str, "You get ", 8) || !strncmp(str, "You got ", 8)
+			|| !strncmp(str, "You receive ", 12))
+				cl->sprint_nq_low_level = true;
+		}
+		if (cl->sprint_nq_low_level)
+			level = PRINT_LOW;
+		if (strchr(str, '\n'))
+			cl->sprint_nq_low_level = false;
+	}
 
 	// flush the buffer if there's not enough space
 	// also flush if sprint level has changed
@@ -618,18 +653,18 @@ static void PF_traceline (void)
 
 	trace = SV_Trace (v1, vec3_origin, vec3_origin, v2, nomonsters, ent);
 
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	VectorCopy (trace.endpos, pr_global_struct->trace_endpos);
-	VectorCopy (trace.plane.normal, pr_global_struct->trace_plane_normal);
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;	
+	PR_GLOBAL(trace_allsolid) = trace.allsolid;
+	PR_GLOBAL(trace_startsolid) = trace.startsolid;
+	PR_GLOBAL(trace_fraction) = trace.fraction;
+	PR_GLOBAL(trace_inwater) = trace.inwater;
+	PR_GLOBAL(trace_inopen) = trace.inopen;
+	VectorCopy (trace.endpos, PR_GLOBAL(trace_endpos));
+	VectorCopy (trace.plane.normal, PR_GLOBAL(trace_plane_normal));
+	PR_GLOBAL(trace_plane_dist) =  trace.plane.dist;	
 	if (trace.e.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(trace.e.ent);
+		PR_GLOBAL(trace_ent) = EDICT_TO_PROG(trace.e.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(sv.edicts);
+		PR_GLOBAL(trace_ent) = EDICT_TO_PROG(sv.edicts);
 }
 
 
@@ -824,6 +859,12 @@ static void PF_localcmd (void)
 	char	*str;
 	
 	str = G_STRING(OFS_PARM0);	
+
+	if (pr_nqprogs && !strcmp(str, "restart\n")) {
+		Cbuf_AddText (va("map %s\n", host_mapname.string));
+		return;
+	}
+
 	Cbuf_AddText (str);
 }
 
@@ -961,10 +1002,10 @@ static void PF_ftos (void)
 	v = G_FLOAT(OFS_PARM0);
 
 	if (v == (int)v)
-		Q_snprintfz (pr_string_temp, sizeof(pr_string_temp), "%d", (int)v);
+		snprintf (pr_string_temp, sizeof(pr_string_temp), "%d", (int)v);
 	else
 	{
-		Q_snprintfz (pr_string_temp, sizeof(pr_string_temp), "%f", v);
+		snprintf (pr_string_temp, sizeof(pr_string_temp), "%f", v);
 
 		for (i=strlen(pr_string_temp)-1 ; i>0 && pr_string_temp[i]=='0' ; i--)
 			pr_string_temp[i] = 0;
@@ -1453,7 +1494,7 @@ static void PF_aim (void)
 {
 //	ent = G_EDICT(OFS_PARM0);
 //	speed = G_FLOAT(OFS_PARM1);
-	VectorCopy (pr_global_struct->v_forward, G_VECTOR(OFS_RETURN));
+	VectorCopy (PR_GLOBAL(v_forward), G_VECTOR(OFS_RETURN));
 }
 
 
@@ -1533,7 +1574,7 @@ sizebuf_t *WriteDest (void)
 	case MSG_ONE:
 		Host_Error("Shouldn't be at MSG_ONE");
 #if 0
-		ent = PROG_TO_EDICT(pr_global_struct->msg_entity);
+		ent = PROG_TO_EDICT(PR_GLOBAL(msg_entity));
 		entnum = NUM_FOR_EDICT(ent);
 		if (entnum < 1 || entnum > MAX_CLIENTS)
 			PR_RunError ("WriteDest: not a client");
@@ -1565,7 +1606,7 @@ static client_t *Write_GetClient(void)
 	int		entnum;
 	edict_t	*ent;
 
-	ent = PROG_TO_EDICT(pr_global_struct->msg_entity);
+	ent = PROG_TO_EDICT(PR_GLOBAL(msg_entity));
 	entnum = NUM_FOR_EDICT(ent);
 	if (entnum < 1 || entnum > MAX_CLIENTS)
 		PR_RunError ("WriteDest: not a client");
@@ -1595,6 +1636,145 @@ static void CheckIntermission (void)
 }
 
 
+#ifdef WITH_NQPROGS
+static byte nqp_buf_data[1024] /* must be large enough for svc_finale text */;
+static sizebuf_t nqp_buf;
+static qbool nqp_ignore_this_frame;
+static int nqp_expect;
+
+void NQP_Reset (void)
+{
+	nqp_ignore_this_frame = false;
+	nqp_expect = 0;
+	SZ_Init (&nqp_buf, nqp_buf_data, sizeof(nqp_buf_data));
+}
+
+static void NQP_Flush (int count)
+{
+// FIXME, we make no distinction reliable or not
+	assert (count <= nqp_buf.cursize);
+	SZ_Write (&sv.reliable_datagram, nqp_buf_data, count);
+	memcpy (nqp_buf_data, nqp_buf_data + count, nqp_buf.cursize - count);
+	nqp_buf.cursize -= count;
+}
+
+static void NQP_Skip (int count)
+{
+	assert (count <= nqp_buf.cursize);
+	memcpy (nqp_buf_data, nqp_buf_data + count, nqp_buf.cursize - count);
+	nqp_buf.cursize -= count;
+}
+
+static void NQP_Process (void)
+{
+	int cmd;
+
+	if (nqp_ignore_this_frame) {
+		SZ_Clear (&nqp_buf);
+		return;
+	}
+
+	while (1) {
+		if (nqp_expect) {
+			if (nqp_buf.cursize >= nqp_expect) {
+				NQP_Flush (nqp_expect);
+				nqp_expect = 0;
+			}
+			else
+				break;
+		}
+
+		if (!nqp_buf.cursize)
+			break;
+
+		nqp_expect = 0;
+
+		cmd = nqp_buf_data[0];
+		if (cmd == svc_killedmonster || cmd == svc_foundsecret || cmd == svc_sellscreen)
+			nqp_expect = 1;
+		else if (cmd == svc_cdtrack) {
+			if (nqp_buf.cursize < 3)
+				goto waitformore;
+			NQP_Flush (2);
+			NQP_Skip (1);
+		}
+		else if (cmd == svc_finale) {
+			byte *p = memchr (nqp_buf_data + 1, 0, nqp_buf.cursize - 1);
+			if (!p)
+				goto waitformore;
+			nqp_expect = (p - nqp_buf_data) + 1;
+		}
+		else if (cmd == svc_intermission) {
+			int i;
+			NQP_Flush (1);
+			for (i = 0; i < 3; i++)
+				MSG_WriteCoord (&sv.reliable_datagram, svs.clients[0].edict->v.origin[i]);
+			for (i = 0; i < 3; i++)
+				MSG_WriteAngle (&sv.reliable_datagram, svs.clients[0].edict->v.angles[i]);
+		}
+		else if (cmd == nq_svc_cutscene) {
+			byte *p = memchr (nqp_buf_data + 1, 0, nqp_buf.cursize - 1);
+			if (!p)
+				goto waitformore;
+			MSG_WriteByte (&sv.reliable_datagram, svc_stufftext);
+			MSG_WriteString (&sv.reliable_datagram, "//cutscene\n"); // ZQ extension
+			NQP_Skip (p - nqp_buf_data + 1);
+		}
+		else if (nqp_buf_data[0] == svc_temp_entity) {
+			if (nqp_buf.cursize < 2)
+				break;
+
+switch (nqp_buf_data[1]) {
+  case TE_SPIKE:
+  case TE_SUPERSPIKE:
+  case TE_EXPLOSION:
+  case TE_TAREXPLOSION:
+  case TE_WIZSPIKE:
+  case TE_KNIGHTSPIKE:
+  case TE_LAVASPLASH:
+  case TE_TELEPORT:
+		nqp_expect = 8;
+		break;
+  case TE_GUNSHOT:
+		if (nqp_buf.cursize < 8)
+			goto waitformore;
+		NQP_Flush (2);
+		MSG_WriteByte (&sv.reliable_datagram, 1);
+		NQP_Flush (6);
+		break;
+
+  case TE_LIGHTNING1:
+  case TE_LIGHTNING2:
+  case TE_LIGHTNING3:
+		nqp_expect = 16;
+	  break;
+  case NQ_TE_BEAM:
+		NQP_Skip (16);
+		break;
+
+  case NQ_TE_EXPLOSION2:
+		nqp_expect = 10;
+		break;
+  default:
+		Com_Printf ("WARNING: progs.dat sent an unsupported svc_temp_entity: %i\n", nqp_buf_data[1]);
+	    goto ignore;
+}
+
+		}
+		else {
+			Com_Printf ("WARNING: progs.dat sent an unsupported svc: %i\n", cmd);
+ignore:
+			nqp_ignore_this_frame = true;
+			break;
+		}
+	}
+waitformore:;
+}
+
+#else // !WITH_NQPROGS
+#define NQP_Process()
+#endif
+
 /*
 =================
 PF_WriteByte
@@ -1604,6 +1784,14 @@ void WriteByte(float to, float f) = #52
 */
 static void PF_WriteByte (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteByte (&nqp_buf, G_FLOAT(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Byte (G_FLOAT(OFS_PARM1));
@@ -1625,6 +1813,14 @@ void WriteChar(float to, float f) = #53
 */
 static void PF_WriteChar (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteByte (&nqp_buf, G_FLOAT(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Char (G_FLOAT(OFS_PARM1));
@@ -1643,6 +1839,14 @@ void WriteShort(float to, float f) = #54
 */
 static void PF_WriteShort (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteShort (&nqp_buf, G_FLOAT(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Short (G_FLOAT(OFS_PARM1));
@@ -1661,6 +1865,14 @@ void WriteLong(float to, float f) = #55
 */
 static void PF_WriteLong (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteLong (&nqp_buf, G_FLOAT(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Long (G_FLOAT(OFS_PARM1));
@@ -1679,6 +1891,14 @@ void WriteAngle(float to, float f) = #57
 */
 static void PF_WriteAngle (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteAngle (&nqp_buf, G_FLOAT(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Angle (G_FLOAT(OFS_PARM1));
@@ -1697,6 +1917,14 @@ void WriteCoord(float to, float f) = #56
 */
 static void PF_WriteCoord (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteCoord (&nqp_buf, G_FLOAT(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Coord (G_FLOAT(OFS_PARM1));
@@ -1727,6 +1955,14 @@ void WriteString(float to, string s) = #58
 */
 static void PF_WriteString (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteString (&nqp_buf, G_STRING(OFS_PARM1));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_String (G_STRING(OFS_PARM1));
@@ -1745,6 +1981,14 @@ void WriteEntity(float to, entity e) = #59
 */
 static void PF_WriteEntity (void)
 {
+	if (pr_nqprogs) {
+		if (G_FLOAT(OFS_PARM0) == MSG_ONE || G_FLOAT(OFS_PARM0) == MSG_INIT)
+			return;	// we don't support this
+		MSG_WriteShort (&nqp_buf, SV_TranslateEntnum(G_EDICTNUM(OFS_PARM1)));
+		NQP_Process ();
+		return;
+	}
+
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE) {
 		ClientReliableWrite_Begin0 (Write_GetClient());
 		ClientReliableWrite_Short (SV_TranslateEntnum(G_EDICTNUM(OFS_PARM1)));
@@ -1807,7 +2051,7 @@ string etos(entity ent) = #65
 */
 static void PF_etos (void)
 {
-	Q_snprintfz (pr_string_temp, sizeof(pr_string_temp), "entity %i", G_EDICTNUM(OFS_PARM0));
+	snprintf (pr_string_temp, sizeof(pr_string_temp), "entity %i", G_EDICTNUM(OFS_PARM0));
 
 	G_INT(OFS_RETURN) = PR_SetString(pr_string_temp);
 }
@@ -1869,7 +2113,7 @@ static void PF_setspawnparms (void)
 	client = svs.clients + (i-1);
 
 	for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-		(&pr_global_struct->parm1)[i] = client->spawn_parms[i];
+		(&PR_GLOBAL(parm1))[i] = client->spawn_parms[i];
 }
 
 
@@ -2036,18 +2280,18 @@ static void PF_tracebox (void)
 
         trace = SV_Trace (v1, mins, maxs, v2, nomonsters, ent);
 
-        pr_global_struct->trace_allsolid = trace.allsolid;
-        pr_global_struct->trace_startsolid = trace.startsolid;
-        pr_global_struct->trace_fraction = trace.fraction;
-        pr_global_struct->trace_inwater = trace.inwater;
-        pr_global_struct->trace_inopen = trace.inopen;
-        VectorCopy (trace.endpos, pr_global_struct->trace_endpos);
-        VectorCopy (trace.plane.normal, pr_global_struct->trace_plane_normal);
-        pr_global_struct->trace_plane_dist =  trace.plane.dist;
+        PR_GLOBAL(trace_allsolid) = trace.allsolid;
+        PR_GLOBAL(trace_startsolid) = trace.startsolid;
+        PR_GLOBAL(trace_fraction) = trace.fraction;
+        PR_GLOBAL(trace_inwater) = trace.inwater;
+        PR_GLOBAL(trace_inopen) = trace.inopen;
+        VectorCopy (trace.endpos, PR_GLOBAL(trace_endpos));
+        VectorCopy (trace.plane.normal, PR_GLOBAL(trace_plane_normal));
+        PR_GLOBAL(trace_plane_dist) =  trace.plane.dist;
         if (trace.e.ent)
-                pr_global_struct->trace_ent = EDICT_TO_PROG(trace.e.ent);
+                PR_GLOBAL(trace_ent) = EDICT_TO_PROG(trace.e.ent);
         else
-                pr_global_struct->trace_ent = EDICT_TO_PROG(sv.edicts);
+                PR_GLOBAL(trace_ent) = EDICT_TO_PROG(sv.edicts);
 }
 
 
@@ -2156,8 +2400,36 @@ static void PF_pow (void)
 
 /*
 =================
+PF_cvar_string
+
+QSG_CVARSTRING DP_QC_CVAR_STRING
+string cvar_string(string varname) = #103;
+=================
+*/
+static void PF_cvar_string (void)
+{
+	char	*str;
+	cvar_t	*var;
+
+	str = G_STRING(OFS_PARM0);
+
+	var = Cvar_FindVar(str);
+	if (!var) {
+		// TODO: Cmd_LegacyCommandValue?
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+
+	strlcpy (pr_string_temp, var->string, sizeof(pr_string_temp));
+	RETURN_STRING(pr_string_temp);
+}
+
+
+/*
+=================
 PF_strlen
 
+ZQ_QC_STRINGS
 float strlen(string s) = #114;
 =================
 */
@@ -2169,12 +2441,13 @@ static void PF_strlen (void)
 
 /*
 =================
-PF_strlen
+PF_strcat
 
-string stradd(string s1, string s2, ...) = #115; 
+ZQ_QC_STRINGS
+string strcat(string s1, string s2, ...) = #115; 
 =================
 */
-static void PF_stradd (void)
+static void PF_strcat (void)
 {
 	int i;
 
@@ -2190,6 +2463,7 @@ static void PF_stradd (void)
 =================
 PF_substr
 
+ZQ_QC_STRINGS
 string substr(string s, float start, float count) = #116;
 =================
 */
@@ -2259,6 +2533,8 @@ void PF_stov(void)
 =================
 PF_strzone
 
+
+ZQ_QC_STRINGS
 string strzone(string s) = #118
 =================
 */
@@ -2289,6 +2565,7 @@ static void PF_strzone (void)
 =================
 PF_strunzone
 
+ZQ_QC_STRINGS
 void strunzone(string s) = #119
 =================
 */
@@ -2321,20 +2598,29 @@ float checkextension(string extension) = #99;
 static void PF_checkextension (void)
 {
 	static char *supported_extensions[] = {
+		"DP_CON_SET",
 		"DP_HALFLIFE_MAP_CVAR",
-		"DP_QC_SINCOSSQRTPOW",
-		"DP_QC_MINMAXBOUND",
+		"DP_QC_CVAR_STRING",
 		"DP_QC_ETOS",
+		"DP_QC_MINMAXBOUND",
 		"DP_QC_RANDOMVEC",
+		"DP_QC_SINCOSSQRTPOW",
 		"DP_QC_TRACEBOX",
-		"ZQ_QC_CHECKBUILTIN",
+		"QSG_CVARSTRING",
+		"ZQ_CLIENTCOMMAND",
+		"ZQ_INPUTBUTTONS",
+		"ZQ_ITEMS2",
 		"ZQ_MOVETYPE_NOCLIP",
 		"ZQ_MOVETYPE_FLY",
 		"ZQ_MOVETYPE_NONE",
+		"ZQ_PAUSE",
 		"ZQ_QC_PARTICLE",
+		"ZQ_QC_STRINGS",
+		"ZQ_QC_TOKENIZE",
+		"ZQ_SOUNDTOCLIENT",
 		"ZQ_TESTBOT",
 #ifdef VWEP_TEST
-		"ZQ_VWEP",
+		"ZQ_VWEP_TEST",
 #endif
 		NULL
 	};
@@ -2344,6 +2630,14 @@ static void PF_checkextension (void)
 	for (pstr = supported_extensions; *pstr; pstr++) {
 		if (!Q_stricmp(*pstr, extension)) {
 			G_FLOAT(OFS_RETURN) = 1.0;	// supported
+
+			if (!strcmp(extension, "ZQ_CLIENTCOMMAND"))
+				pr_ext_enabled.zq_clientcommand = true;
+			else if (!strcmp(extension, "ZQ_CONSOLECOMMAND"))
+				pr_ext_enabled.zq_consolecommand = true;
+			else if (!strcmp(extension, "ZQ_PAUSE"))
+				pr_ext_enabled.zq_pause = true;
+
 			return;
 		}
 	}
@@ -2414,10 +2708,11 @@ static void PF_precache_vwep_model (void)
 ==============
 PF_soundtoclient
 
-ZQuake addition, for AGRIP
+ZQ_SOUNDTOCLIENT
+For the AGRIP project
 Same as PF_sound, but sends the sound to one client only
 
-void soundtoclient(entity client, entity e, float chan, string samp, float vol, float atten) = #0x5a08
+void soundtoclient(entity client, entity e, float chan, string samp, float vol, float atten) = #530
 ==============
 */
 static void PF_soundtoclient (void)
@@ -2445,170 +2740,59 @@ static void PF_soundtoclient (void)
 }
 
 
-static qbool CheckBuiltin (int num)
+/*
+** ZQ_QC_TOKENIZE
+** float(string s) tokenize = #84;
+*/
+// FIXME, make independent of Cmd_TokenizeString?
+void PF_tokenize (void)
 {
-	// check ZQuake builtins
-	if (num >= ZQ_BUILTINS && num < ZQ_BUILTINS + pr_numextbuiltins)
-		return (pr_extbuiltins[num - ZQ_BUILTINS] != PF_Fixme);
+	char *str;
 
-	// check other builtins
-	if (num <= 0 || num >= pr_numbuiltins || pr_builtins[num] == PF_Fixme
-		// I'm being paranoid here
-		|| pr_builtins[num] == PF_testbot
-		|| pr_builtins[num] == PF_setinfo
-#ifdef VWEP_TEST
-		|| pr_builtins[num] == PF_precache_vwep_model
-#endif
-		)
-	{
-		return false;
-	}
-
-	return true;
+	str = G_STRING(OFS_PARM0);
+	Cmd_TokenizeString (str);
+	G_FLOAT(OFS_RETURN) = Cmd_Argc();
 }
 
-
 /*
-==============
-PF_checkbuiltin
-
-Check presence of a builtin by number rather than by name
-Up to 8 builtins can be checked with one call; result will be 1
-only if all supplied builtins are supported.
-
-ZQ_QC_CHECKBUILTIN
-float(float num, ...) checkbuiltin = #0x5a00;
-==============
+** ZQ_QC_TOKENIZE
+** float() argc = #85;
 */
-static void PF_checkbuiltin (void)
+void PF_argc (void)
 {
-	int i;
-	float *f;
-
-	for (i = 0, f = &G_FLOAT(OFS_PARM0); i < pr_argc; i++, f += 3) {
-		if (!CheckBuiltin(*f)) {
-			G_FLOAT(OFS_RETURN) = 0;
-			return;
-		}
-	}
-
-	G_FLOAT(OFS_RETURN) = 1;
+	G_FLOAT(OFS_RETURN) = Cmd_Argc();
 }
 
-
 /*
-==============
-PF_checkbuiltinrange
-
-Check a range of builtins by number
-
-ZQ_QC_CHECKBUILTIN
-float(float start, float num) checkbuiltinrange = #0x5a01;
-==============
+** ZQ_QC_TOKENIZE
+** string(float n) argv = #86;
 */
-static void PF_checkbuiltinrange (void)
+void PF_argv (void)
 {
-	int	i, start, end;
-
-	start = G_FLOAT(OFS_PARM0);
-	end = G_FLOAT(OFS_PARM1);
-
-	for (i = start; i < end; i++) {
-		if (!CheckBuiltin(i)) {
-			G_FLOAT(OFS_RETURN) = 0;
-			return;
-		}
-	}
-
-	G_FLOAT(OFS_RETURN) = 1;
-}
-
-
-/*
-==============
-PF_maptobuiltin
-
-Turn a function into a builtin.
-Ok to call if we're not sure the builtin is present;
-0 will be returned then, and the function will not be mapped
-
-float maptobuiltin(void() from_func, float to_num) = #0x5a02;
-==============
-*/
-static void PF_maptobuiltin (void)
-{
-	int func;
 	int	num;
 
-	func = G_FUNCTION(OFS_PARM0);
-	num = G_FLOAT(OFS_PARM1);
-
-	if (func <= 0 || func >= progs->numfunctions)
-		Host_Error ("PF_mapbuiltin: bad function");
-
-	if (!CheckBuiltin(num)) {
-		G_FLOAT(OFS_RETURN) = 0;
-		return;
-	}
-
-	pr_functions[func].first_statement = -num;
-
-	G_FLOAT(OFS_RETURN) = 1;
+	num = G_FLOAT(OFS_PARM0);
+	if (num < 0 || num >= Cmd_Argc())
+		RETURN_STRING("");
+	RETURN_STRING(Cmd_Argv(num));
 }
-
 
 /*
-==============
-PF_mapfunction
-
-Maps one function to another function.
-Either function can be a normal function or a builtin.
-If to_func is a builtin, then the same rules apply as in PF_maptobuiltin:
-no mapping is done, and zero is returned
-
-float mapfunction(void() from_func, void() to_func) = #0x5a03;
-==============
+** ZQ_PAUSE
+** void(float pause) setpause = #531;
 */
-static void PF_mapfunction (void)
+void PF_setpause (void)
 {
-	int func1, func2;
-	int to_num;
+	qbool pause;
 
-	func1 = G_FUNCTION(OFS_PARM0);
-	func2 = G_FUNCTION(OFS_PARM1);
-
-	if (func1 <= 0 || func1 >= progs->numfunctions ||
-		func2 <= 0 || func2 >= progs->numfunctions)
-		Host_Error ("PF_mapfunction: bad function");
-
-	to_num = pr_functions[func2].first_statement;
-
-	if (to_num < 0 && !CheckBuiltin(-to_num)) {
-		G_FLOAT(OFS_RETURN) = 0;
-		return;
-	}
-
-	if (to_num < 0) {
-		// if mapping to a builtin, only copy the number
-		pr_functions[func1].first_statement = to_num;
-	} else {
-		// copy the entire function
-		// FIXME: except .profile?
-		pr_functions[func1] = pr_functions[func2];
-	}
-
-	G_FLOAT(OFS_RETURN) = 1;
+	pause = G_FLOAT(OFS_PARM0) ? true : false;
+	if (pause != (((int)sv_paused.value & 1) ? true : false))
+		SV_TogglePause (false, NULL);
 }
-
 
 //=============================================================================
 
-#define EMPTY_BUILTIN_X10	PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme
-#define EMPTY_BUILTIN_X20	EMPTY_BUILTIN_X10, EMPTY_BUILTIN_X10
-#define EMPTY_BUILTIN_X50	EMPTY_BUILTIN_X20, EMPTY_BUILTIN_X20, EMPTY_BUILTIN_X10
-#define EMPTY_BUILTIN_X100	EMPTY_BUILTIN_X50, EMPTY_BUILTIN_X50
-
-builtin_t pr_builtins[] =
+static builtin_t std_builtins[] =
 {
 PF_Fixme,
 PF_makevectors,		// void(entity e) makevectors 			= #1;
@@ -2704,61 +2888,68 @@ PF_logfrag,			// void(entity killer, entity killee) logfrag = #79
 PF_infokey,			// string(entity e, string key) infokey	= #80
 PF_stof,			// float(string s) stof					= #81
 PF_multicast,		// void(vector where, float set) multicast = #82
-
-PF_Fixme,			// #83
-PF_Fixme,			// #84
-PF_Fixme,			// #85
-PF_Fixme,			// #86
-PF_Fixme,			// #87
-PF_Fixme,			// #88
-PF_Fixme,			// #89
-PF_tracebox,		// void (vector v1, vector mins, vector maxs, vector v2, float nomonsters, entity ignore) tracebox = #90;
-PF_randomvec,		// vector() randomvec								= #91;
-PF_Fixme,
-PF_Fixme,
-PF_min,				// float(float a, float b, ...) min					= #94;
-PF_max,				// float(float a, float b, ...) max					= #95;
-PF_bound,			// float(float min, float value, float max) bound	= #96;
-PF_pow,				// float(float x, float y) pow						= #97;
-PF_Fixme,
-PF_checkextension,	// float(string name) checkextension				= #99;
-EMPTY_BUILTIN_X10,
-PF_Fixme,			// #110
-PF_Fixme,			// #111
-PF_Fixme,			// #112
-PF_Fixme,			// #113
-PF_strlen,			// float(string s) strlen							= #114;
-PF_stradd,			// string(string s1, string s2, ...) stradd			= #115; 
-PF_substr,			// string(string s, float start, float count) substr = #116;
-PF_stov,			// vector(string s) stov							= #117
-PF_strzone,			// string(string s) strzone							= #118
-PF_strunzone,		// void(string s) strunzone							= #119
 };
 
-int pr_numbuiltins = sizeof(pr_builtins)/sizeof(pr_builtins[0]);
+#define num_std_builtins (sizeof(std_builtins)/sizeof(std_builtins[0]))
 
-void PF_checkbuiltin (void);
-
-builtin_t pr_extbuiltins[] =
+static struct { int num; builtin_t func; } ext_builtins[] =
 {
-	PF_checkbuiltin,	// float(float num, ...) checkbuiltin			= #0x5a00;
-	PF_checkbuiltinrange, // float(float start, float num) checkbuiltinrange = #0x5a01;
-	PF_maptobuiltin,	// float(void() from_func, float to_num) maptobuiltin = #0x5a02;
-	PF_mapfunction,		// float(void() from_func, void() to_func) mapfunction = #0x5a03;
-	PF_Fixme,			// RESERVED #0x5a04
-	PF_Fixme,			// RESERVED #0x5a05
-	PF_Fixme,			// RESERVED #0x5a06
-	PF_Fixme,			// RESERVED #0x5a07
-	PF_soundtoclient,	// void soundtoclient (entity client, entity e, float chan, string samp, float vol, float atten) = #0x5a08;
+{84, PF_tokenize},		// float(string s) tokenize							= #84;
+{85, PF_argc},			// float() argc										= #85;
+{86, PF_argv},			// string(float n) argv								= #86;
+
+{90, PF_tracebox},		// void (vector v1, vector mins, vector maxs, vector v2, float nomonsters, entity ignore) tracebox = #90;
+{91, PF_randomvec},		// vector() randomvec								= #91;
+////
+{94, PF_min},			// float(float a, float b, ...) min					= #94;
+{95, PF_max},			// float(float a, float b, ...) max					= #95;
+{96, PF_bound},			// float(float min, float value, float max) bound	= #96;
+{97, PF_pow},			// float(float x, float y) pow						= #97;
+////
+{99, PF_checkextension},// float(string name) checkextension				= #99;
+////
+{103, PF_cvar_string},	// string(string varname) cvar_string				= #103;
+////
+{114, PF_strlen},		// float(string s) strlen							= #114;
+{115, PF_strcat},		// string(string s1, string s2, ...) strcat			= #115;
+{116, PF_substr},		// string(string s, float start, float count) substr = #116;
+{117, PF_stov},			// vector(string s) stov							= #117;
+{118, PF_strzone},		// string(string s) strzone							= #118;
+{119, PF_strunzone},	// void(string s) strunzone							= #119;
+{448, PF_cvar_string},	// string(string varname) cvar_string				= #448;
+{530, PF_soundtoclient},	// void(entity client, entity e, float chan, string samp, float vol, float atten) soundtoclient = #530;
+{531, PF_setpause},		// void(float pause) setpause						= #531;
+
+// Experimental and/or deprecated:
+{0x5a08, PF_soundtoclient},
 #ifdef VWEP_TEST
-	PF_precache_vwep_model,	// #0x5a09
-#else
-	PF_Fixme,
+{0x5a09, PF_precache_vwep_model},
 #endif
-	PF_testbot,			// #0x5a0A
-	PF_setinfo,			// #0x5a0B
+{0x5a0A, PF_testbot},
+{0x5a0B, PF_setinfo},
 };
 
-int pr_numextbuiltins = sizeof(pr_extbuiltins)/sizeof(pr_extbuiltins[0]);
+#define num_ext_builtins (sizeof(ext_builtins)/sizeof(ext_builtins[0]))
 
-/* vi: set noet ts=4 sts=4 ai sw=4: */
+builtin_t *pr_builtins;
+int pr_numbuiltins;
+
+void PR_InitBuiltins (void)
+{
+	int i;
+
+	// find highest builtin number to see how much space we need
+	pr_numbuiltins = num_std_builtins;
+	for (i = 0; i < num_ext_builtins; i++)
+		if (ext_builtins[i].num + 1 > pr_numbuiltins)
+			pr_numbuiltins = ext_builtins[i].num + 1;
+
+	pr_builtins = Q_malloc(pr_numbuiltins * sizeof(builtin_t));
+	memcpy (pr_builtins, std_builtins, sizeof(std_builtins));
+	for (i = num_std_builtins; i < pr_numbuiltins; i++)
+		pr_builtins[i] = PF_Fixme;
+	for (i = 0; i < num_ext_builtins; i++) {
+		assert (ext_builtins[i].num >= 0);
+		pr_builtins[ext_builtins[i].num] = ext_builtins[i].func;
+	}
+}

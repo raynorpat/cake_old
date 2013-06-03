@@ -31,8 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define RF_WEAPONMODEL			1
 #define RF_PLAYERMODEL			2
 #define RF_TRANSLUCENT			4
-
-#define NEARCLIP				4
+#define RF_LIMITLERP			8
 
 //=============================================================================
 
@@ -112,6 +111,9 @@ typedef struct entity_s
 
 	struct mnode_s			*topnode;		// for bmodels, first world node that splits bmodel, or NULL if not split
 
+	int						oldframe;		// frame to lerp from
+	float					backlerp;
+
 	// animation lerping
 	byte					lerpflags;
 	float					lerpstart;
@@ -171,7 +173,7 @@ typedef struct {
 	float			fov_x, fov_y;
 
 	float			time;
-	qbool			allowCheats;
+	qbool			allow_cheats;
 	int				viewplayernum;	// don't draw own glow
 	qbool			watervis;
 

@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common.h"
 #include "crc.h"
+#include "mdfour.h"
 
 #define MAX_NUM_ARGVS	50
 
@@ -71,7 +72,14 @@ COM_StripExtension
 */
 void COM_StripExtension (char *in, char *out)
 {
-	while (*in && *in != '.')
+	char *p, *dot = NULL;
+	for (p = in; *p; p++) {
+		if (*p == '.' && !dot)
+			dot = p;
+		else if (*p == '/')
+			dot = NULL;
+	}
+	while (*in && in != dot)
 		*out++ = *in++;
 	*out = 0;
 }
@@ -86,11 +94,8 @@ char *COM_FileExtension (char *in)
 	static char exten[8];
 	int		i;
 
-	in = COM_SkipPath (in);
-
-	while (*in && *in != '.')
-		in++;
-	if (!*in)
+	in = strrchr(in, '.');
+	if (!in || strchr(in, '/'))
 		return "";
 	in++;
 	for (i=0 ; i<7 && *in ; i++,in++)
@@ -559,7 +564,7 @@ void COM_WriteFile (char *filename, void *data, int len)
 	FILE	*f;
 	char	name[MAX_OSPATH];
 	
-	Q_snprintfz (name, sizeof(name), "%s/%s", com_basedir, filename);
+	snprintf (name, sizeof(name), "%s/%s", com_basedir, filename);
 	
 	f = fopen (name, "wb");
 	if (!f) {
@@ -644,6 +649,62 @@ Sets fs_filesize and one of handle or file
 qbool	file_from_pak;		// global indicating file came from a packfile
 qbool	file_from_gamedir;	// global indicating file came from a gamedir (and gamedir wasn't id1/qw)
 
+
+// we use this in progs loading
+qbool FS_FindFile (char *filename)
+{
+	searchpath_t	*search;
+	char		netpath[MAX_OSPATH];
+	pack_t		*pak;
+	int			i;
+	FILE		*f;
+
+	file_from_pak = false;
+	file_from_gamedir = true;
+		
+	for (search = com_searchpaths ; search ; search = search->next)
+	{
+		if (search == com_base_searchpaths)
+			file_from_gamedir = false;
+
+	// is the element a pak file?
+		if (search->pack)
+		{
+		// look through all the pak file elements
+			pak = search->pack;
+			for (i=0 ; i<pak->numfiles ; i++)
+				if (!strcmp (pak->files[i].name, filename))
+				{	// found it!
+					fs_filesize = pak->files[i].filelen;
+					file_from_pak = true;
+					return true;
+				}
+		}
+		else
+		{		
+			snprintf (netpath, sizeof(netpath), "%s/%s", search->filename, filename);
+
+			f = fopen (netpath, "rb");
+			if (!f)
+				continue;
+			
+			fs_filesize = COM_filelength (f);
+			fclose (f);
+			return true;
+		}
+		
+	}
+	
+	fs_filesize = -1;
+	return false;
+}
+
+
+
+
+
+
+
 int FS_FOpenFile (char *filename, FILE **file)
 {
 	searchpath_t	*search;
@@ -684,7 +745,7 @@ int FS_FOpenFile (char *filename, FILE **file)
 		}
 		else
 		{		
-			Q_snprintfz (netpath, sizeof(netpath), "%s/%s", search->filename, filename);
+			snprintf (netpath, sizeof(netpath), "%s/%s", search->filename, filename);
 
 			*file = fopen (netpath, "rb");
 			if (!*file)
@@ -692,7 +753,8 @@ int FS_FOpenFile (char *filename, FILE **file)
 			
 			Com_DPrintf ("FindFile: %s\n",netpath);
 
-			return COM_filelength (*file);
+			fs_filesize = COM_filelength (*file);
+			return fs_filesize;
 		}
 		
 	}
@@ -1351,6 +1413,33 @@ byte COM_BlockSequenceCRCByte (byte *base, int length, int sequence)
 	return crc;
 }
 
+
+//============================================================================
+
+///////////////////////////////////////////////////////////////
+//	MD4-based checksum utility functions
+//
+//	Copyright (C) 2000       Jeff Teunissen <d2deek@pmail.net>
+//
+//	Author: Jeff Teunissen	<d2deek@pmail.net>
+//	Date: 01 Jan 2000
+
+unsigned Com_BlockChecksum (void *buffer, int length)
+{
+	int				digest[4];
+	unsigned 		val;
+
+	mdfour ( (unsigned char *) digest, (unsigned char *) buffer, length );
+
+	val = digest[0] ^ digest[1] ^ digest[2] ^ digest[3];
+
+	return val;
+}
+
+void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf)
+{
+	mdfour ( outbuf, (unsigned char *) buffer, len );
+}
 
 //=====================================================================
 

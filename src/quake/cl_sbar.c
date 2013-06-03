@@ -421,14 +421,14 @@ static void Sbar_SortFrags (qbool includespec)
 		{
 			fragsort[scoreboardlines] = i;
 			scoreboardlines++;
-			if (cl.players[i].spectator)
-				cl.players[i].frags = -999;
 		}
 	}
 		
 	for (i=0 ; i<scoreboardlines ; i++)
 		for (j=0 ; j<scoreboardlines-1-i ; j++)
-			if (cl.players[fragsort[j]].frags < cl.players[fragsort[j+1]].frags)
+			if (cl.players[fragsort[j]].spectator != cl.players[fragsort[j+1]].spectator ?
+			cl.players[fragsort[j]].spectator > cl.players[fragsort[j+1]].spectator :
+			cl.players[fragsort[j]].frags < cl.players[fragsort[j+1]].frags)
 			{
 				k = fragsort[j];
 				fragsort[j] = fragsort[j+1];
@@ -1017,7 +1017,7 @@ static void Sbar_DeathmatchOverlay (int start)
 	qbool			largegame;
 	extern qbool	nq_drawpings;
 
-	if (cl.gametype == GAME_COOP && (cl.maxclients == 1 || cls.nqdemoplayback))
+	if (cl.gametype == GAME_COOP && (cl.maxclients == 1 || cls.nqprotocol))
 		return;
 
 	RB_SetCanvas (CANVAS_MENU);
@@ -1032,7 +1032,7 @@ static void Sbar_DeathmatchOverlay (int start)
 	
 	if (!start) {
 		pic = R_CachePic ("gfx/ranking.lmp");
-		y = (cls.nqdemoplayback && !nq_drawpings) ? 8 : 0;
+		y = (cls.nqprotocol && !nq_drawpings) ? 8 : 0;
 		R_DrawPic ((320 - GetPicWidth(pic))/2, y, pic);
 	}
 
@@ -1047,7 +1047,7 @@ static void Sbar_DeathmatchOverlay (int start)
 	else
 		y = 24;
 
-	if (cls.nqdemoplayback)
+	if (cls.nqprotocol)
 	{
 		x = 80 - 104;
 		if (nq_drawpings) {
@@ -1098,17 +1098,17 @@ static void Sbar_DeathmatchOverlay (int start)
 		if (!s->name[0])
 			continue;
 
-		if (!cls.nqdemoplayback || nq_drawpings)
+		if (!cls.nqprotocol || nq_drawpings)
 		{
 			// draw ping
 			p = s->ping;
 			if (p < 0 || p > 999)
 				p = 999;
 			sprintf (num, "%4i", p);
-			R_DrawString (cls.nqdemoplayback ? x + 104 - 40 : x, y, num);
+			R_DrawString (cls.nqprotocol ? x + 104 - 40 : x, y, num);
 		}
 
-		if (!cls.nqdemoplayback)
+		if (!cls.nqprotocol)
 		{
 			if (cl.protocol >= 28)
 			{
@@ -1178,7 +1178,7 @@ static void Sbar_DeathmatchOverlay (int start)
 		}
 
 		// draw name
-		if (cls.nqdemoplayback && !nq_drawpings)
+		if (cls.nqprotocol && !nq_drawpings)
 			R_DrawString (x+104+64, y, s->name);
 		else if (cl.teamplay)
 			R_DrawString (x+152+40, y, s->name);

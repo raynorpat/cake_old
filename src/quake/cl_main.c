@@ -32,38 +32,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t	*cl_rconPassword;
 cvar_t	cl_rconAddress = {"rcon_address", ""};
-
 cvar_t	cl_timeout = {"cl_timeout", "60"};
-
 cvar_t	cl_shownet = {"cl_shownet", "0"};	// can be 0, 1, or 2
-
 cvar_t	cl_sbar		= {"cl_sbar", "0", CVAR_ARCHIVE};
 cvar_t	cl_maxfps	= {"cl_maxfps", "0", CVAR_ARCHIVE};
-
 cvar_t	cl_writecfg = {"cl_writecfg", "1"};
-
-cvar_t	cl_predictPlayers = {"cl_predict_players", "1"};
-cvar_t	cl_solidPlayers = {"cl_solid_players", "1"};
-
+cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
 cvar_t  localid = {"localid", ""};
-
 static qbool allowremotecmd = true;
 
 // ZQuake cvars
-// FIXME: r_ prefix is wrong, but not changing for compatibility reasons
-cvar_t	r_rocketlight = {"r_rocketLight", "1"};
-cvar_t	r_rockettrail = {"r_rocketTrail", "1"};
-cvar_t	r_grenadetrail = {"r_grenadeTrail", "1"};
-cvar_t	r_powerupglow = {"r_powerupGlow", "1"};
-cvar_t	r_lightflicker = {"r_lightflicker", "1"};
-cvar_t	cl_deadbodyfilter = {"cl_deadbodyFilter", "0"};
-cvar_t	cl_explosion = {"cl_explosion", "0"};
-cvar_t	cl_gibfilter = {"cl_gibFilter", "0"};
 cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
-cvar_t	cl_r2g = {"cl_r2g", "0"};
 cvar_t	cl_demospeed = {"cl_demospeed", "1"};
 cvar_t	cl_staticsounds = {"cl_staticSounds", "1"};
-cvar_t	cl_trueLightning = {"cl_trueLightning", "0"};
 cvar_t	cl_nofake = {"cl_nofake", "2"};
 cvar_t	cl_parseWhiteText = {"cl_parseWhiteText", "1"};
 cvar_t	cl_filterdrawviewmodel = {"cl_filterdrawviewmodel", "0"};
@@ -79,6 +60,9 @@ cvar_t  allskins = {"allskins", "", 0, OnChangeSkinForcing};
 cvar_t  baseskin = {"baseskin", "", 0, OnChangeSkinForcing};
 cvar_t  teamskin = {"teamskin", "", 0, OnChangeSkinForcing};
 cvar_t  enemyskin = {"enemyskin", "", 0, OnChangeSkinForcing};
+cvar_t	cl_independentPhysics = {"cl_independentPhysics", "1"};
+cvar_t	cl_physfps = {"cl_physfps", "0"};
+
 
 //
 // info mirrors
@@ -112,13 +96,11 @@ int				cl_numvisedicts;
 entity_t		cl_visedicts[MAX_VISEDICTS];
 
 // used to determine if an entity was present in the last or previous message
-int				cl_entframecount, cl_oldentframecount;
+int				cl_entframecount;
 
 double			connect_time = 0;		// for connection retransmits
 
 static qbool	host_skipframe;			// used in demo playback
-
-cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
 
 int			fps_count;
 
@@ -231,6 +213,7 @@ void CL_CheckForResend (void)
 
 	if (cls.state == ca_disconnected && com_serveractive) {
 		// if the local server is running and we are not, then connect
+		cls.nqprotocol = false;
 		strlcpy (cls.servername, "local", sizeof(cls.servername));
 		NET_StringToAdr ("local", &cls.server_adr);
 		CL_SendConnectPacket ();	// we don't need a challenge on the local server
@@ -254,11 +237,18 @@ void CL_CheckForResend (void)
 	connect_time = cls.realtime + t2 - t1;	// for retransmit requests
 
 	if (cls.server_adr.port == 0)
-		cls.server_adr.port = BigShort (PORT_SERVER);
+		cls.server_adr.port = BigShort (cls.nqprotocol ? 26000 : PORT_SERVER);
 
 	Com_Printf ("Connecting to %s...\n", cls.servername);
-	sprintf (data, "\xff\xff\xff\xff" "getchallenge\n");
-	NET_SendPacket (NS_CLIENT, strlen(data), data, cls.server_adr);
+
+	if (cls.nqprotocol) {
+		memcpy (data, "\x80\x00\x00\x0C" "\x01" "QUAKE\x00" "\x03", 12);
+		NET_SendPacket (NS_CLIENT, 12, data, cls.server_adr);
+	}
+	else {
+		sprintf (data, "\xff\xff\xff\xff" "getchallenge\n");
+		NET_SendPacket (NS_CLIENT, strlen(data), data, cls.server_adr);
+	}
 }
 
 void CL_BeginServerConnect(void)
@@ -287,6 +277,26 @@ void CL_Connect_f (void)
 
 	Host_EndGame ();
 
+	cls.nqprotocol = false;
+	strlcpy (cls.servername, server, sizeof(cls.servername));
+	CL_BeginServerConnect();
+}
+
+void CL_NQConnect_f (void)
+{
+	char	*server;
+
+	if (Cmd_Argc() != 2)
+	{
+		Com_Printf ("usage: nqconnect <server>\n");
+		return;
+	}
+	
+	server = Cmd_Argv (1);
+
+	Host_EndGame ();
+
+	cls.nqprotocol = true;
 	strlcpy (cls.servername, server, sizeof(cls.servername));
 	CL_BeginServerConnect();
 }
@@ -334,6 +344,10 @@ void CL_ClearState (void)
 	CL_ClearTEnts ();
 	CL_ClearDlights ();
 	CL_ClearParticles ();
+	CL_ClearNails ();
+
+	for (i = 0; i < UPDATE_BACKUP; i++)
+		free (cl.frames[i].packet_entities.entities);
 
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
@@ -345,8 +359,7 @@ void CL_ClearState (void)
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 	memset (cl_entities, 0, sizeof(cl_entities));
 
-	cl_oldentframecount = -1;
-	cl_entframecount = 0;
+	cl_entframecount = 2;		// so that cl_entframecount - 1 != 0
 	cl.viewheight = DEFAULT_VIEWHEIGHT;
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
@@ -371,11 +384,15 @@ Sends a disconnect message to the server
 This is also called on Host_Error, so it shouldn't cause any errors
 =====================
 */
+void CL_WipeParticles (void);
+
 void CL_Disconnect (void)
 {
 	byte	final[10];
 
 	VID_SetCaption (PROGRAM);
+
+	CL_WipeParticles ();
 
 	// stop sounds (especially looping!)
 	S_StopAllSounds (true);
@@ -384,6 +401,8 @@ void CL_Disconnect (void)
 	R_SetPalette (NULL);
 	
 	Cmd_RemoveStuffedAliases ();
+
+	cl.paused = 0;
 
 	if (cls.demorecording && cls.state != ca_disconnected)
 		CL_Stop_f ();
@@ -394,14 +413,22 @@ void CL_Disconnect (void)
 	}
 	else if (cls.state != ca_disconnected)
 	{
-		final[0] = clc_stringcmd;
-		strcpy ((char *)(final+1), "drop");
-		Netchan_Transmit (&cls.netchan, 6, final);
+		int size;
+		if (cls.nqprotocol) {
+			final[0] = 2 /* clc_disconnect */;
+			Netchan_Transmit (&cls.netchan, 1, final);
+			size = 1;
+		} else {
+			final[0] = clc_stringcmd;
+			strcpy ((char *)(final+1), "drop");
+			Netchan_Transmit (&cls.netchan, 6, final);
+			size = 6;
+		}
 		// don't choke the loopback buffers
 		if (cls.netchan.remote_address.type != NA_LOOPBACK)
 		{
-			Netchan_Transmit (&cls.netchan, 6, final);
-			Netchan_Transmit (&cls.netchan, 6, final);
+			Netchan_Transmit (&cls.netchan, size, final);
+			Netchan_Transmit (&cls.netchan, size, final);
 		}
 	}
 
@@ -447,6 +474,13 @@ void CL_Reconnect_f (void)
 		return;
 
 	S_StopAllSounds (true);
+
+	if (cls.nqprotocol && cls.state >= ca_connected) {
+		extern int nq_signon;
+		cls.state = ca_connected;
+		nq_signon = 0;
+		return;
+	};
 
 	if (cls.state == ca_connected) {
 		Com_Printf ("reconnecting...\n");
@@ -614,6 +648,50 @@ void CL_ConnectionlessPacket (void)
 	Com_Printf ("Bad connectionless command: 0x%X\n", c);
 }
 
+#define NETFLAG_CTL			0x80000000
+#define NETFLAG_LENGTH_MASK	0x0000ffff
+#define CCREP_ACCEPT		0x81
+#define CCREP_REJECT		0x82
+
+void CLNQ_ConnectionlessPacket(void)
+{
+	char *s;
+	int length;
+
+	MSG_BeginReading ();
+	length = LongSwap(MSG_ReadLong ());
+	if (!(length & NETFLAG_CTL))
+		return;	//not an nq control packet.
+	length &= NETFLAG_LENGTH_MASK;
+	if (length != net_message.cursize)
+		return;	//not an nq packet.
+
+	switch(MSG_ReadByte())
+	{
+	case CCREP_ACCEPT:
+		if (cls.state >= ca_connected)
+		{
+//			if (cls.demoplayback == DPB_NONE)
+//				Con_TPrintf (TLC_DUPCONNECTION);
+			return;
+		}
+		net_from.port = htons((short)MSG_ReadLong());
+
+		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
+		cls.netchan.nqprotocol = true;
+		cls.state = ca_connected;
+
+		//send a dummy packet.
+		//this makes our local nat think we initialised the conversation.
+		NET_SendPacket(NS_CLIENT, 0, "", net_from);
+		return;
+
+	case CCREP_REJECT:
+		s = MSG_ReadString();
+		Com_Printf("Connect failed\n%s\n", s);
+		return;
+	}
+}
 
 extern void CheckQizmoCompletion ();
 
@@ -647,13 +725,45 @@ CL_ReadPackets
 */
 void CL_ReadPackets (void)
 {
-	if (cls.nqdemoplayback) {
+	if (cls.nqprotocol && cls.demoplayback) {
 		NQD_ReadPackets ();
 		return;
 	}
 
+#ifdef MVDPLAY
+	if (cls.mvdplayback) {
+		while (CL_GetMessage())
+		{
+			MSG_BeginReading();
+			CL_ParseServerMessage ();
+		}
+		return;
+	}
+#endif
+
 	while (CL_GetMessage())
 	{
+		if (cls.nqprotocol && cls.state == ca_disconnected)
+		{	//connect to nq servers, but don't get confused with sequenced packets.
+			CLNQ_ConnectionlessPacket ();
+			continue;	//ignore it. We arn't connected.
+		}
+
+		if (cls.nqprotocol) {
+			switch(NQNetchan_Process(&cls.netchan))
+			{
+			case 0:
+				break;
+			case 1://datagram
+				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
+				/* fall through */
+			case 2://reliable
+				CLNQ_ParseServerMessage ();
+				break;
+			}
+			continue;
+		}
+
 		//
 		// remote command packet
 		//
@@ -687,8 +797,7 @@ void CL_ReadPackets (void)
 	//
 	// check timeout
 	//
-	if (!cls.demoplayback && cls.state >= ca_connected
-	 && curtime - cls.netchan.last_received > cl_timeout.value)
+	if (!cls.demoplayback && cls.state >= ca_connected && curtime - cls.netchan.last_received > cl_timeout.value)
 	{
 		Com_Printf ("\nServer connection timed out.\n");
 		Host_EndGame ();
@@ -733,11 +842,6 @@ void CL_InitLocal (void)
 	Cvar_Register (&cl_maxfps);
 	Cvar_Register (&cl_timeout);
 	Cvar_Register (&cl_writecfg);
-	Cvar_Register (&cl_predictPlayers);
-	Cvar_Register (&cl_solidPlayers);
-	// Just for compatibility with ZQuake 0.14 (remove one day)
-	Cmd_AddLegacyCommand ("cl_predictPlayers", "cl_predict_players");
-	Cmd_AddLegacyCommand ("cl_solidPlayers", "cl_solid_players");
 
 	cl_rconPassword = Cvar_Get ("rcon_password", "", 0);
 	Cvar_Register (&cl_rconAddress);
@@ -751,20 +855,10 @@ void CL_InitLocal (void)
 	Cvar_Register (&enemyskin);
 
 	// ZQuake cvars
-	Cvar_Register (&r_rocketlight);
-	Cvar_Register (&r_rockettrail);
-	Cvar_Register (&r_grenadetrail);
-	Cvar_Register (&r_powerupglow);
-	Cvar_Register (&r_lightflicker);
 	Cvar_Register (&cl_demospeed);
 	Cmd_AddLegacyCommand ("demotimescale", "cl_demospeed");
-	Cvar_Register (&cl_deadbodyfilter);
-	Cvar_Register (&cl_explosion);
-	Cvar_Register (&cl_gibfilter);
 	Cvar_Register (&cl_muzzleflash);
-	Cvar_Register (&cl_r2g);
 	Cvar_Register (&cl_staticsounds);
-	Cvar_Register (&cl_trueLightning);
 	Cvar_Register (&cl_nofake);
 	Cvar_Register (&cl_parseWhiteText);
 	Cvar_Register (&cl_filterdrawviewmodel);
@@ -774,6 +868,8 @@ void CL_InitLocal (void)
 	Cvar_Register (&cl_useproxy);
 	Cvar_Register (&default_fov);
 	Cvar_Register (&qizmo_dir);
+	Cvar_Register (&cl_independentPhysics);
+	Cvar_Register (&cl_physfps);
 
 #ifndef RELEASE_VERSION
 	// inform everyone that we're using a development version
@@ -804,6 +900,7 @@ void CL_InitLocal (void)
 
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
 	Cmd_AddCommand ("connect", CL_Connect_f);
+	Cmd_AddCommand ("nqconnect", CL_NQConnect_f);
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 }
 
@@ -829,8 +926,6 @@ void CL_Init (void)
 	if (dedicated)
 		return;
 
-	Com_Printf("Initializing client\n");
-
 	cls.state = ca_disconnected;
 
 	strcpy (cls.gamedirfile, com_gamedirfile);
@@ -853,8 +948,10 @@ void CL_Init (void)
 	CL_InitLocal ();
 	CL_FixupModelNames ();
 	CL_InitInput ();
+	CL_InitTEnts ();
 	CL_InitPrediction ();
 	CL_InitCam ();
+	CL_Ents_Init ();
 	TP_Init ();
 	SCR_Init ();
 	Sbar_Init ();
@@ -862,8 +959,6 @@ void CL_Init (void)
 
 	// put up the loading image so the user doesn't stare at a black screen...
 	SCR_BeginLoadingPlaque();
-
-	CL_PrecacheTEntSounds ();
 
 	NET_ClientConfig (true);
 
@@ -875,6 +970,7 @@ void CL_Init (void)
 
 void CL_BeginLocalConnection (void)
 {
+	S_StopAllSounds (true);
 	SCR_BeginLoadingPlaque ();
 
 	if (com_serveractive)
@@ -890,7 +986,8 @@ void CL_BeginLocalConnection (void)
 	}
 }
 
-extern void SV_TogglePause (const char *msg);
+
+extern void SV_TogglePause (qbool menu, const char *msg);
 extern cvar_t sv_paused;
 
 // automatically pause the game when going into the menus in single player
@@ -901,11 +998,11 @@ static void CL_CheckAutoPause (void)
 		&& (key_dest == key_menu /*|| key_dest == key_console*/))
 	{
 		if (!((int)sv_paused.value & 2))
-			SV_TogglePause (NULL);
+			SV_TogglePause (true, NULL);
 	}
 	else {
 		if ((int)sv_paused.value & 2)
-			SV_TogglePause (NULL);
+			SV_TogglePause (true, NULL);
 	}
 #endif
 }
@@ -931,22 +1028,40 @@ static double CL_MinFrameTime ()
 		fps = max (30.0, cl_maxfps.value);
 	}
 	else {
-		fpscap = cl.maxfps ? max (30.0, cl.maxfps) : 72.0;
-
-		if (cl_maxfps.value)
-			fps = bound (30.0, cl_maxfps.value, fpscap);
-		else
-		{
-			if (com_serveractive)
-				fps = fpscap;
+		if (cl_independentPhysics.value) 
+			fps = cl_maxfps.value ? max(cl_maxfps.value, 30) : 999999;
+		else {
+			fpscap = cl.maxfps ? max (30.0, cl.maxfps) : 72.0;
+	
+			if (cl_maxfps.value)
+				fps = bound (30.0, cl_maxfps.value, fpscap);
 			else
-				fps = bound (30.0, rate.value/80.0, fpscap);
+			{
+				if (com_serveractive)
+					fps = fpscap;
+				else
+					fps = bound (30.0, rate.value/80.0, fpscap);
+			}
 		}
 	}
 
 	return 1.0/fps;
 }
 
+static double MinPhysFrameTime ()
+{
+	// server policy
+	float fpscap = (cl.maxfps ? cl.maxfps : 72.0);
+
+	// the user can lower it for testing
+	if (cl_physfps.value)
+		fpscap = min(fpscap, cl_physfps.value);
+
+	// not less than this no matter what
+	fpscap = max(fpscap, 10);
+
+	return 1 / fpscap;
+}
 
 /*
 ==================
@@ -956,11 +1071,12 @@ CL_Frame
 */
 void CL_Frame (double time)
 {
-	double			time1, time2;
-	static double	time3 = 0;
+	double			time1 = 0.0, time2 = 0.0;
+	static double	time3 = 0.0;
 	int				pass1, pass2, pass3;
 	static double	extratime = 0.001;
 	double			minframetime;
+	static double	extraphysframetime;
 
 	extratime += time;
 
@@ -974,6 +1090,28 @@ void CL_Frame (double time)
 	extratime -= cls.trueframetime;
 
 	cls.frametime = min (cls.trueframetime, 0.2);
+
+	if (cl_independentPhysics.value && !cls.demoplayback) 
+	{
+		double minphysframetime = MinPhysFrameTime();
+
+		extraphysframetime += cls.frametime;
+		if (extraphysframetime < minphysframetime)
+			cls.physframe = false;
+		else 
+		{
+			cls.physframe = true;
+
+			if (extraphysframetime > minphysframetime*2)// FIXME: this is for the case when
+				cls.physframetime = extraphysframetime;		// actual fps is too low
+			else										// Dunno how to do it right
+				cls.physframetime = minphysframetime;
+			extraphysframetime -= cls.physframetime;
+		}	
+	} else {
+		extraphysframetime = 0;
+		cls.physframe = true;
+	}
 
 	if (cls.demoplayback) {
 		cls.frametime *= bound (0, cl_demospeed.value, 100);
@@ -993,6 +1131,8 @@ void CL_Frame (double time)
 	cl.servertime += cls.frametime;
 	cl.stats[STAT_TIME] = cl.servertime * 1000;	// for demos' sake
 
+if (cls.physframe)
+{
 	// get new key events
 	Sys_SendKeyEvents ();
 
@@ -1008,19 +1148,27 @@ void CL_Frame (double time)
 //		CL_SendToServer ();
 
 	if (com_serveractive)
-		SV_Frame (cls.frametime);
+		SV_Frame (cls.physframetime);
 
 	// fetch results from server
 	CL_ReadPackets ();
+
+#ifdef MVDPLAY
+	if (cls.mvdplayback)
+		MVD_Interpolate ();
+#endif
 
 	// process stuffed commands
 	Cbuf_ExecuteEx (&cbuf_svc);
 
 //	if (!(com_serveractive && !cls.demorecording))
 		CL_SendToServer ();
-
-	// see if using autocam and set cl.viewplayernum
-	Cam_SetViewPlayer ();
+}
+else {
+	usercmd_t dummy;
+	IN_Move (&dummy);
+	CL_AdjustAngles ();
+}
 
 	// predict all players
 	CL_PredictMovement ();

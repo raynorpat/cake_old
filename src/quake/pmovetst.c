@@ -40,12 +40,11 @@ static void PM_TraceBounds (vec3_t start, vec3_t end, vec3_t boxmins, vec3_t box
 	}
 }
 
-static qbool PM_CullTraceBox (vec3_t mins, vec3_t maxs, vec3_t offset, vec3_t emins, vec3_t emaxs, vec3_t hullmins, vec3_t hullmaxs)
-{
+static qbool PM_CullTraceBox(vec3_t mins, vec3_t maxs, vec3_t offset, vec3_t emins, vec3_t emaxs, vec3_t hullmins, vec3_t hullmaxs) {
 	return
-	(	mins[0] > offset[0] + emaxs[0] + hullmaxs[0] || maxs[0] < offset[0] + emins[0] + hullmins[0] ||
-		mins[1] > offset[1] + emaxs[1] + hullmaxs[1] || maxs[1] < offset[1] + emins[1] + hullmins[1] ||
-		mins[2] > offset[2] + emaxs[2] + hullmaxs[2] || maxs[2] < offset[2] + emins[2] + hullmins[2]
+		(	mins[0] + hullmins[0] > offset[0] + emaxs[0] || maxs[0] + hullmaxs[0] < offset[0] + emins[0] ||
+			mins[1] + hullmins[1] > offset[1] + emaxs[1] || maxs[1] + hullmaxs[1] < offset[1] + emins[1] ||
+			mins[2] + hullmins[2] > offset[2] + emaxs[2] || maxs[2] + hullmaxs[2] < offset[2] + emins[2] 
 	);
 }
 
@@ -55,9 +54,9 @@ static qbool PM_CullTraceBox (vec3_t mins, vec3_t maxs, vec3_t offset, vec3_t em
 PM_PointContents
 ==================
 */
-int PM_PointContents (vec3_t p)
+int PM_PointContents (playermove_t *pm, vec3_t p)
 {
-	hull_t *hull = &pmove.physents[0].model->hulls[0];
+	hull_t *hull = &pm->physents[0].model->hulls[0];
 	return CM_HullPointContents (hull, hull->firstclipnode, p);
 }
 
@@ -68,20 +67,20 @@ PM_TestPlayerPosition
 Returns false if the given player position is not valid (in solid)
 ================
 */
-qbool PM_TestPlayerPosition (vec3_t pos)
+qbool PM_TestPlayerPosition (playermove_t *pm, vec3_t pos)
 {
 	int			i;
 	physent_t	*pe;
 	vec3_t		mins, maxs, offset, test;
 	hull_t		*hull;
 
-	for (i=0 ; i< pmove.numphysent ; i++)
+	for (i=0 ; i< pm->numphysent ; i++)
 	{
-		pe = &pmove.physents[i];
+		pe = &pm->physents[i];
 	// get the clipping hull
 		if (pe->model)
 		{
-			hull = &pmove.physents[i].model->hulls[1];
+			hull = &pm->physents[i].model->hulls[1];
 			VectorSubtract (hull->clip_mins, player_mins, offset);
 			VectorAdd (offset, pe->origin, offset);
 		}
@@ -107,7 +106,7 @@ qbool PM_TestPlayerPosition (vec3_t pos)
 PM_PlayerTrace
 ================
 */
-trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
+trace_t PM_PlayerTrace (playermove_t *pm, vec3_t start, vec3_t end)
 {
 	trace_t		trace, total;
 	vec3_t		offset;
@@ -125,14 +124,14 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 
 	PM_TraceBounds(start, end, tracemins, tracemaxs);
 
-	for (i=0 ; i< pmove.numphysent ; i++)
+	for (i=0 ; i< pm->numphysent ; i++)
 	{
-		pe = &pmove.physents[i];
+		pe = &pm->physents[i];
 
 	// get the clipping hull
 		if (pe->model)
 		{
-			hull = &pmove.physents[i].model->hulls[1];
+			hull = &pm->physents[i].model->hulls[1];
 
 			if (i > 0 && PM_CullTraceBox(tracemins, tracemaxs, pe->origin, pe->model->mins, pe->model->maxs, hull->clip_mins, hull->clip_maxs))
 				continue;
@@ -184,7 +183,7 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 PM_TraceLine
 ================
 */
-trace_t PM_TraceLine (vec3_t start, vec3_t end)
+trace_t PM_TraceLine (playermove_t *pm, vec3_t start, vec3_t end)
 {
 	trace_t		trace, total;
 	vec3_t		offset;
@@ -199,12 +198,12 @@ trace_t PM_TraceLine (vec3_t start, vec3_t end)
 	total.e.entnum = -1;
 	VectorCopy (end, total.endpos);
 
-	for (i=0 ; i< pmove.numphysent ; i++)
+	for (i=0 ; i< pm->numphysent ; i++)
 	{
-		pe = &pmove.physents[i];
+		pe = &pm->physents[i];
 	// get the clipping hull
 		if (pe->model)
-			hull = &pmove.physents[i].model->hulls[0];
+			hull = &pm->physents[i].model->hulls[0];
 		else
 			hull = CM_HullForBox (pe->mins, pe->maxs);
 

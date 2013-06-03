@@ -77,21 +77,33 @@ extern	float			*pr_globals;			// same as pr_global_struct
 
 extern	int				pr_edict_size;	// in bytes
 
-//============================================================================
-// z_ext_clientcommand progs extension
 
-typedef struct {
-	char		name[32];
-	int			funcnum;
-} pr_cmdfunction_t;
+#ifdef WITH_NQPROGS
 
-#define MAX_PR_CMDFUNCTIONS 1024
-extern	pr_cmdfunction_t	pr_cmdfunctions[MAX_PR_CMDFUNCTIONS];
-extern	int					pr_numcmdfunctions;
+extern	qbool			pr_nqprogs;
 
-//============================================================================
+extern	int pr_fieldoffsetpatch[106];
+extern	int pr_globaloffsetpatch[62];
+
+#define PR_FIELDOFS(i) ((unsigned int)(i) > 105 ? (i) : pr_fieldoffsetpatch[i])
+#define PR_GLOBAL(field) (((globalvars_t *)((byte *)pr_global_struct + \
+	pr_globaloffsetpatch[((int *)&((globalvars_t *)0)->field - (int *)0) - 28]))->field)
+
+void NQP_Reset (void);
+
+#else	// !WITH_NQPROGS
+
+#define pr_nqprogs 0
+#define PR_FIELDOFS(i) (i)
+#define PR_GLOBAL(field) pr_global_struct->field
+#define NQP_Reset()
+
+#endif
+
+
 
 void PR_Init (void);
+void PR_InitBuiltins (void);
 
 void PR_ExecuteProgram (func_t fnum);
 void PR_LoadProgs (void);
@@ -137,14 +149,21 @@ int NUM_FOR_EDICT(edict_t *e);
 #define	E_FLOAT(e,o) (((float*)&e->v)[o])
 #define	E_INT(e,o) (*(int *)&((float*)&e->v)[o])
 #define	E_VECTOR(e,o) (&((float*)&e->v)[o])
-#define	E_STRING(e,o) (PR_GetString(*(string_t *)&((float*)&e->v)[o]))
+#define	E_STRING(e,o) (PR_GetString(*(string_t *)&((float*)&e->v)[PR_FIELDOFS(o)]))
 
 extern	int		type_size[8];
 
 typedef void (*builtin_t) (void);
-extern builtin_t pr_builtins[], pr_extbuiltins[];
-extern int pr_numbuiltins, pr_numextbuiltins;
-#define ZQ_BUILTINS		0x5a00
+extern builtin_t *pr_builtins;
+extern int pr_numbuiltins;
+
+// list of extensions which are off by default
+// a checkextension(..) call from progs enables the corresponding extension
+extern struct pr_ext_enabled_s {
+	qbool zq_clientcommand;
+	qbool zq_consolecommand;
+	qbool zq_pause;
+} pr_ext_enabled;
 
 extern int		pr_argc;
 
@@ -155,12 +174,14 @@ extern	int			pr_xstatement;
 
 extern func_t SpectatorConnect, SpectatorDisconnect, SpectatorThink;
 extern func_t BotConnect, BotDisconnect, BotPreThink, BotPostThink;
+extern func_t GE_ClientCommand, GE_ConsoleCommand, GE_PausedTic, GE_ShouldPause;
 
-extern int	fofs_gravity, fofs_maxspeed;
+extern int	fofs_gravity, fofs_maxspeed, fofs_items2;
 extern int	fofs_forwardmove, fofs_sidemove, fofs_upmove;
 #ifdef VWEP_TEST
-extern int	fofs_vw_index, fofs_vw_frame;
+extern int	fofs_vw_index;
 #endif
+extern int	fofs_buttonX[8-3];
 
 #define EdictFieldFloat(ed, fieldoffset) ((eval_t *)((byte *)&(ed)->v + (fieldoffset)))->_float
 
