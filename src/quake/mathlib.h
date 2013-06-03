@@ -26,12 +26,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	ROLL	2		// fall over
 
 typedef float vec_t;
+
 typedef vec_t vec2_t[2];
 typedef vec_t vec3_t[3];
 typedef vec_t vec4_t[4];
 typedef vec_t vec5_t[5];
 
-typedef unsigned char byte_vec4_t[4];
+typedef struct _glmatrix
+{
+    union
+	{
+        struct
+		{
+            float _11, _12, _13, _14;
+            float _21, _22, _23, _24;
+            float _31, _32, _33, _34;
+            float _41, _42, _43, _44;
+        };
+
+        float m4x4[4][4];
+		float m16[16];
+    };
+} glmatrix;
 
 typedef	int	fixed4_t;
 typedef	int	fixed8_t;
@@ -40,6 +56,10 @@ typedef	int	fixed16_t;
 #ifndef M_PI
 #define M_PI		3.14159265358979323846	// matches value in gcc v2 math.h
 #endif
+
+#define M_PI_DIV_180 (M_PI / 180.0)
+
+#define DEG2RAD( a ) ( a * M_PI ) / 180.0F
 
 struct mplane_s;
 
@@ -53,6 +73,18 @@ extern vec3_t vec3_origin;
 #define Q_IsBitSet(data, bit)   (((data)[(bit) >> 3] & (1 << ((bit) & 7))) != 0)
 #define Q_SetBit(data, bit)     ((data)[(bit) >> 3] |= (1 << ((bit) & 7)))
 #define Q_ClearBit(data, bit)   ((data)[(bit) >> 3] &= ~(1 << ((bit) & 7)))
+
+#define VectorNormalizeFast(_v)\
+{\
+	union { float f; int i; } _y, _number;\
+	_number.f = DotProduct(_v, _v);\
+	if (_number.f != 0.0)\
+	{\
+		_y.i = 0x5f3759df - (_number.i >> 1);\
+		_y.f = _y.f * (1.5f - (_number.f * 0.5f * _y.f * _y.f));\
+		VectorScale(_v, _y.f, _v);\
+	}\
+}
 
 #define DotProduct(x,y)			(x[0]*y[0]+x[1]*y[1]+x[2]*y[2])
 
@@ -98,7 +130,13 @@ void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
 int BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, struct mplane_s *plane);
 float	anglemod(float a);
 
-void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees );
+
+struct _glmatrix *GL_MultiplyMatrix (struct _glmatrix *out, struct _glmatrix *m1, struct _glmatrix *m2);
+struct _glmatrix *GL_TranslateMatrix (struct _glmatrix *m, float x, float y, float z);
+struct _glmatrix *GL_ScaleMatrix (struct _glmatrix *m, float x, float y, float z);
+struct _glmatrix *GL_RotateMatrix (struct _glmatrix *m, float a, float x, float y, float z);
+struct _glmatrix *GL_IdentityMatrix (struct _glmatrix *m);
+struct _glmatrix *GL_LoadMatrix (struct _glmatrix *dst, struct _glmatrix *src);
 
 
 #define BOX_ON_PLANE_SIDE(emins, emaxs, p)	\
