@@ -39,7 +39,7 @@ qbool TP_CheckSoundTrigger (char *str);
 // message triggers
 void TP_SearchForMsgTriggers (char *s, int level);
 
-// used by easyrecord command
+// used by record command
 int TP_CountPlayers();
 char *TP_MapName();
 char *TP_PlayerName();

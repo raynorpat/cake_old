@@ -50,6 +50,7 @@ void* Sys_GetProcAddress (dllhandle_t handle, const char* name);
 //
 
 void Sys_mkdir (char *path);
+int Sys_remove (char *path);
 
 void Sys_Error (char *error, ...);
 // an error will cause the entire program to exit

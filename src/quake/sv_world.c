@@ -238,12 +238,8 @@ int SV_AreaEdicts (vec3_t mins, vec3_t maxs, edict_t **edicts, int max_edicts, i
 			touch = EDICT_FROM_AREA(l);
 			if (touch->v.solid == SOLID_NOT)
 				continue;
-			if (mins[0] > touch->v.absmax[0]
-			|| mins[1] > touch->v.absmax[1]
-			|| mins[2] > touch->v.absmax[2]
-			|| maxs[0] < touch->v.absmin[0]
-			|| maxs[1] < touch->v.absmin[1]
-			|| maxs[2] < touch->v.absmin[2])
+			if (mins[0] > touch->v.absmax[0] || mins[1] > touch->v.absmax[1] || mins[2] > touch->v.absmax[2]
+				|| maxs[0] < touch->v.absmin[0]	|| maxs[1] < touch->v.absmin[1]	|| maxs[2] < touch->v.absmin[2])
 				continue;
 
 			if (count == max_edicts)

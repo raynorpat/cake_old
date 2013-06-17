@@ -357,5 +357,14 @@ typedef struct usercmd_s
 #define BUTTON_USE		(1<<2)
 #define BUTTON_ATTACK2	(1<<3)
 
+
+#define dem_cmd			0
+#define dem_read		1
+#define dem_set			2
+#define dem_multiple	3
+#define	dem_single		4
+#define dem_stats		5
+#define dem_all			6
+
 #endif /* _PROTOCOL_H_ */
 

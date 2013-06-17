@@ -88,11 +88,6 @@ void SV_CheckVelocity (edict_t *ent)
 			Com_DPrintf ("Got a NaN origin on %s\n", PR_GetString(ent->v.classname));
 			ent->v.origin[i] = 0;
 		}
-/*		if (ent->v.velocity[i] > sv_maxvelocity.value)
-			ent->v.velocity[i] = sv_maxvelocity.value;
-		else if (ent->v.velocity[i] < -sv_maxvelocity.value)
-			ent->v.velocity[i] = -sv_maxvelocity.value;
-*/
 	}
 
 	// SV_MAXVELOCITY fix by Maddes

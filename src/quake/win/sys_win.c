@@ -81,6 +81,12 @@ void Sys_mkdir (char *path)
 	_mkdir (path);
 }
 
+int Sys_remove (char *path)
+{
+	remove (path);
+	return 1;
+}
+
 
 /*
 ===============================================================================

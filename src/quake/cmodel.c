@@ -432,8 +432,8 @@ crosses a waterline.
 
 =============================================================================
 */
-static int	fatbytes;
-static byte	fatpvs[MAX_MAP_LEAFS/8];
+static int		fatbytes;
+static byte		fatpvs[MAX_MAP_LEAFS/8];
 static vec3_t	fatpvs_org;
 
 static void AddToFatPVS_r (cnode_t *node)

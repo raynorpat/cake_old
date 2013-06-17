@@ -22,18 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pmove.h"
 #include "teamplay.h"
 
-
-#define dem_cmd		0
-#define dem_read	1
-#define dem_set		2
-
-#ifdef MVDPLAY
-#define dem_multiple	3
-#define	dem_single		4
-#define dem_stats		5
-#define dem_all			6
-#endif
-
 void Cam_TryLock (void);
 void CL_FinishTimeDemo (void);
 
@@ -493,7 +481,7 @@ static char *TrimModelName (char *full)
 ====================
 CL_Record
 
-Called by CL_Record_f and CL_EasyRecord_f
+Called by CL_Record_f
 ====================
 */
 static void CL_Record (void)
@@ -834,123 +822,6 @@ void CL_Record_f (void)
 	else
 		cls.demorecording = true;
 }
-
-
-/*
-====================
-CL_EasyRecord_f
-
-easyrecord [demoname]
-====================
-*/
-void CL_EasyRecord_f (void)
-{
-	int		c;
-	char	name[1024];
-	char	name2[MAX_OSPATH*2];
-	int		i;
-	char	*p;
-	FILE	*f;
-
-	c = Cmd_Argc();
-	if (c > 2)
-	{
-		Com_Printf ("easyrecord <demoname>\n");
-		return;
-	}
-
-	if (cls.state != ca_active) {
-		Com_Printf ("You must be connected to record.\n");
-		return;
-	}
-
-	if (cls.demorecording)
-		CL_Stop_f();
-
-/// FIXME: check buffer sizes!!!
-
-	if (c == 2)
-		snprintf (name, sizeof(name), "%s", Cmd_Argv(1));
-	else if (cl.spectator) {
-		// FIXME: if tracking a player, use his name
-		snprintf (name, sizeof(name), "spec_%s_%s",
-			TP_PlayerName(),
-			TP_MapName());
-	} else {
-		// guess game type and write demo name
-		i = TP_CountPlayers();
-		if (cl.teamplay && i >= 3)
-		{
-			// Teamplay
-			snprintf (name, sizeof(name), "%s_%s_vs_%s_%s",
-				TP_PlayerName(),
-				TP_PlayerTeam(),
-				TP_EnemyTeam(),
-				TP_MapName());
-		} else {
-			if (i == 2) {
-				// Duel
-				snprintf (name, sizeof(name), "%s_vs_%s_%s",
-					TP_PlayerName(),
-					TP_EnemyName(),
-					TP_MapName());
-			}
-			else if (i > 2) {
-				// FFA
-				snprintf (name, sizeof(name), "%s_ffa_%s",
-					TP_PlayerName(), 
-					TP_MapName());
-			}
-			else {
-				// one player
-				snprintf (name, sizeof(name), "%s_%s",
-					TP_PlayerName(),
-					TP_MapName());
-			}
-		}
-	}
-
-// Make sure the filename doesn't contain illegal characters
-	for (p = name; *p; p++)	{
-		char c;
-		*p &= 0x7F;		// strip high bit
-		c = *p;
-		if (c <= ' ' || c == '?' || c == '*' || c == '\\' || c == '/' || c == ':'
-			|| c == '<' || c == '>' || c == '"')
-			*p = '_';
-	}
-
-	strlcpy (name, va("%s/%s", cls.gamedir, name), MAX_OSPATH);
-
-// find a filename that doesn't exist yet
-	strcpy (name2, name);
-	COM_ForceExtension (name2, ".qwd");
-	f = fopen (name2, "rb");
-	if (f) {
-		i = 0;
-		do {
-			fclose (f);
-			strcpy (name2, va("%s_%02i", name, i));
-			COM_ForceExtension (name2, ".qwd");
-			f = fopen (name2, "rb");
-			i++;
-		} while (f);
-	}
-
-//
-// open the demo file
-//
-	cls.demofile = fopen (name2, "wb");
-	if (!cls.demofile)
-	{
-		Com_Printf ("ERROR: couldn't open.\n");
-		return;
-	}
-
-	Com_Printf ("recording to %s.\n", name2);
-	CL_Record ();
-}
-
 
 //==================================================================
 // .QWZ demos playback (via Qizmo)

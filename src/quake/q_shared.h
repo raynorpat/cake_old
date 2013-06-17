@@ -139,6 +139,14 @@ float	FloatSwap (float f);
 #define Q_strnicmp(s1, s2, n) strncasecmp((s1), (s2), (n))
 #endif
 
+#define Q_strncatz(dest, src, sizeofdest)	\
+	do {	\
+		strncat(dest, src, sizeofdest - strlen(dest) - 1);	\
+		dest[sizeofdest - 1] = 0;	\
+	} while (0)
+
+void Q_strncpyz(char *d, const char *s, int n);
+
 int	Q_atoi (char *str);
 float Q_atof (char *str);
 char *Q_ftos (float value);		// removes trailing zero chars
@@ -173,12 +181,7 @@ char *Q_strdup (const char *src);
 
 //============================================================================
 
-#ifndef NOMVDPLAY
-#ifndef SERVERONLY
 #define MVDPLAY
-#endif
-#endif
-
 #define WITH_NQPROGS
 
 #endif /* _Q_SHARED_H_ */

@@ -31,6 +31,22 @@ byte scratchbuf[SCRATCHBUF_SIZE];
 ============================================================================
 */
 
+void Q_strncpyz(char *d, const char *s, int n)
+{
+	int i;
+	n--;
+	if (n < 0)
+		return;	//this could be an error
+
+	for (i=0; *s; i++)
+	{
+		if (i == n)
+			break;
+		*d++ = *s++;
+	}
+	*d='\0';
+}
+
 int Q_atoi (char *str)
 {
 	int		val;

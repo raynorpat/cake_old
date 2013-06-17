@@ -258,8 +258,7 @@ void SV_SpawnServer (char *mapname, qbool devmap)
 	if ((sv_cheats.value || devmap) && !sv_allow_cheats) {
 		sv_allow_cheats = true;
 		Info_SetValueForStarKey (svs.info, "*cheats", "ON", MAX_SERVERINFO_STRING);
-	}
-	else if ((!sv_cheats.value && !devmap) && sv_allow_cheats) {
+	} else if ((!sv_cheats.value && !devmap) && sv_allow_cheats) {
 		sv_allow_cheats = false;
 		Info_SetValueForStarKey (svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
 	}
