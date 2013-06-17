@@ -54,7 +54,6 @@ typedef struct
 	int			jump_msec;	// msec since last jump
 #endif
 	float		waterjumptime;
-	qbool		onground;
 	int			pm_type;
 
 	// world state
@@ -67,8 +66,8 @@ typedef struct
 	// results
 	int			numtouch;
 	int			touchindex[MAX_PHYSENTS];
-	int			groundent;		// index in physents array, only valid
-								// when onground is true
+	qbool		onground;
+	int			groundent;		// index in physents array, only valid when onground is true
 	float		landspeed;
 	int			waterlevel;
 	int			watertype;
@@ -89,8 +88,7 @@ typedef struct {
 	float	ktjump;
 	qbool	slidefix;		// NQ-style movement down ramps
 	qbool	airstep;
-	qbool	pground;		// NQ-style "onground" flag handling.
-							// p is for persistent (accross frames)
+	qbool	pground;		// NQ-style "onground" flag handling. p is for persistent (accross frames)
 } movevars_t;
 
 

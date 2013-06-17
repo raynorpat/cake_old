@@ -117,7 +117,6 @@ int PM_SlideMove (void)
 	int			blocked;
 	
 	numbumps = 4;
-	
 	blocked = 0;
 	VectorCopy (pm->velocity, original_velocity);
 	VectorCopy (pm->velocity, primal_velocity);
@@ -127,9 +126,7 @@ int PM_SlideMove (void)
 
 	for (bumpcount=0 ; bumpcount<numbumps ; bumpcount++)
 	{
-		for (i=0 ; i<3 ; i++)
-			end[i] = pm->origin[i] + time_left * pm->velocity[i];
-
+		VectorMA(pm->origin, time_left, pm->velocity, end);
 		trace = PM_PlayerTrace (pm, pm->origin, end);
 
 		if (trace.startsolid || trace.allsolid)
@@ -212,9 +209,8 @@ int PM_SlideMove (void)
 	}
 
 	if (pm->waterjumptime)
-	{
 		VectorCopy (primal_velocity, pm->velocity);
-	}
+
 	return blocked;
 }
 
@@ -253,10 +249,7 @@ int PM_StepSlideMove (qbool in_air)
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
-		//FIXME: "pm->velocity < 0" ???? :)
-		// Of course I meant pm->velocity[2], but I'm afraid I don't understand
-		// the code's purpose any more, so let it stay just this way for now :)  -- Tonik
-		org = (pm->velocity < 0) ? pm->origin : original;	// cryptic, eh?
+		org = (originalvel[2] < 0) ? pm->origin : original;
 		VectorCopy (org, dest);
 		dest[2] -= STEPSIZE;
 		trace = PM_PlayerTrace (pm, org, dest);
@@ -281,9 +274,10 @@ int PM_StepSlideMove (qbool in_air)
 	dest[2] += stepsize;
 	trace = PM_PlayerTrace (pm, pm->origin, dest);
 	if (!trace.startsolid && !trace.allsolid)
-	{
 		VectorCopy (trace.endpos, pm->origin);
-	}
+
+	if (in_air && originalvel[2] < 0)
+		pm->velocity[2] = 0;
 
 	PM_SlideMove ();
 
@@ -294,9 +288,7 @@ int PM_StepSlideMove (qbool in_air)
 	if (trace.fraction != 1 && trace.plane.normal[2] < MIN_STEP_NORMAL)
 		goto usedown;
 	if (!trace.startsolid && !trace.allsolid)
-	{
 		VectorCopy (trace.endpos, pm->origin);
-	}
 
 	if (pm->origin[2] < original[2])
 		goto usedown;
@@ -391,10 +383,10 @@ void PM_Friction (void)
 
 // scale the velocity
 	newspeed = speed - drop;
-	if (newspeed < 0)
-		newspeed = 0;
+	newspeed = max(newspeed, 0);
+	newspeed /= speed;
 
-	VectorScale (pm->velocity, newspeed / speed, pm->velocity);
+	VectorScale (pm->velocity, newspeed, pm->velocity);
 }
 
 
@@ -421,8 +413,7 @@ void PM_Accelerate (vec3_t wishdir, float wishspeed, float accel)
 	if (accelspeed > addspeed)
 		accelspeed = addspeed;
 	
-	for (i=0 ; i<3 ; i++)
-		pm->velocity[i] += accelspeed*wishdir[i];
+	VectorMA(pm->velocity, accelspeed, wishdir, pm->velocity);
 }
 
 void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
@@ -437,28 +428,21 @@ void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 		return;
 
 	if (movevars.bunnyspeedcap > 0)
-	{
-		originalspeed = sqrt(pm->velocity[0]*pm->velocity[0] +
-						pm->velocity[1]*pm->velocity[1]);
-	}
+		originalspeed = sqrt(pm->velocity[0]*pm->velocity[0] + pm->velocity[1]*pm->velocity[1]);
 
-	if (wishspd > 30)
-		wishspd = 30;
+	wishspd = min(wishspd, 30);
 	currentspeed = DotProduct (pm->velocity, wishdir);
 	addspeed = wishspd - currentspeed;
 	if (addspeed <= 0)
 		return;
 	accelspeed = accel * wishspeed * pm_frametime;
-	if (accelspeed > addspeed)
-		accelspeed = addspeed;
+	accelspeed = min(accelspeed, addspeed);
 	
-	for (i=0 ; i<3 ; i++)
-		pm->velocity[i] += accelspeed*wishdir[i];
+	VectorMA(pm->velocity, accelspeed, wishdir, pm->velocity);
 
 	if (movevars.bunnyspeedcap > 0)
 	{
-		newspeed = sqrt(pm->velocity[0]*pm->velocity[0] +
-					pm->velocity[1]*pm->velocity[1]);
+		newspeed = sqrt(pm->velocity[0]*pm->velocity[0] + pm->velocity[1]*pm->velocity[1]);
 		if (newspeed > originalspeed)
 		{
 			speedcap = movevars.maxspeed * movevars.bunnyspeedcap;
@@ -515,10 +499,7 @@ void PM_WaterMove (void)
 	PM_StepSlideMove (false);
 }
 
-
-/*
-*/
-void PM_FlyMove ()
+void PM_FlyMove (void)
 {
 	int		i;
 	vec3_t	wishvel;
@@ -539,7 +520,6 @@ void PM_FlyMove ()
 	}
 	
 	PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
-	
 	PM_StepSlideMove (false);
 }
 
@@ -607,7 +587,7 @@ void PM_AirMove (void)
 	else
 	{
 		int blocked;
-		
+
 		// not on ground, so little effect on velocity
 		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
 
@@ -760,8 +740,7 @@ void PM_CheckJump (void)
 	{
 		// check for jump bug
 		// groundplane normal was set in the call to PM_CategorizePosition
-		if (pm->velocity[2] < 0 &&
-			DotProduct(pm->velocity, groundplane.normal) < -0.1)
+		if (pm->velocity[2] < 0 && DotProduct(pm->velocity, groundplane.normal) < -0.1)
 		{
 			// pm->velocity is pointing into the ground, clip it
 			PM_ClipVelocity (pm->velocity, groundplane.normal, pm->velocity, 1);
@@ -776,8 +755,7 @@ void PM_CheckJump (void)
 		if (movevars.ktjump > 1)
 			movevars.ktjump = 1;
 		if (pm->velocity[2] < 270)
-			pm->velocity[2] = pm->velocity[2] * (1 - movevars.ktjump)
-				+ 270 * movevars.ktjump;
+			pm->velocity[2] = pm->velocity[2] * (1 - movevars.ktjump) + 270 * movevars.ktjump;
 	}
 
 	pm->jump_held = true;		// don't jump again until released
@@ -893,7 +871,6 @@ void PM_SpectatorMove (void)
 	float		wishspeed;
 
 	// friction
-
 	speed = VectorLength (pm->velocity);
 	if (speed < 1)
 	{
@@ -901,11 +878,9 @@ void PM_SpectatorMove (void)
 	}
 	else
 	{
-		drop = 0;
-
 		friction = movevars.friction*1.5;	// extra friction
 		control = speed < movevars.stopspeed ? movevars.stopspeed : speed;
-		drop += control*friction*pm_frametime;
+		drop = control*friction*pm_frametime;
 
 		// scale the velocity
 		newspeed = speed - drop;
@@ -930,9 +905,7 @@ void PM_SpectatorMove (void)
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
 
-	//
 	// clamp to server defined max speed
-	//
 	if (wishspeed > movevars.spectatormaxspeed)
 	{
 		VectorScale (wishvel, movevars.spectatormaxspeed/wishspeed, wishvel);
@@ -950,11 +923,8 @@ void PM_SpectatorMove (void)
 
 	if (addspeed > 0) {
 		accelspeed = movevars.accelerate*pm_frametime*wishspeed;
-		if (accelspeed > addspeed)
-			accelspeed = addspeed;
-		
-		for (i=0 ; i<3 ; i++)
-			pm->velocity[i] += accelspeed*wishdir[i];	
+		accelspeed = min(accelspeed, addspeed);
+		VectorMA(pm->velocity, accelspeed, wishdir, pm->velocity);
 	}
 
 	// move
