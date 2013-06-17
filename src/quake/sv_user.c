@@ -879,6 +879,8 @@ static void SV_Say (qbool team)
 	char	text[2048];
 	char	t1[32] = "";
 	char	*t2;
+	qbool	mvdrecording;
+	int		cls = 0;
 
 	if (Cmd_Argc() < 2)
 		return;
@@ -937,6 +939,8 @@ static void SV_Say (qbool team)
 
 	Sys_Printf ("%s", text);
 
+	mvdrecording = sv.mvdrecording;
+	sv.mvdrecording = false;	// so that the SV_ClientPrintf doesn't send to all players.
 	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
 	{
 		if (client->state != cs_spawned)
@@ -957,8 +961,24 @@ static void SV_Say (qbool team)
 					continue;	// on different teams
 			}
 		}
+		cls |= 1 << j;
 		SV_ClientPrintf(client, PRINT_CHAT, "%s", text);
 	}
+	sv.mvdrecording = mvdrecording;
+
+	if (!sv.mvdrecording || !cls)
+		return;
+
+	// non-team messages should be seen always, even if not tracking any player
+	if (!team && ((sv_client->spectator && sv_spectalk.value) || !sv_client->spectator)) {
+		MVDWrite_Begin (dem_all, 0, strlen(text)+3);
+	} else {
+		MVDWrite_Begin (dem_multiple, cls, strlen(text)+3);
+	}
+
+	MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
+	MSG_WriteByte ((sizebuf_t*)demo.dbuf, PRINT_CHAT);
+	MSG_WriteString ((sizebuf_t*)demo.dbuf, text);
 }
 
 

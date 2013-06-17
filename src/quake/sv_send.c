@@ -137,6 +137,14 @@ void SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
 #endif // _WIN32
 	va_end (argptr);
 
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
+		MSG_WriteByte ((sizebuf_t *)demo.dbuf, svc_print);
+		MSG_WriteByte ((sizebuf_t *)demo.dbuf, level);
+		MSG_WriteString ((sizebuf_t *)demo.dbuf, string);
+	}
+
 	SV_PrintToClient(cl, level, string);
 }
 
@@ -173,6 +181,14 @@ void SV_BroadcastPrintf (int level, char *fmt, ...)
 			continue;
 
 		SV_PrintToClient(cl, level, string);
+	}
+
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_all, 0, strlen(string)+3);
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, level);
+		MSG_WriteString ((sizebuf_t*)demo.dbuf, string);
 	}
 }
 
@@ -289,6 +305,17 @@ inrange:
 			SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
 	}
 
+	if (sv.mvdrecording)
+	{
+		if (reliable)
+		{
+			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
+			SZ_Write((sizebuf_t*)demo.dbuf, sv.multicast.data, sv.multicast.cursize);
+		} else {
+			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
+		}
+	}
+
 	SZ_Clear (&sv.multicast);
 }
 
@@ -372,7 +399,7 @@ void SV_StartParticle (vec3_t org, vec3_t dir, int color, int count,
 ==================
 SV_StartSound
 
-Each entity can have eight independent sound sources, like voice,
+Each entity can have eight independant sound sources, like voice,
 weapon, feet, etc.
 
 Channel 0 is an auto-allocate channel, the others override anything
@@ -658,7 +685,7 @@ qbool SV_SendClientDatagram (client_t *client)
 	// send over all the objects that are in the PVS
 	// this will include clients, a packetentities, and
 	// possibly a nails update
-	SV_WriteEntitiesToClient (client, &msg);
+	SV_WriteEntitiesToClient (client, &msg, false);
 
 	// copy the accumulated multicast datagram
 	// for this client out to the message
@@ -718,6 +745,14 @@ void SV_UpdateToReliableMessages (void)
 				ClientReliableWrite_Byte (i);
 				ClientReliableWrite_Short (ent->v.frags);
 				ClientReliableWrite_End ();
+			}
+					
+			if (sv.mvdrecording)
+			{
+				MVDWrite_Begin(dem_all, 0, 4);
+				MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
+				MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
+				MSG_WriteShort((sizebuf_t*)demo.dbuf, ent->v.frags);
 			}
 
 			sv_client->old_frags = ent->v.frags;
@@ -831,6 +866,134 @@ void SV_SendClientMessages (void)
 #pragma optimize( "", on )
 #endif
 
+
+#define Max(a, b) ((a>b)?a:b)
+void SV_SendMVDMessage(void)
+{
+	int			i, j, cls = 0;
+	client_t	*c;
+	byte		buf[MAX_DATAGRAM];
+	sizebuf_t	msg;
+	edict_t		*ent;
+	int			stats[32/*MAX_STATS*/];
+	float		min_fps;
+	extern		cvar_t sv_demofps;
+	extern		cvar_t sv_demoPings;
+//	extern		cvar_t	sv_demoMaxSize;
+
+	if (!sv.mvdrecording)
+		return;
+
+	if (sv_demoPings.value)
+	{
+		if (sv.time - demo.pingtime > sv_demoPings.value)
+		{
+			SV_MVDPings();
+			demo.pingtime = sv.time;
+		}
+	}
+
+	if (!sv_demofps.value)
+		min_fps = 30.0;
+	else
+		min_fps = sv_demofps.value;
+
+	min_fps = Max(4, min_fps);
+	if (sv.time - demo.time < 1.0/min_fps)
+		return;
+
+	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+	{
+		if (c->state != cs_spawned)
+			continue;	// datagrams only go to spawned
+
+		cls |= 1 << i;
+	}
+
+	if (!cls) {
+		SZ_Clear (&demo.datagram);
+		return;
+	}
+
+	msg.data = buf;
+	msg.maxsize = sizeof(buf);
+	msg.cursize = 0;
+	msg.allowoverflow = true;
+	msg.overflowed = false;
+	
+	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+	{
+		if (c->state != cs_spawned)
+			continue;	// datagrams only go to spawned
+
+		if (c->spectator)
+			continue;
+
+		ent = c->edict;
+		memset (stats, 0, sizeof(stats));
+
+		stats[STAT_HEALTH] = ent->v.health;
+		stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(ent->v.weaponmodel));
+		stats[STAT_AMMO] = ent->v.currentammo;
+		stats[STAT_ARMOR] = ent->v.armorvalue;
+		stats[STAT_SHELLS] = ent->v.ammo_shells;
+		stats[STAT_NAILS] = ent->v.ammo_nails;
+		stats[STAT_ROCKETS] = ent->v.ammo_rockets;
+		stats[STAT_CELLS] = ent->v.ammo_cells;
+		stats[STAT_ACTIVEWEAPON] = ent->v.weapon;		
+
+		// stuff the sigil bits into the high bits of items for sbar
+		stats[STAT_ITEMS] = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
+
+		for (j=0 ; j<32/*MAX_STATS*/ ; j++)
+			if (stats[j] != demo.stats[i][j])
+			{
+				demo.stats[i][j] = stats[j];
+				if (stats[j] >=0 && stats[j] <= 255)
+				{
+					MVDWrite_Begin(dem_stats, i, 3);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatestat);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, j);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, stats[j]);
+				}
+				else
+				{
+					MVDWrite_Begin(dem_stats, i, 6);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatestatlong);
+					MSG_WriteByte((sizebuf_t*)demo.dbuf, j);
+					MSG_WriteLong((sizebuf_t*)demo.dbuf, stats[j]);
+				}
+			}
+	}
+
+	// send over all the objects that are in the PVS
+	// this will include clients, a packetentities, and
+	// possibly a nails update
+	msg.cursize = 0;
+	if (!demo.recorder.delta_sequence)
+		demo.recorder.delta_sequence = -1;
+	SV_WriteEntitiesToClient (&demo.recorder, &msg, true);
+	MVDWrite_Begin(dem_all, 0, msg.cursize);
+	SZ_Write ((sizebuf_t*)demo.dbuf, msg.data, msg.cursize);
+
+	// copy the accumulated multicast datagram
+	// for this client out to the message
+	if (demo.datagram.cursize) {
+		MVDWrite_Begin(dem_all, 0, demo.datagram.cursize);
+		SZ_Write ((sizebuf_t*)demo.dbuf, demo.datagram.data, demo.datagram.cursize);
+		SZ_Clear (&demo.datagram);
+	}
+
+	demo.recorder.delta_sequence = demo.recorder.netchan.incoming_sequence&255;
+	demo.recorder.netchan.incoming_sequence++;
+	demo.frames[demo.parsecount & DEMO_FRAMES_MASK].time = demo.time = sv.time;
+
+	if (demo.parsecount - demo.lastwritten > 60) // that's a backup of 3sec in 20fps, should be enough
+		SV_MVDWritePackets(1);
+
+	demo.parsecount++;
+	MVDSetMsgBuf(demo.dbuf,&demo.frames[demo.parsecount & DEMO_FRAMES_MASK].buf);
+}
 
 
 /*

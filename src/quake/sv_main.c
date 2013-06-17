@@ -142,6 +142,9 @@ void SV_Shutdown (char *finalmsg)
 	SV_FinalMessage (finalmsg);
 
 	PR_FreeStrings ();
+	
+	if (sv.mvdrecording)
+		SV_MVDStop_f();
 
 	Master_Shutdown ();
 	NET_ServerConfig (false);
@@ -721,6 +724,7 @@ void SVC_DirectConnect (void)
 		newcl->whensaid[i] = 0.0;
 	newcl->whensaidhead = 0;
 	newcl->lockedtill = 0;
+	newcl->disable_updates_stop = -1.0;
 
 	// call the progs to get default spawn parms for the new client
 	PR_ExecuteProgram (PR_GLOBAL(SetNewParms));
@@ -1377,6 +1381,7 @@ SV_Frame
 void SV_Frame (double time)
 {
 	static double	start, end;
+	double demo_start, demo_end;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
@@ -1397,6 +1402,11 @@ void SV_Frame (double time)
 
 // toggle the log buffer if full
 	SV_CheckLog ();
+
+	{
+		void SV_MVDStream_Poll(void);
+		SV_MVDStream_Poll();
+	}
 
 // move autonomous things around if enough time has passed
 	if (!sv_paused.value)
@@ -1423,6 +1433,11 @@ void SV_Frame (double time)
 // send messages back to the clients that had packets read this frame
 	SV_SendClientMessages ();
 
+	demo_start = Sys_DoubleTime ();
+	SV_SendMVDMessage();
+	demo_end = Sys_DoubleTime ();
+	svs.stats.demo += demo_end - demo_start;
+
 // send a heartbeat to the master if needed
 	Master_Heartbeat ();
 
@@ -1434,10 +1449,12 @@ void SV_Frame (double time)
 		svs.stats.latched_active = svs.stats.active;
 		svs.stats.latched_idle = svs.stats.idle;
 		svs.stats.latched_packets = svs.stats.packets;
+		svs.stats.latched_demo = svs.stats.demo;
 		svs.stats.active = 0;
 		svs.stats.idle = 0;
 		svs.stats.packets = 0;
 		svs.stats.count = 0;
+		svs.stats.demo = 0;
 	}
 }
 
@@ -1543,6 +1560,8 @@ void SV_InitLocal (void)
 	Cmd_AddCommand ("removeip", SV_RemoveIP_f);
 	Cmd_AddCommand ("listip", SV_ListIP_f);
 	Cmd_AddCommand ("writeip", SV_WriteIP_f);
+
+	SV_MVDInit();
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 		sprintf (localmodels[i], "*%i", i);

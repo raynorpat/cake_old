@@ -58,6 +58,21 @@ typedef struct packet_s
 
 typedef struct
 {
+	vec3_t	origin;
+	char	angles[3];
+	byte	modelindex;
+	byte	frame;
+	byte	colormap;
+	byte	skinnum;
+	byte	effects;
+
+	byte	scale;
+	byte	trans;
+	char	fatness;
+} mvdentity_state_t;
+
+typedef struct
+{
 	server_state_t	state;			// precache commands are only valid during load
 
 	double		time;
@@ -122,8 +137,9 @@ typedef struct
 	int			intermission_hunt;		// looking for WriteCoords to fill in intermission_origin
 	qbool		intermission_origin_valid;
 	vec3_t		intermission_origin;
-} server_t;
 
+	qbool		mvdrecording;
+} server_t;
 
 #define	NUM_SPAWN_PARMS			16
 
@@ -232,6 +248,7 @@ typedef struct client_s
 	int				chokecount;
 	int				delta_sequence;		// -1 = no compression
 	netchan_t		netchan;
+	double			disable_updates_stop;
 } client_t;
 
 // a client can leave the server in one of four ways:
@@ -239,6 +256,99 @@ typedef struct client_s
 // timing out if no valid messages are received for timeout.value seconds
 // getting kicked off by the server operator
 // a program error, like an overflowed reliable buffer
+
+
+
+
+//=============================================================================
+
+//mvd stuff
+
+#define	MSG_BUF_SIZE 8192
+
+typedef struct
+{
+	vec3_t	origin;
+	vec3_t	angles;
+	int		weaponframe;
+	int		skinnum;
+	int		model;
+	int		effects;
+}	demoinfo_t;
+
+typedef struct
+{
+	demoinfo_t	info;
+	float		sec;
+	int			parsecount;
+	qbool		fixangle;
+	vec3_t		angle;
+	float		cmdtime;
+	int			flags;
+	int			frame;
+} demo_client_t;
+
+typedef struct {
+	byte type;
+	byte full;
+	int to;
+	int size;
+	byte data[1]; // gcc doesn't allow [] (?)
+} header_t;
+
+typedef struct
+{
+	qbool	allowoverflow;	// if false, do a Sys_Error
+	qbool	overflowed;		// set to true if the buffer size failed
+	byte	*data;
+	int		maxsize;
+	int		cursize;
+	int		bufsize;
+	header_t *h;
+} demobuf_t;
+
+typedef struct
+{
+	demo_client_t clients[MAX_CLIENTS];
+	double		time;
+	demobuf_t	buf;
+} demo_frame_t;
+
+typedef struct {
+	byte	*data;
+	int		start, end, last;
+	int		maxsize;
+} dbuffer_t;
+
+#define DEMO_FRAMES 64
+#define DEMO_FRAMES_MASK (DEMO_FRAMES - 1)
+
+typedef struct
+{
+	demobuf_t	*dbuf;
+	dbuffer_t	dbuffer;
+	sizebuf_t	datagram;
+	byte		datagram_data[MSG_BUF_SIZE];
+	int			lastto;
+	int			lasttype;
+	double		time, pingtime;
+	int			stats[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
+	client_t	recorder;
+	qbool		fixangle[MAX_CLIENTS];
+	float		fixangletime[MAX_CLIENTS];
+	vec3_t		angles[MAX_CLIENTS];
+	char		name[MAX_OSPATH], path[MAX_OSPATH];
+	int			parsecount;
+	int			lastwritten;
+	demo_frame_t	frames[DEMO_FRAMES];
+	demoinfo_t	info[MAX_CLIENTS];
+	byte		buffer[20*MAX_MSGLEN];
+	int			bufsize;
+	int			forceFrame;
+
+	struct mvddest_s *dest;
+} demo_t;
+
 
 //=============================================================================
 
@@ -248,11 +358,13 @@ typedef struct
 {
 	double	active;
 	double	idle;
+	double	demo;
 	int		count;
 	int		packets;
 
 	double	latched_active;
 	double	latched_idle;
+	double	latched_demo;
 	int		latched_packets;
 } svstats_t;
 
@@ -293,6 +405,10 @@ typedef struct
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
 
 	packet_t	*free_packets;
+
+	qbool 		demoplayback;
+	qbool 		demorecording;
+	qbool 		msgfromdemo;
 } serverPersistent_t;
 
 //=============================================================================
@@ -464,7 +580,7 @@ void SV_SendServerInfoChange (char *key, char *value);
 // sv_ents.c
 //
 int SV_TranslateEntnum (int num);
-void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg);
+void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qbool ignorepvs);
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 
 //
@@ -502,12 +618,53 @@ void SV_RemoveBot (client_t *cl);
 void SV_RunBots (void);
 
 //
+// sv_mvd.c
+//
+void SV_MVDPings (void);
+void SV_MVDWriteToDisk(int type, int to, float time);
+qbool MVDWrite_Begin(byte type, int to, int size);
+void MVDSetMsgBuf(demobuf_t *prev, demobuf_t *cur);
+void SV_MVDStop (int reason);
+void SV_MVDStop_f (void);
+qbool SV_MVDWritePackets (int num);
+void MVD_Init (void);
+
+extern demo_t	demo;				// server demo struct
+
+extern cvar_t	sv_demofps;
+extern cvar_t	sv_demoPings;
+extern cvar_t	sv_demoNoVis;
+extern cvar_t	sv_demoUseCache;
+extern cvar_t	sv_demoMaxSize;
+extern cvar_t	sv_demoMaxDirSize;
+
+void SV_MVDInit(void);
+char *SV_MVDNum(int num);	// filename for demonum
+void SV_SendMVDMessage(void);
+qbool SV_ReadMVD (void);
+void SV_FlushDemoSignon (void);
+
+//
 // sv_master.c
 //
 void SV_SetMaster_f (void);
 void SV_Heartbeat_f (void);
 void Master_Shutdown (void);
 void Master_Heartbeat (void);
+
+
+
+typedef struct
+{
+	int sec;
+	int min;
+	int hour;
+	int day;
+	int mon;
+	int year;
+	char str[128];
+} date_t;
+void SV_TimeOfDay(date_t *date);
 
 #endif /* _SERVER_H_ */
 

@@ -155,6 +155,9 @@ void SV_Map_f (void)
 	}
 	fclose (f);
 
+	if (sv.mvdrecording)
+		SV_MVDStop_f();
+
 	NET_ServerConfig (true);
 
 	if (!dedicated)
@@ -390,6 +393,14 @@ void SV_ConSay_f(void)
 		if (client->state != cs_spawned)
 			continue;
 		SV_ClientPrintf(client, PRINT_CHAT, "%s\n", text);
+	}
+
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_all, 0, strlen(text)+3);
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, PRINT_CHAT);
+		MSG_WriteString ((sizebuf_t*)demo.dbuf, text);
 	}
 }
 

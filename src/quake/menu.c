@@ -1800,281 +1800,367 @@ void M_MultiPlayer_Key (int key)
 
 
 //=============================================================================
-/* DEMOS MENU */
 
-#define MAX_DEMO_NAME 128
-#define MAX_DEMO_FILES 512
-#define MAXLINES 19	  // maximum number of files visible on screen
+//=============================================================================
+/* DEMO MENU */
 
-typedef struct direntry_s {
-	int		type;	// 0=file, 1=dir, 2="..", 3=message
-	char	*name;
-	int		size;
-} direntry_t;
-
-direntry_t	dir[MAX_DEMO_FILES] = {{0}};
-int			numfiles;
-char		demodir[MAX_QPATH] = "/qw";
-char		prevdir[MAX_QPATH] = "";
-
-int	demo_cursor = 0;
-int	demo_base = 0;
+extern cvar_t sv_demoDir;
 
 #ifdef _WIN32
+#define	DEMO_TIME	FILETIME
+#else
+#define	DEMO_TIME	time_t
+#endif
 
-static void ReadDir (void)
-{
-	HANDLE	h;
-	WIN32_FIND_DATA fd;
-	int		i;
+#define MAX_DEMO_NAME	MAX_OSPATH
+#define MAX_DEMO_FILES	2048
+#define DEMO_MAXLINES	17
 
-	numfiles = 0;
-	demo_base = 0;
-	demo_cursor = 0;
+typedef enum direntry_type_s {dt_file = 0, dt_dir, dt_up, dt_msg} direntry_type_t;
+typedef enum demosort_type_s {ds_name = 0, ds_size, ds_time} demo_sort_t;
 
-	for (i=0 ; i<MAX_DEMO_FILES ; i++)
-		if (dir[i].name) {
-			Q_free (dir[i].name);
-			dir[i].name = NULL;
+typedef struct direntry_s {
+	direntry_type_t	type;
+	char			*name;
+	int				size;
+	DEMO_TIME		time;
+} direntry_t;
+
+static direntry_t	demolist_data[MAX_DEMO_FILES];
+static direntry_t	*demolist[MAX_DEMO_FILES];
+static int			demolist_count;
+static char			demo_currentdir[MAX_OSPATH] = {0};
+static char			demo_prevdemo[MAX_DEMO_NAME] = {0};
+
+static float		last_demo_time = 0;	
+
+static int			demo_cursor = 0;
+static int			demo_base = 0;
+
+static demo_sort_t	demo_sorttype = ds_name;
+static qbool		demo_reversesort = false;
+
+int Demo_SortCompare(const void *p1, const void *p2) {
+	int retval;
+	int sign;
+	direntry_t *d1, *d2;
+
+	d1 = *((direntry_t **) p1);
+	d2 = *((direntry_t **) p2);
+
+	if ((retval = d2->type - d1->type) || d1->type > dt_dir)
+		return retval;
+
+	
+	if (d1->type == dt_dir)
+		return strcasecmp(d1->name, d2->name);
+
+	
+	sign = demo_reversesort ? -1 : 1;
+
+	switch (demo_sorttype) {
+	case ds_name:
+		return sign * strcasecmp(d1->name, d2->name);
+	case ds_size:
+		return sign * (d1->size - d2->size);		
+	case ds_time:
+#ifdef _WIN32
+		return -sign * CompareFileTime(&d1->time, &d2->time);
+#else
+		return -sign * (d1->time - d2->time);
+#endif
+	default:
+		Sys_Error("Demo_SortCompare: unknown demo_sorttype (%d)", demo_sorttype);
+		return 0;
+	}
+}
+
+static void Demo_SortDemos(void) {
+	int i;
+
+	last_demo_time = 0;		
+
+	for (i = 0; i < demolist_count; i++)
+		demolist[i] = &demolist_data[i];
+
+	qsort(demolist, demolist_count, sizeof(direntry_t *), Demo_SortCompare);
+}
+
+static void Demo_PositionCursor(void) {
+	int i;
+
+	last_demo_time = 0;		
+	demo_base = demo_cursor = 0;	
+
+	if (demo_prevdemo[0]) {
+		for (i = 0; i < demolist_count; i++) {
+			if (!strcmp (demolist[i]->name, demo_prevdemo)) {
+				demo_cursor = i;
+				if (demo_cursor >= DEMO_MAXLINES) {
+					demo_base += demo_cursor - (DEMO_MAXLINES - 1);
+					demo_cursor = DEMO_MAXLINES - 1;
+				}
+				break;
+			}
 		}
+	}
+	demo_prevdemo[0] = 0;
+}
 
-	if (demodir[0]) {
-		dir[0].name = Q_strdup ("..");
-		dir[0].type = 2;
-		numfiles = 1;
+static void Demo_ReadDirectory(void) {
+	int i, size;
+	direntry_type_t type;
+	DEMO_TIME time;
+	char name[MAX_DEMO_NAME];
+#ifdef _WIN32
+	HANDLE h;
+	WIN32_FIND_DATA fd;
+#else	
+	DIR *d;
+	struct dirent *dstruct;
+	struct stat fileinfo;
+#endif
+
+	demolist_count = demo_base = demo_cursor = 0;
+
+	for (i = 0; i < MAX_DEMO_FILES; i++) {
+		if (demolist_data[i].name) {
+			free(demolist_data[i].name);
+			demolist_data[i].name = NULL;
+		}
 	}
 
-	h = FindFirstFile (va("%s%s/*.*", com_basedir, demodir), &fd);
+	if (demo_currentdir[0]) {	
+		demolist_data[0].name = strdup ("..");
+		demolist_data[0].type = dt_up;
+		demolist_count = 1;
+	}
+
+#ifdef _WIN32
+	h = FindFirstFile (va("%s%s/*.*", com_basedir, demo_currentdir), &fd);
 	if (h == INVALID_HANDLE_VALUE) {
-		dir[numfiles].name = Q_strdup ("Error reading directory");
-		dir[numfiles].type = 3;
-		numfiles++;
+		demolist_data[demolist_count].name = strdup ("Error reading directory");
+		demolist_data[demolist_count].type = dt_msg;
+		demolist_count++;
+		Demo_SortDemos();
 		return;
 	}
+#else
+	if (!(d = opendir(va("%s%s", com_basedir, demo_currentdir)))) {
+		demolist_data[demolist_count].name = strdup ("Error reading directory");
+		demolist_data[demolist_count].type = dt_msg;
+		demolist_count++;
+		Demo_SortDemos();
+		return;
+	}
+	dstruct = readdir (d);
+#endif
 
 	do {
-		int type, size;
-		int pos;
-		char name[MAX_DEMO_NAME];
-
+	#ifdef _WIN32
 		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 			if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, ".."))
 				continue;
-			type = 1;
+			type = dt_dir;
 			size = 0;
-		}
-		else
-		{
+			memset(&time, 0, sizeof(time));
+		} else {
 			i = strlen(fd.cFileName);
-			if (i < 5 || (Q_stricmp(fd.cFileName+i-4, ".qwd") && Q_stricmp(fd.cFileName+i-4, ".dem")
-				&& Q_stricmp(fd.cFileName+i-4, ".qwz")))
+			if (i < 5 ||
+				(
+					strcasecmp(fd.cFileName + i - 4, ".qwd") && 
+					strcasecmp(fd.cFileName +i - 4, ".qwz") && 
+					strcasecmp(fd.cFileName + i - 4, ".mvd")	
+				)
+			)
 				continue;
-			type = 0;
+			type = dt_file;
 			size = fd.nFileSizeLow;
+			time = fd.ftLastWriteTime;
 		}
 
-		strlcpy (name, fd.cFileName, sizeof(name));
+		Q_strncpyz (name, fd.cFileName, sizeof(name));
+	#else
+		stat (va("%s%s/%s", com_basedir, demo_currentdir, dstruct->d_name), &fileinfo);
 
-		// inclusion sort
-		for (i=0 ; i<numfiles ; i++)
-		{
-			if (type < dir[i].type)
-				continue;
-			if (type > dir[i].type)
-				break;
-			if (strcmp (name, dir[i].name) < 0)
-				break;
-		}
-		pos = i;
-		numfiles++;
-		for (i=numfiles-1 ; i>pos ; i--)
-			dir[i] = dir[i-1];
-		dir[i].name = Q_strdup (name);
-		dir[i].type = type;
-		dir[i].size = size;
-		if (numfiles == MAX_DEMO_FILES)
-			break;
-	} while ( FindNextFile(h, &fd) );
-	FindClose (h);
-
-	// TODO: position demo cursor
-	if (prevdir) {
-		for (i=0 ; i<numfiles ; i++) {
-			if (!strcmp (dir[i].name, prevdir)) {
-				demo_cursor = i;
-				if (demo_cursor >= MAXLINES) {
-					demo_base += demo_cursor - (MAXLINES-1);
-					demo_cursor = MAXLINES-1;
-				}
-				*prevdir = '\0';
-			}
-		}
-	}
-
-	if (!numfiles) {
-		dir[0].name = Q_strdup ("[ no files ]");
-		dir[0].type = 3;
-		numfiles = 1;
-	}
-}
-
-#else
-
-static void ReadDir (void)
-{
-	DIR				*d;
-	struct dirent	*dstruct;
-	struct stat		fileinfo;
-	int		i;
-
-	numfiles = 0;
-	demo_base = 0;
-	demo_cursor = 0;
-
-	for (i=0 ; i<MAX_DEMO_FILES ; i++)
-		if (dir[i].name) {
-			Q_free (dir[i].name);
-			dir[i].name = NULL;
-		}
-
-	if (demodir[0]) {
-		dir[0].name = Q_strdup ("..");
-		dir[0].type = 2;
-		numfiles = 1;
-	}
-
-	if (!(d = opendir(va("%s%s", com_basedir, demodir)))) {
-		dir[numfiles].name = Q_strdup ("Error reading directory");
-		dir[numfiles].type = 3;
-		numfiles++;
-		return;
-	}
-
-	dstruct = readdir (d);
-	do {
-		int type, size;
-		int pos;
-		char name[MAX_DEMO_NAME];
-
-		stat (va("%s/%s/%s", com_basedir, demodir, dstruct->d_name), &fileinfo);
-
-		if (S_ISDIR( fileinfo.st_mode )) {
+		if (S_ISDIR(fileinfo.st_mode)) {
 			if (!strcmp(dstruct->d_name, ".") || !strcmp(dstruct->d_name, ".."))
 				continue;
-			type = 1;
-			size = 0;
-		}
-		else
-		{
+			type = dt_dir;
+			time = size = 0;
+		} else {
 			i = strlen(dstruct->d_name);
-			if (i < 5 || (Q_stricmp(dstruct->d_name+i-4, ".qwd") && Q_stricmp(dstruct->d_name+i-4, ".dem")
-				/* && Q_stricmp(dstruct->d_name+i-4, ".qwz")*/ ))
+			if (i < 5 ||
+				(
+					strcasecmp(dstruct->d_name + i - 4, ".qwd")
+					&& strcasecmp(dstruct->d_name + i - 4, ".mvd")	
+				)
+			)
 				continue;
-			type = 0;
+			type = dt_file;
 			size = fileinfo.st_size;
+			time = fileinfo.st_mtime;
 		}
 
-		strlcpy (name, dstruct->d_name, sizeof(name));
+		Q_strncpyz (name, dstruct->d_name, sizeof(name));
+	#endif
 
-		// inclusion sort
-		for (i=0 ; i<numfiles ; i++)
-		{
-			if (type < dir[i].type)
-			    continue;
-			if (type > dir[i].type)
-				break;
-			if (strcmp (name, dir[i].name) < 0)
-				break;
-		}
-		pos = i;
-		numfiles++;
-		for (i=numfiles-1 ; i>pos ; i--)
-			dir[i] = dir[i-1];
-		dir[i].name = Q_strdup (name);
-		dir[i].type = type;
-		dir[i].size = size;
-		if (numfiles == MAX_DEMO_FILES)
+		if (demolist_count == MAX_DEMO_FILES)
 			break;
+
+		demolist_data[demolist_count].name = strdup(name);
+		demolist_data[demolist_count].type = type;
+		demolist_data[demolist_count].size = size;
+		demolist_data[demolist_count].time = time;
+		demolist_count++;
+
+#ifdef _WIN32
+	} while (FindNextFile(h, &fd));
+	FindClose (h);
+#else
 	} while ((dstruct = readdir (d)));
 	closedir (d);
+#endif
 
-	if (prevdir) {
-		for (i=0 ; i<numfiles ; i++) {
-			if (!strcmp (dir[i].name, prevdir)) {
-				demo_cursor = i;
-				if (demo_cursor >= MAXLINES) {
-					demo_base += demo_cursor - (MAXLINES-1);
-					demo_cursor = MAXLINES-1;
-				}
-				*prevdir = '\0';
+	if (!demolist_count) {
+		demolist_data[0].name = strdup("[ no files ]");
+		demolist_data[0].type = dt_msg;
+		demolist_count = 1;
+	}
+
+	Demo_SortDemos();
+	Demo_PositionCursor();
+}
+
+void M_Menu_Demos_f (void) {
+	static qbool demo_currentdir_init = false;
+	char *s;
+
+	M_EnterMenu(m_demos);
+	
+	if (!demo_currentdir_init) {
+		demo_currentdir_init = true;
+		if (sv_demoDir.string[0]) {
+			for (s = sv_demoDir.string; *s == '/' || *s == '\\'; s++)
+				;
+			if (*s) {	
+				strcpy(demo_currentdir, "/");
+				strncat(demo_currentdir, s, sizeof(demo_currentdir) - 1 - 1);
+				
+				for (s = demo_currentdir + strlen(demo_currentdir) - 1; *s == '/' || *s == '\\'; s--)
+					*s = 0;
 			}
+		} else {
+			strcpy(demo_currentdir, "/qw");	
+		}
+	}
+	
+	Demo_ReadDirectory();
+}
+
+static void Demo_FormatSize (char *t) {
+	char *s;
+
+	for (s = t; *s; s++) {
+		if (*s >= '0' && *s <= '9')
+			*s = *s - '0' + 18;
+		else
+			*s |= 128;
+	}
+}
+
+#define DEMOLIST_NAME_WIDTH	29		
+
+void M_Demos_Draw (void) {
+	int i, y;
+	direntry_t *d;
+	char demoname[DEMOLIST_NAME_WIDTH], demosize[36 - DEMOLIST_NAME_WIDTH];
+
+	static char last_demo_name[MAX_DEMO_NAME + 7];	
+	static int last_demo_index = 0, last_demo_length = 0;	
+	char demoname_scroll[38 + 1];
+	int demoindex, scroll_index;
+	float frac, time, elapsed;
+
+	M_Print (140, 8, "DEMOS");
+	Q_strncpyz(demoname_scroll, demo_currentdir[0] ? demo_currentdir : "/", sizeof(demoname_scroll));
+	M_PrintWhite (16, 16, demoname_scroll);
+	M_Print (8, 24, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1f");
+
+	for (i = 0; i < demolist_count - demo_base && i < DEMO_MAXLINES; i++) {
+		d = demolist[demo_base + i];
+		y = 32 + 8 * i;
+		Q_strncpyz (demoname, d->name, sizeof(demoname));
+
+		switch (d->type) {
+		case dt_file:
+			M_Print (24, y, demoname);
+			if (d->size > 99999 * 1024)
+				Q_snprintfz(demosize, sizeof(demosize), "%5iM", d->size >> 20);
+			else
+				Q_snprintfz(demosize, sizeof(demosize), "%5iK", d->size >> 10);
+			Demo_FormatSize(demosize);
+			M_PrintWhite (24 + 8 * DEMOLIST_NAME_WIDTH, y, demosize);
+			break;
+		case dt_dir:
+			M_PrintWhite (24, y, demoname);
+			M_PrintWhite (24 + 8 * DEMOLIST_NAME_WIDTH, y, "folder");
+			break;
+		case dt_up:
+			M_PrintWhite (24, y, demoname);
+			M_PrintWhite (24 + 8 * DEMOLIST_NAME_WIDTH, y, "    up");
+			break;
+		case dt_msg:
+			M_Print (24, y, demoname);
+			break;
+		default:
+			Sys_Error("M_Demos_Draw: unknown d->type (%d)", d->type);
 		}
 	}
 
-	if (!numfiles) {
-		dir[0].name = Q_strdup ("[ no files ]");
-		dir[0].type = 3;
-		numfiles = 1;
+	M_DrawChar (8, 32 + demo_cursor * 8, 12 + ((int) (curtime * 4) & 1));
+
+	demoindex = demo_base + demo_cursor;
+	if (demolist[demoindex]->type == dt_file) {
+		time = (float) Sys_DoubleTime();
+		if (!last_demo_time || last_demo_index != demoindex) {
+			last_demo_index = demoindex;
+			last_demo_time = time;
+			frac = scroll_index = 0;
+			Q_snprintfz(last_demo_name, sizeof(last_demo_name), "%s  ***  ", demolist[demoindex]->name);
+			last_demo_length = strlen(last_demo_name);
+		} else {
+			
+			elapsed = 3.5 * max(time - last_demo_time - 0.75, 0);
+			scroll_index = (int) elapsed;
+			frac = bound(0, elapsed - scroll_index, 1);
+			scroll_index = scroll_index % last_demo_length;
+		}
+
+
+		if (last_demo_length <= 38 + 7) {
+			Q_strncpyz(demoname_scroll, demolist[demoindex]->name, sizeof(demoname_scroll));
+			M_PrintWhite (160 - strlen(demoname_scroll) * 4, 40 + 8 * DEMO_MAXLINES, demoname_scroll);
+		} else {
+			for (i = 0; i < sizeof(demoname_scroll) - 1; i++)
+				demoname_scroll[i] = last_demo_name[(scroll_index + i) % last_demo_length];
+			demoname_scroll[sizeof(demoname_scroll) - 1] = 0;
+			M_PrintWhite (12 -  (int) (8 * frac), 40 + 8 * DEMO_MAXLINES, demoname_scroll);
+		}
+	} else {
+		last_demo_time = 0;
 	}
 }
-#endif	// !_WIN32
 
-void M_Menu_Demos_f (void)
-{
-	M_EnterMenu (m_demos);
-	ReadDir ();
-}
+void M_Demos_Key (int key) {
+	char *p;
+	demo_sort_t sort_target;
 
-static char *toyellow (char *s)
-{
-	static char buf[20];
-
-	strlcpy (buf, s, sizeof(buf));
-	for (s=buf ; *s ; s++)
-		if ( isdigit((int)(unsigned char)*s) )
-			*s = *s - '0' + 18;
-	return buf;
-}
-
-void M_Demos_Draw (void)
-{
-	int		i;
-	int		y;
-	direntry_t	*d;
-	char	str[29];
-
-	M_Print (140, 8, "DEMOS");
-	M_Print (16, 16, demodir);
-	M_Print (8, 24, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f");
-
-	d = dir + demo_base;
-	for (i=0, y=32 ; i<numfiles-demo_base && i<MAXLINES ; i++, y+=8, d++)
-	{
-		strlcpy (str, d->name, sizeof(str));
-		if (d->type)
-			M_PrintWhite (24, y, str);
-		else
-			M_Print (24, y, str);
-
-		if (d->type == 1)
-			M_PrintWhite (240, y, "  folder");
-		else if (d->type == 2)
-			M_PrintWhite (240, y, "    up  ");
-		else if (d->type == 0)
-			M_Print (240, y, toyellow(va("%7ik", d->size>>10)));
-	}
-
-	M_DrawChar (8, 32 + demo_cursor*8, 12+((int)(curtime*4)&1));
-}
-
-void M_Demos_Key (int k)
-{
-	switch (k)
-	{
+	switch (key) {
 	case K_BACKSPACE:
 		m_topmenu = m_none;	// intentional fallthrough
 	case K_ESCAPE:
-		strlcpy (prevdir, dir[demo_cursor+demo_base].name, sizeof(prevdir));
+		Q_strncpyz(demo_prevdemo, demolist[demo_cursor + demo_base]->name, sizeof(demo_prevdemo));
 		M_LeaveMenu (m_multiplayer);
 		break;
 
@@ -2088,9 +2174,8 @@ void M_Demos_Key (int k)
 
 	case K_DOWNARROW:
 		S_LocalSound ("misc/menu1.wav");
-		if (demo_cursor+demo_base < numfiles-1)
-		{
-			if (demo_cursor < MAXLINES-1)
+		if (demo_cursor + demo_base < demolist_count - 1) {
+			if (demo_cursor < DEMO_MAXLINES - 1)
 				demo_cursor++;
 			else
 				demo_base++;
@@ -2105,18 +2190,18 @@ void M_Demos_Key (int k)
 
 	case K_END:
 		S_LocalSound ("misc/menu1.wav");
-		if (numfiles > MAXLINES) {
-			demo_cursor = MAXLINES-1;
-			demo_base = numfiles - demo_cursor - 1;
+		if (demolist_count > DEMO_MAXLINES) {
+			demo_cursor = DEMO_MAXLINES - 1;
+			demo_base = demolist_count - demo_cursor - 1;
 		} else {
 			demo_base = 0;
-			demo_cursor = numfiles-1;
+			demo_cursor = demolist_count - 1;
 		}
 		break;
 
 	case K_PGUP:
 		S_LocalSound ("misc/menu1.wav");
-		demo_cursor -= MAXLINES-1;
+		demo_cursor -= DEMO_MAXLINES - 1;
 		if (demo_cursor < 0) {
 			demo_base += demo_cursor;
 			if (demo_base < 0)
@@ -2127,51 +2212,68 @@ void M_Demos_Key (int k)
 
 	case K_PGDN:
 		S_LocalSound ("misc/menu1.wav");
-		demo_cursor += MAXLINES-1;
-		if (demo_base + demo_cursor >= numfiles)
-			demo_cursor = numfiles - demo_base - 1;
-		if (demo_cursor >= MAXLINES) {
-			demo_base += demo_cursor - (MAXLINES-1);
-			demo_cursor = MAXLINES-1;
-			if (demo_base + demo_cursor >= numfiles)
-				demo_base = numfiles - demo_cursor - 1;
+		demo_cursor += DEMO_MAXLINES - 1;
+		if (demo_base + demo_cursor >= demolist_count)
+			demo_cursor = demolist_count - demo_base - 1;
+		if (demo_cursor >= DEMO_MAXLINES) {
+			demo_base += demo_cursor - (DEMO_MAXLINES - 1);
+			demo_cursor = DEMO_MAXLINES - 1;
+			if (demo_base + demo_cursor >= demolist_count)
+				demo_base = demolist_count - demo_cursor - 1;
 		}
 		break;
 
 	case K_ENTER:
-		if (!numfiles || dir[demo_base + demo_cursor].type == 3)
+		if (!demolist_count || demolist[demo_base + demo_cursor]->type == dt_msg)
 			break;
 
-		if (dir[demo_base + demo_cursor].type) {
-			if (dir[demo_base + demo_cursor].type == 2)
-			{
-				char *p;
-				if ( (p = strrchr(demodir, '/')) != NULL)
-				{
-					strcpy (prevdir, p+1);
-					*p = '\0';
+		if (demolist[demo_base + demo_cursor]->type != dt_file) {		
+			if (demolist[demo_base + demo_cursor]->type == dt_up) {
+				if ((p = strrchr(demo_currentdir, '/')) != NULL) {
+					Q_strncpyz(demo_prevdemo, p + 1, sizeof(demo_prevdemo));
+					*p = 0;
 				}
-			}
-			else
-			{
-				// FIXME, why -1?
-				strlcat (demodir, "/", sizeof(demodir)-1);
-				strlcat (demodir, dir[demo_base + demo_cursor].name, sizeof(demodir)-1);
+			} else {	
+				strncat(demo_currentdir, "/", sizeof(demo_currentdir) - strlen(demo_currentdir) - 1);
+				strncat(demo_currentdir, demolist[demo_base + demo_cursor]->name, sizeof(demo_currentdir) - strlen(demo_currentdir) - 1);
 			}
 			demo_cursor = 0;
-			ReadDir ();
-		}
-		else
-		{
+			Demo_ReadDirectory();
+		} else {
 			key_dest = key_game;
 			m_state = m_none;
-			Cbuf_AddText (va("playdemo \"..%s/%s\"\n", demodir, dir[demo_cursor+demo_base].name));
-			strlcpy (prevdir, dir[demo_cursor+demo_base].name, sizeof(prevdir));
+			if (keydown[K_CTRL])
+				Cbuf_AddText (va("timedemo \"..%s/%s\"\n", demo_currentdir, demolist[demo_cursor + demo_base]->name));
+			else
+				Cbuf_AddText (va("playdemo \"..%s/%s\"\n", demo_currentdir, demolist[demo_cursor + demo_base]->name));
+			Q_strncpyz(demo_prevdemo, demolist[demo_base + demo_cursor]->name, sizeof(demo_prevdemo));
 		}
+		break;
+
+	case 'n':	
+	case 's':	
+	case 't':	
+		if (!keydown[K_CTRL])
+			break;
+
+		sort_target = (key == 'n') ? ds_name : (key == 's') ? ds_size : ds_time;
+		if (demo_sorttype == sort_target) {
+			demo_reversesort = !demo_reversesort;
+		} else {
+			demo_sorttype = sort_target;
+			demo_reversesort = false;
+		}
+		Q_strncpyz(demo_prevdemo, demolist[demo_cursor + demo_base]->name, sizeof(demo_prevdemo));
+		Demo_SortDemos();
+		Demo_PositionCursor();	
+		break;
+
+	case K_SPACE:
+		Q_strncpyz(demo_prevdemo, demolist[demo_cursor + demo_base]->name, sizeof(demo_prevdemo));
+		Demo_ReadDirectory();
 		break;
 	}
 }
-
 
 //=============================================================================
 /* GAME OPTIONS MENU */
