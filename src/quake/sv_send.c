@@ -879,7 +879,7 @@ void SV_SendMVDMessage(void)
 	float		min_fps;
 	extern		cvar_t sv_demofps;
 	extern		cvar_t sv_demoPings;
-//	extern		cvar_t	sv_demoMaxSize;
+//	extern		cvar_t sv_demoMaxSize;
 
 	if (!sv.mvdrecording)
 		return;
@@ -946,6 +946,7 @@ void SV_SendMVDMessage(void)
 		stats[STAT_ITEMS] = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
 
 		for (j=0 ; j<MAX_CL_STATS ; j++)
+		{
 			if (stats[j] != demo.stats[i][j])
 			{
 				demo.stats[i][j] = stats[j];
@@ -964,6 +965,7 @@ void SV_SendMVDMessage(void)
 					MSG_WriteLong((sizebuf_t*)demo.dbuf, stats[j]);
 				}
 			}
+		}
 	}
 
 	// send over all the objects that are in the PVS
