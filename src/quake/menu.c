@@ -1801,7 +1801,6 @@ void M_MultiPlayer_Key (int key)
 
 //=============================================================================
 
-//=============================================================================
 /* DEMO MENU */
 
 extern cvar_t sv_demoDir;
@@ -1937,7 +1936,7 @@ static void Demo_ReadDirectory(void) {
 	}
 
 #ifdef _WIN32
-	h = FindFirstFile (va("%s%s/*.*", com_basedir, demo_currentdir), &fd);
+	h = FindFirstFile (va("%s/*.*", demo_currentdir), &fd);
 	if (h == INVALID_HANDLE_VALUE) {
 		demolist_data[demolist_count].name = strdup ("Error reading directory");
 		demolist_data[demolist_count].type = dt_msg;
@@ -1946,7 +1945,7 @@ static void Demo_ReadDirectory(void) {
 		return;
 	}
 #else
-	if (!(d = opendir(va("%s%s", com_basedir, demo_currentdir)))) {
+	if (!(d = opendir(va("%s", demo_currentdir)))) {
 		demolist_data[demolist_count].name = strdup ("Error reading directory");
 		demolist_data[demolist_count].type = dt_msg;
 		demolist_count++;
@@ -1981,7 +1980,7 @@ static void Demo_ReadDirectory(void) {
 
 		Q_strncpyz (name, fd.cFileName, sizeof(name));
 	#else
-		stat (va("%s%s/%s", com_basedir, demo_currentdir, dstruct->d_name), &fileinfo);
+		stat (va("%s/%s", demo_currentdir, dstruct->d_name), &fileinfo);
 
 		if (S_ISDIR(fileinfo.st_mode)) {
 			if (!strcmp(dstruct->d_name, ".") || !strcmp(dstruct->d_name, ".."))
@@ -2034,25 +2033,12 @@ static void Demo_ReadDirectory(void) {
 
 void M_Menu_Demos_f (void) {
 	static qbool demo_currentdir_init = false;
-	char *s;
 
 	M_EnterMenu(m_demos);
 	
 	if (!demo_currentdir_init) {
 		demo_currentdir_init = true;
-		if (sv_demoDir.string[0]) {
-			for (s = sv_demoDir.string; *s == '/' || *s == '\\'; s++)
-				;
-			if (*s) {	
-				strcpy(demo_currentdir, "/");
-				strncat(demo_currentdir, s, sizeof(demo_currentdir) - 1 - 1);
-				
-				for (s = demo_currentdir + strlen(demo_currentdir) - 1; *s == '/' || *s == '\\'; s--)
-					*s = 0;
-			}
-		} else {
-			strcpy(demo_currentdir, "/qw");	
-		}
+		strcpy(demo_currentdir, va("%s/%s", com_gamedir, sv_demoDir.string));	
 	}
 	
 	Demo_ReadDirectory();

@@ -580,7 +580,7 @@ void SV_SendServerInfoChange (char *key, char *value);
 // sv_ents.c
 //
 int SV_TranslateEntnum (int num);
-void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qbool ignorepvs);
+void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qbool recorder);
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 
 //
