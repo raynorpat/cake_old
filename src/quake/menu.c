@@ -2229,9 +2229,9 @@ void M_Demos_Key (int key) {
 			key_dest = key_game;
 			m_state = m_none;
 			if (keydown[K_CTRL])
-				Cbuf_AddText (va("timedemo \"..%s/%s\"\n", demo_currentdir, demolist[demo_cursor + demo_base]->name));
+				Cbuf_AddText (va("timedemo \".%s/%s\"\n", demo_currentdir, demolist[demo_cursor + demo_base]->name));
 			else
-				Cbuf_AddText (va("playdemo \"..%s/%s\"\n", demo_currentdir, demolist[demo_cursor + demo_base]->name));
+				Cbuf_AddText (va("playdemo \".%s/%s\"\n", demo_currentdir, demolist[demo_cursor + demo_base]->name));
 			Q_strncpyz(demo_prevdemo, demolist[demo_base + demo_cursor]->name, sizeof(demo_prevdemo));
 		}
 		break;

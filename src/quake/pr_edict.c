@@ -998,8 +998,7 @@ void PR_LoadProgs (void)
 
 	if (!deathmatch.value)
 	{
-		if (Q_stricmp(com_gamedirfile, "qw") && 
-			strcmp(com_gamedirfile, ""))
+		if (Q_stricmp(com_gamedirfile, "qw") && strcmp(com_gamedirfile, ""))
 		{
 			// if we're using a custom mod, anything
 			// in gamedir is preferred to stock *progs.dat
