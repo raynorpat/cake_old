@@ -173,13 +173,13 @@ typedef struct
 
 typedef struct
 {
-	int				key;		// so entities can reuse same entry
 	vec3_t			origin;
 	float			radius;
 	float			die;		// stop lighting after this time
 	float			decay;		// drop this each second
 	float			minlight;	// don't add when contributing less
-	vec3_t			color;
+	int				key;		// so entities can reuse same entry
+	int				rgb[3];
 } cdlight_t;
 
 typedef enum {
@@ -552,8 +552,12 @@ void CL_UpdateTEnts (void);
 // cl_effects.c
 //
 cdlight_t *CL_AllocDlight (int key);
-void CL_LinkDlights (void);
+void CL_RunDLights (void);
+void CL_AddDLights (void);
 void CL_ClearDlights (void);
+void R_ColorDLight (cdlight_t *dl, int r, int g, int b);
+void R_ColorWizLight (cdlight_t *dl);
+void R_ColorLightningLight (cdlight_t *dl);
 
 void CL_ClearParticles (void);
 void CL_LinkParticles (void);

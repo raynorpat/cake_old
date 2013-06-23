@@ -932,9 +932,6 @@ void R_AddDynamicLights (msurface_t *surf)
 
 	for (lnum = 0; lnum < r_refdef2.numDlights; lnum++)
 	{
-		// light is dead
-		if (r_refdef2.dlights[lnum].die < cl.time) continue;
-
 		// not hit by this light
 		if (!(surf->dlightbits[lnum >> 5] & (1 << (lnum & 31)))) continue;
 
@@ -978,9 +975,9 @@ void R_AddDynamicLights (msurface_t *surf)
 				if (dist < minlight)
 				{
 					brightness = (rad - dist);
-					bl[0] += (int) (brightness * r_refdef2.dlights[lnum].color[0]);
-					bl[1] += (int) (brightness * r_refdef2.dlights[lnum].color[1]);
-					bl[2] += (int) (brightness * r_refdef2.dlights[lnum].color[2]);
+					bl[0] += (int) (brightness * r_refdef2.dlights[lnum].rgb[0]);
+					bl[1] += (int) (brightness * r_refdef2.dlights[lnum].rgb[1]);
+					bl[2] += (int) (brightness * r_refdef2.dlights[lnum].rgb[2]);
 				}
 
 				bl += 3;

@@ -842,17 +842,17 @@ void V_AddEntity (entity_t *ent)
 V_AddDlight
 ==================
 */
-void V_AddDlight(int key, vec3_t origin, float radius, float die, float minlight, vec3_t color)
+void V_AddDlight(vec3_t origin, float radius, float minlight, int r, int g, int b)
 {
 	if (cl_numvisdlights >= MAX_DLIGHTS)
 		return;
 
-	cl_visdlights[cl_numvisdlights].key = key;
 	VectorCopy (origin, cl_visdlights[cl_numvisdlights].origin);
 	cl_visdlights[cl_numvisdlights].radius = radius;
-	cl_visdlights[cl_numvisdlights].die = die;
 	cl_visdlights[cl_numvisdlights].minlight = minlight;
-	VectorCopy (color, cl_visdlights[cl_numvisdlights].color);
+	cl_visdlights[cl_numvisdlights].rgb[0] = r;
+	cl_visdlights[cl_numvisdlights].rgb[1] = g;
+	cl_visdlights[cl_numvisdlights].rgb[2] = b;
 	cl_numvisdlights++;
 }
 

@@ -1191,7 +1191,10 @@ void CL_Frame (double time)
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 	}
 
-	CDAudio_Update();
+	CDAudio_Update ();
+
+	// advance local effects for next frame
+	CL_RunDLights ();
 
 	// update cinematic
 	SCR_RunCinematic ();

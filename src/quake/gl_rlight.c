@@ -103,7 +103,7 @@ void R_RenderCorona (dlight_t *light)
 	if (VectorLength (v) < rad)
 	{
 		// view is inside the dlight
-		// don;t bother adjusting the blend here because it screws things up
+		// don't bother adjusting the blend here because it screws things up
 		return;
 	}
 
@@ -113,9 +113,9 @@ void R_RenderCorona (dlight_t *light)
 	r_coronaverts[0].xyz[2] = light->origin[2] - vpn[2] * rad;
 
 	// because we allowed lighting to go higher than 256 we need to scale the colour back further
-	r_coronaverts[0].rgb[0] = light->color[0] > 5100 ? 255 : light->color[0] / 20;
-	r_coronaverts[0].rgb[1] = light->color[1] > 5100 ? 255 : light->color[1] / 20;
-	r_coronaverts[0].rgb[2] = light->color[2] > 5100 ? 255 : light->color[2] / 20;
+	r_coronaverts[0].rgb[0] = light->rgb[0] > 5100 ? 255 : light->rgb[0] / 20;
+	r_coronaverts[0].rgb[1] = light->rgb[1] > 5100 ? 255 : light->rgb[1] / 20;
+	r_coronaverts[0].rgb[2] = light->rgb[2] > 5100 ? 255 : light->rgb[2] / 20;
 	r_coronaverts[0].rgb[3] = 255;	// ati throws a hairy fit with a 3-component color array
 
 	for (i = 16, k = 1; i >= 0; i--, k++)
@@ -194,9 +194,6 @@ void R_DrawCoronas (void)
 
 	for (i = 0; i < r_refdef2.numDlights; i++, l++)
 	{
-		if (l->die < r_refdef2.time || !l->radius)
-			continue;
-
 		R_AddCoronaToAlphaList (l);
 	}
 }
@@ -350,9 +347,6 @@ void R_PushDlights (mnode_t *headnode)
 
 	for (i = 0; i < r_refdef2.numDlights; i++, l++)
 	{
-		if (l->die < cl.time || !l->radius)
-			continue;
-
 		R_MarkLights (l, i, headnode);
 	}
 }
@@ -503,17 +497,14 @@ int R_LightPoint (entity_t *e, float *lightcolor)
 
 		for (i = 0; i < r_refdef2.numDlights; i++)
 		{
-			if (r_refdef2.dlights[i].die >= cl.time)
-			{
-				VectorSubtract (e->origin, r_refdef2.dlights[i].origin, dist);
-				add = r_refdef2.dlights[i].radius - VectorLength (dist);
+			VectorSubtract (e->origin, r_refdef2.dlights[i].origin, dist);
+			add = r_refdef2.dlights[i].radius - VectorLength (dist);
 
-				if (add > 0)
-				{
-					lightcolor[0] += (add * r_refdef2.dlights[i].color[0]) * dlscale;
-					lightcolor[1] += (add * r_refdef2.dlights[i].color[1]) * dlscale;
-					lightcolor[2] += (add * r_refdef2.dlights[i].color[2]) * dlscale;
-				}
+			if (add > 0)
+			{
+				lightcolor[0] += (add * r_refdef2.dlights[i].rgb[0]) * dlscale;
+				lightcolor[1] += (add * r_refdef2.dlights[i].rgb[1]) * dlscale;
+				lightcolor[2] += (add * r_refdef2.dlights[i].rgb[2]) * dlscale;
 			}
 		}
 	}

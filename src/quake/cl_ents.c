@@ -1731,14 +1731,14 @@ void CL_EmitEntities (void)
 
 	V_ClearScene ();
 
-	if (cls.nqprotocol)
+	if (cls.nqprotocol) {
 		NQD_LinkEntities ();
-	else {
+	} else {
 		CL_LinkPlayers ();
 		CL_LinkPacketEntities ();
 		CL_LinkNails ();
 	}
-	CL_LinkDlights ();
+	CL_AddDLights ();
 	CL_LinkParticles ();
 
 	CL_UpdateTEnts ();
@@ -1759,6 +1759,7 @@ void CL_Ents_Init (void)
 	Cvar_Register (&cl_r2g);
 	Cvar_Register (&cl_predict_players);
 	Cvar_Register (&cl_solid_players);
+
 	// Just for compatibility with ZQuake 0.14 (remove one day)
 	Cmd_AddLegacyCommand ("cl_predictPlayers", "cl_predict_players");
 	Cmd_AddLegacyCommand ("cl_solidPlayers", "cl_solid_players");

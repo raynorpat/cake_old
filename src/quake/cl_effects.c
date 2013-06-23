@@ -1001,28 +1001,28 @@ cdlight_t *CL_AllocDlight (int key)
 	cdlight_t *dl = CL_FindDlight (key);
 
 	// set default colour for any we don't colour ourselves
-	dl->color[0] = dl->color[1] = dl->color[2] = 255;
+	dl->rgb[0] = dl->rgb[1] = dl->rgb[2] = 255;
 
 	// done
 	return dl;
 }
 
 
-void R_ColorDLight (dlight_t *dl, int r, int g, int b)
+void R_ColorDLight (cdlight_t *dl, int r, int g, int b)
 {
-	dl->color[0] = r;
-	dl->color[1] = g;
-	dl->color[2] = b;
+	dl->rgb[0] = r;
+	dl->rgb[1] = g;
+	dl->rgb[2] = b;
 }
 
 
-void R_ColorWizLight (dlight_t *dl)
+void R_ColorWizLight (cdlight_t *dl)
 {
 	R_ColorDLight (dl, 308, 351, 109);
 }
 
 
-void R_ColorLightningLight (dlight_t *dl)
+void R_ColorLightningLight (cdlight_t *dl)
 {
 	// old - R_ColorDLight (dl, 2, 225, 541);
 	R_ColorDLight (dl, 65, 232, 470);
@@ -1031,10 +1031,10 @@ void R_ColorLightningLight (dlight_t *dl)
 
 /*
 ===============
-CL_LinkDlights
+CL_RunDLights
 ===============
 */
-void CL_LinkDlights (void)
+void CL_RunDLights (void)
 {
 	int			i;
 	cdlight_t	*dl;
@@ -1042,15 +1042,38 @@ void CL_LinkDlights (void)
 	dl = cl_dlights;
 	for (i = 0; i < MAX_DLIGHTS; i++, dl++)
 	{
-		if (dl->die < cl.time || dl->radius <= 0)
+		if (!dl->radius)
 			continue;
-
-		V_AddDlight(dl->key, dl->origin, dl->radius, dl->minlight, dl->die, dl->color);
+		
+		if (dl->die < cl.time)
+		{
+			dl->radius = 0;
+			return;
+		}
 
 		dl->radius -= cls.frametime * dl->decay;
-
 		if (dl->radius < 0)
 			dl->radius = 0;
+	}
+}
+
+/*
+===============
+CL_AddDLights
+===============
+*/
+void CL_AddDLights (void)
+{
+	int			i;
+	cdlight_t	*dl;
+
+	dl = cl_dlights;
+	for (i = 0; i < MAX_DLIGHTS; i++, dl++)
+	{
+		if (!dl->radius)
+			continue;
+		
+		V_AddDlight(dl->origin, dl->radius, dl->minlight, dl->rgb[0], dl->rgb[1], dl->rgb[2]);
 	}
 }
 
