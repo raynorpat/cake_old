@@ -36,7 +36,6 @@ beam_t		cl_beams[MAX_BEAMS];
 
 static vec3_t	playerbeam_end;
 
-
 #define	MAX_EXPLOSIONS	32
 typedef struct explosion_s
 {
@@ -64,7 +63,7 @@ static struct model_s	*cl_bolt3_mod;
 static struct model_s	*cl_beam_mod;
 
 cvar_t	cl_fakeshaft = {"cl_fakeshaft", "0"};
-cvar_t	r_shaftalpha = {"r_shaftalpha", "1"};
+cvar_t	r_shaftalpha = {"r_shaftalpha", "100"};
 
 
 /*
@@ -224,6 +223,7 @@ do_beam:
 
 // override any beam with the same entity
 	for (i = 0, b = cl_beams; i < MAX_BEAMS; i++, b++)
+	{
 		if (b->entity == ent)
 		{
 			b->model = m;
@@ -232,6 +232,7 @@ do_beam:
 			VectorCopy (end, b->end);
 			return;
 		}
+	}
 
 // find a free beam
 	for (i = 0, b = cl_beams; i < MAX_BEAMS; i++, b++)
@@ -564,11 +565,9 @@ void CL_UpdateBeams (void)
 			ent.model = b->model;
 			ent.angles[PITCH] = angles[PITCH];
 			ent.angles[YAW] = angles[YAW];
-			ent.angles[ROLL] = rand()%360;
-			if (b->model == cl_bolt2_mod) {
+			ent.angles[ROLL] = rand() % 360;
+			if (b->model == cl_bolt2_mod)
 				ent.alpha = r_shaftalpha.value;
-				ent.renderfx |= RF_TRANSLUCENT;
-			}
 
 			V_AddEntity (&ent);
 

@@ -406,7 +406,6 @@ extern int	cl_rocketindex, cl_grenadeindex;
 /*
 ===============
 CL_LinkPacketEntities
-
 ===============
 */
 void CL_LinkPacketEntities (void)
@@ -568,15 +567,14 @@ void CL_LinkPacketEntities (void)
 				if (cent->gib_start && cl.time - cent->gib_start > cl_gibtime.value)
 					continue;
 				// start to fade away 1 second before cl_gibtime is up
-				if (cent->gib_start && cl.time - cent->gib_start > cl_gibtime.value - 1) {
-					ent.alpha = cl_gibtime.value - (cl.time - cent->gib_start);
-					ent.renderfx |= RF_TRANSLUCENT;
-				}
-			} else if (cl_gibfilter.value)
+				if (cent->gib_start && cl.time - cent->gib_start > cl_gibtime.value - 1)
+					ent.alpha = (cl_gibtime.value - (cl.time - cent->gib_start)) * 255;
+			} else if (cl_gibfilter.value) {
 				continue;
-		}
-		else
+			}
+		} else {
 			cent->gib_start = 0;
+		}
 
 		ent.model = model = cl.model_precache[state->modelindex];
 		if (!model)
@@ -603,8 +601,7 @@ void CL_LinkPacketEntities (void)
 		if (cent->prevframe != cl_entframecount - 1) {
 			// not in previous message
 			cent->framelerp_start = 0;
-		}
-		else if (cent->current.frame != cent->previous.frame) {
+		} else if (cent->current.frame != cent->previous.frame) {
 //			Com_Printf ("%i -> %i\n", cent->current.frame, cent->previous.frame);
 			cent->framelerp_start = cl.time;
 			cent->oldframe = cent->previous.frame;
@@ -622,20 +619,17 @@ void CL_LinkPacketEntities (void)
 		//
 		// calculate angles
 		//
-		if (modelflags & MF_ROTATE)
-		{	// rotate binary objects locally
+		if (modelflags & MF_ROTATE)	{
+			// rotate binary objects locally
 			ent.angles[0] = 0;
 			ent.angles[1] = autorotate;
 			ent.angles[2] = 0;
-		}
-		else if (cl.modelinfos[state->modelindex] == mi_monster && cl_lerp_monsters.value)
-		{
+		} else if (cl.modelinfos[state->modelindex] == mi_monster && cl_lerp_monsters.value) {
 			// monster angles interpolation
 			if (cent->prevframe != cl_entframecount - 1) {
 				// not in previous message
 				cent->monsterlerp_angles_start = 0;
-			}
-			else {
+			} else {
 				for (i = 0; i < 3; i++)
 					if (cent->current.s_angles[i] != cent->previous.s_angles[i])
 						break;
@@ -654,9 +648,7 @@ void CL_LinkPacketEntities (void)
 			} else {
 				MSG_UnpackAngles (cent->current.s_angles, ent.angles);
 			}
-		}
-		else
-		{
+		} else {
 			// generic angles interpolation
 			vec3_t	old, cur;
 			MSG_UnpackAngles (cent->previous.s_angles, old);
@@ -672,8 +664,7 @@ void CL_LinkPacketEntities (void)
 			if (cent->prevframe != cl_entframecount - 1) {
 				// not in previous message
 				cent->monsterlerp_start = 0;
-			}
-			else {
+			} else {
 				for (i=0 ; i<3 ; i++)
 					if (cent->current.s_origin[i] != cent->previous.s_origin[i])
 						break;
@@ -690,8 +681,7 @@ void CL_LinkPacketEntities (void)
 			} else {
 				VectorCopy (cur_origin, ent.origin);
 			}
-		}
-		else {
+		} else {
 			// generic origin interpolation
 			for (i=0 ; i<3 ; i++)
 				ent.origin[i] = cent->previous.s_origin[i] * 0.125 + 
@@ -699,19 +689,18 @@ void CL_LinkPacketEntities (void)
 		}
 
 		// add automatic particle trails
-		if (modelflags & ~MF_ROTATE)
-		{
+		if (modelflags & ~MF_ROTATE) {
 			VectorCopy (cent->trail_origin, old_origin);
 
-			for (i=0 ; i<3 ; i++)
-				if (abs(old_origin[i] - ent.origin[i]) > 128)
-				{	// no trail if too far
+			for (i=0 ; i<3 ; i++) {
+				if (abs(old_origin[i] - ent.origin[i]) > 128) {
+					// no trail if too far
 					VectorCopy (ent.origin, old_origin);
 					break;
 				}
+			}
 
-			if (modelflags & MF_ROCKET)
-			{
+			if (modelflags & MF_ROCKET)	{
 				if (r_rockettrail.value) {
 					if (r_rockettrail.value == 2)
 						CL_GrenadeTrail (old_origin, ent.origin, cent->trail_origin);

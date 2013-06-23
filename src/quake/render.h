@@ -30,8 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // entity->renderfx
 #define RF_WEAPONMODEL			1
 #define RF_PLAYERMODEL			2
-#define RF_TRANSLUCENT			4
-#define RF_LIMITLERP			8
+#define RF_LIMITLERP			4
 
 //=============================================================================
 

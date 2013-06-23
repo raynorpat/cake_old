@@ -31,14 +31,15 @@ when crossing a water boudnary.
 */
 
 cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
-cvar_t	cl_rollangle = {"cl_rollangle", "0"};
-cvar_t	cl_bob = {"cl_bob","0"};
-cvar_t	cl_bobcycle = {"cl_bobcycle","0.6"};
+cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
+cvar_t	cl_bob = {"cl_bob", "0.02"};
+cvar_t	cl_bobcycle = {"cl_bobcycle", "0.6"};
 cvar_t	cl_bobup = {"cl_bobup","0.5"};
-cvar_t	v_kicktime = {"v_kicktime", "0"};
+cvar_t	v_kicktime = {"v_kicktime", "0.5"};
 cvar_t	v_kickroll = {"v_kickroll", "0.6"};
 cvar_t	v_kickpitch = {"v_kickpitch", "0.6"};
-cvar_t	v_kickback = {"v_kickback", "0"};	// recoil effect
+cvar_t	v_kickback = {"v_kickback", "0"};
+cvar_t	v_viewheight = {"v_viewheight", "0"};
 
 cvar_t	cl_drawgun = {"r_drawviewmodel", "1"};
 
@@ -97,8 +98,7 @@ V_CalcRoll
 float V_CalcRoll (vec3_t angles, vec3_t velocity)
 {
 	vec3_t	right;
-	float	sign;
-	float	side;
+	float 	sign, side;
 	
 	AngleVectors (angles, NULL, right, NULL);
 	side = DotProduct (velocity, right);
@@ -135,7 +135,7 @@ float V_CalcBob (void)
 	if (!cl.onground)
 		return bob;		// just use old value
 
-	if (!cl_bobcycle.value < 0.001)
+	if (cl_bobcycle.value <= 0)	
 		return 0;
 
 	bobtime += cls.frametime;
@@ -170,12 +170,9 @@ cvar_t	v_centerspeed = {"v_centerspeed","500"};
 
 void V_StartPitchDrift (void)
 {
-#if 1
 	if (cl.laststop == cl.time)
-	{
 		return;		// something else is keeping it from drifting
-	}
-#endif
+
 	if (cl.nodrift || !cl.pitchvel)
 	{
 		cl.pitchvel = v_centerspeed.value;
@@ -224,9 +221,8 @@ void V_DriftPitch (void)
 			cl.driftmove += cls.frametime;
 	
 		if ( cl.driftmove > v_centermove.value)
-		{
 			V_StartPitchDrift ();
-		}
+
 		return;
 	}
 	
@@ -262,9 +258,6 @@ void V_DriftPitch (void)
 		cl.viewangles[PITCH] -= move;
 	}
 }
-
-
-
 
 
 /*
@@ -660,10 +653,8 @@ void V_AddViewWeapon (float bob)
 //	if (r_lerpmuzzlehack.value && cl.modelinfos[cl.stats[STAT_WEAPON]] != mi_no_lerp_hack)
 //		ent.renderfx |= RF_LIMITLERP;
 
-	if (cl.stats[STAT_ITEMS] & IT_INVISIBILITY) {
-		ent.renderfx |= RF_TRANSLUCENT;
-		ent.alpha = 0.5;
-	}
+	if (cl.stats[STAT_ITEMS] & IT_INVISIBILITY)
+		ent.alpha = 128;
 
 	ent.angles[YAW] = r_refdef2.viewangles[YAW];
 	ent.angles[PITCH] = -r_refdef2.viewangles[PITCH];
@@ -717,11 +708,11 @@ V_CalcRefdef
 void V_CalcRefdef (void)
 {
 	vec3_t		forward;
-	float		bob;
+	float height_adjustment;
 
 	V_DriftPitch ();
 
-	bob = V_CalcBob ();
+	height_adjustment = v_viewheight.value ? bound (-7, v_viewheight.value, 4) : V_CalcBob ();
 
 	// set up the refresh position
 	VectorCopy (cl.simorg, r_refdef2.vieworg);
@@ -742,7 +733,7 @@ void V_CalcRefdef (void)
 	{
 		r_refdef2.vieworg[2] += cl.viewheight;	// normal view height
 
-		r_refdef2.vieworg[2] += bob;
+		r_refdef2.vieworg[2] += height_adjustment;
 
 		// smooth out stair step ups
 		r_refdef2.vieworg[2] += cl.crouch;
@@ -764,9 +755,7 @@ void V_CalcRefdef (void)
 		}
 	}
 
-//
-// set up refresh view angles
-//
+	// set up refresh view angles
 	VectorCopy (cl.simangles, r_refdef2.viewangles);
 	V_CalcViewRoll ();
 	V_AddIdle ();
@@ -789,7 +778,7 @@ void V_CalcRefdef (void)
 	if (view_message.flags & PF_DEAD)		// PF_GIB will also set PF_DEAD
 		r_refdef2.viewangles[ROLL] = 80;	// dead view angle
 
-	V_AddViewWeapon (bob);
+	V_AddViewWeapon (height_adjustment);
 }
 
 /*
@@ -978,6 +967,8 @@ void V_Init (void)
 	Cvar_Register (&v_kickroll);
 	Cvar_Register (&v_kickpitch);
 	Cvar_Register (&v_kickback);
+	Cvar_Register (&v_viewheight);
+
 	Cvar_Register (&cl_drawgun);
 
 	Cvar_Register (&v_bonusflash);
