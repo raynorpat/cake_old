@@ -453,7 +453,6 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 		memcpy ((byte *)SZ_GetSpace(buf, len-1)-1,data,len); // write over trailing 0
 }
 
-
 //============================================================================
 
 /*
@@ -486,6 +485,3 @@ char *Q_strdup (const char *src)
 		Sys_Error ("Not enough memory free; check disk space");
 	return p;
 }
-
-
-//============================================================================

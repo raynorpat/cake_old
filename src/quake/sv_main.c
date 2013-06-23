@@ -27,8 +27,7 @@ cvar_t	sv_mintic = {"sv_mintic", "0.013"};	// bound the size of the
 cvar_t	sv_maxtic = {"sv_maxtic", "0.1"};	// physics time tic
 
 cvar_t	sv_timeout = {"sv_timeout", "65"};		// seconds without any message
-cvar_t	sv_zombietime = {"sv_zombietime", "2"};	// seconds to sink messages
-											// after disconnect
+cvar_t	sv_zombietime = {"sv_zombietime", "2"};	// seconds to sink messages after disconnect
 
 cvar_t	sv_rconPassword = {"rcon_password", ""};	// password for remote server commands
 cvar_t	sv_password = {"password", ""};				// password for entering the game

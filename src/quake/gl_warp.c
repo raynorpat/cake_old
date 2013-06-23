@@ -1044,4 +1044,3 @@ void R_RenderModelSurfsWater (void)
 
 	if (stateset) R_LiquidEnd ();
 }
-

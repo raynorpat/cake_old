@@ -987,5 +987,3 @@ glsl_sky:;
 
 	Fog_EnableGFog ();
 }
-
-
