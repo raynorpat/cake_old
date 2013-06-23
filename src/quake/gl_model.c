@@ -1644,6 +1644,72 @@ void Mod_FloodFillSkin( byte *skin, int skinwidth, int skinheight )
 	}
 }
 
+#define MDL_STANDARD (TEXPREF_MIPMAP)
+#define MDL_NOBRIGHT (TEXPREF_MIPMAP | TEXPREF_NOBRIGHT)
+#define MDL_FULLBRIGHT	(TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT)
+
+char *texpaths[] = {"textures/progs/", "textures/models/", "progs/", "models/", NULL};
+
+void Mod_LoadSkinTexture (gltexture_t **tex, gltexture_t **fb, char *name, char *fbr_mask_name, char *extname, byte *data, int width, int height, unsigned int offset)
+{
+	int i;
+	char extload[256] = {0};
+	int extwidth = 0;
+	int extheight = 0;
+	byte *extdata;
+	int hunkmark = Hunk_LowMark ();
+
+	for (i = 0; ; i++)
+	{
+		// no more paths
+		if (!texpaths[i]) break;
+
+		sprintf (extload, "%s%s", texpaths[i], extname);
+		extdata = Image_LoadImage (extload, &extwidth, &extheight);
+
+		if (extdata)
+		{
+			tex[0] = TexMgr_LoadImage (loadmodel, extload, extwidth, extheight, SRC_RGBA, extdata, extload, 0, MDL_STANDARD);
+			fb[0] = NULL;
+
+			// now try to load glow/luma image from the same place
+			Hunk_FreeToLowMark (hunkmark);
+
+			sprintf (extload, "%s%s_glow", texpaths[i], extname);
+			extdata = Image_LoadImage (extload, &extwidth, &extheight);
+
+			if (!extdata)
+			{
+				sprintf (extload, "%s%s_luma", texpaths[i], extname);
+				extdata = Image_LoadImage (extload, &extwidth, &extheight);
+			}
+
+			if (extdata)
+			{
+				fb[0] = TexMgr_LoadImage (loadmodel, extload, extwidth, extheight, SRC_RGBA, extdata, extload, 0, MDL_STANDARD);
+				Hunk_FreeToLowMark (hunkmark);
+			}
+
+			return;
+		}
+	}
+
+	// hurrah! for readable code
+	if (Mod_CheckFullbrights (data, width * height))
+	{
+		tex[0] = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, data, loadmodel->name, offset, MDL_NOBRIGHT);
+		fb[0] = TexMgr_LoadImage (loadmodel, fbr_mask_name, width, height, SRC_INDEXED, data, loadmodel->name, offset, MDL_FULLBRIGHT);
+	}
+	else
+	{
+		tex[0] = TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, data, loadmodel->name, offset, MDL_STANDARD);
+		fb[0] = NULL;
+	}
+
+	// just making sure...
+	Hunk_FreeToLowMark (hunkmark);
+}
+
 /*
 ===============
 Mod_LoadAllSkins
@@ -1657,6 +1723,7 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 	daliasskingroup_t		*pinskingroup;
 	daliasskininterval_t	*pinskinintervals;
 	char					fbr_mask_name[256];
+	char					extname[256];
 	unsigned				offset;
 	
 	skin = (byte *)(pskintype + 1);
@@ -1683,23 +1750,23 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 			pheader->texels[i] = texels - (byte *) pheader;
 			memcpy (texels, (byte *) (pskintype + 1), size);
 
-			Q_snprintfz (name, sizeof(name), "%s:frame%i", loadmodel->name, i);
+			sprintf (name, "%s:frame%i", loadmodel->name, i);
+			sprintf (extname, "%s_%i", loadmodel->name, i);
+			sprintf (fbr_mask_name, "%s:frame%i_glow", loadmodel->name, i);
 			offset = (unsigned)(pskintype + 1) - (unsigned)mod_base;
 
-			if (Mod_CheckFullbrights ((byte *) (pskintype + 1), size))
-			{
-				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-											SRC_INDEXED, (byte *) (pskintype + 1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT);
-				Q_snprintfz (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_glow", loadmodel->name, i);
-				pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
-											SRC_INDEXED, (byte *) (pskintype + 1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT);
-			}
-			else
-			{
-				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-											SRC_INDEXED, (byte *) (pskintype + 1), loadmodel->name, offset, TEXPREF_MIPMAP);
-				pheader->fbtextures[i][0] = NULL;
-			}
+			Mod_LoadSkinTexture
+			(
+				&pheader->gltextures[i][0],
+				&pheader->fbtextures[i][0],
+				name,
+				fbr_mask_name,
+				&extname[6],
+				(byte *) (pskintype + 1),
+				pheader->skinwidth,
+				pheader->skinheight,
+				offset
+			);
 			
 			pheader->gltextures[i][3] = pheader->gltextures[i][2] = pheader->gltextures[i][1] = pheader->gltextures[i][0];
 			pheader->fbtextures[i][3] = pheader->fbtextures[i][2] = pheader->fbtextures[i][1] = pheader->fbtextures[i][0];
@@ -1727,23 +1794,23 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 					memcpy (texels, (byte *) (pskintype), size);
 				}
 
-				Q_snprintfz (name, sizeof(name), "%s:frame%i_%i", loadmodel->name, i, j);
+				sprintf (name, "%s:frame%i_%i", loadmodel->name, i, j);
+				sprintf (extname, "%s_%i_%i", loadmodel->name, i, j);
+				sprintf (fbr_mask_name, "%s:frame%i_%i_glow", loadmodel->name, i, j);
 				offset = (unsigned)(pskintype) - (unsigned)mod_base;
 
-				if (Mod_CheckFullbrights((byte *)(pskintype), size))
-				{
-					pheader->gltextures[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-												  SRC_INDEXED, (byte *) (pskintype), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT);
-					Q_snprintfz (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_%i_glow", loadmodel->name, i, j);
-					pheader->fbtextures[i][j&3] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
-												  SRC_INDEXED, (byte *) (pskintype), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT);
-				}
-				else
-				{
-					pheader->gltextures[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-												  SRC_INDEXED, (byte *) (pskintype), loadmodel->name, offset, TEXPREF_MIPMAP);
-					pheader->fbtextures[i][j&3] = NULL;
-				}
+				Mod_LoadSkinTexture
+				(
+					&pheader->gltextures[i][j & 3],
+					&pheader->fbtextures[i][j & 3],
+					name,
+					fbr_mask_name,
+					extname,
+					(byte *) (pskintype),
+					pheader->skinwidth,
+					pheader->skinheight,
+					offset
+				);
 
 				pskintype = (daliasskintype_t *) ((byte *) (pskintype) + size);
 			}
