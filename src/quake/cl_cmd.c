@@ -960,6 +960,10 @@ void CL_Changing_f (void)
 	if (cls.download)  // don't change when downloading
 		return;
 
+	// stop recording any video
+	if(CL_VideoRecording())
+		CL_CloseAVI();
+
 	S_StopAllSounds (true);
 	cls.state = ca_connected;	// not active anymore, but not disconnected
 

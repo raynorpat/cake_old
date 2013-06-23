@@ -631,6 +631,20 @@ void Cam_Lock(int playernum);
 #endif
 
 //
+// cl_avi.c
+//
+extern cvar_t cl_aviFrameRate;
+extern cvar_t cl_aviMotionJpeg;
+
+void CL_InitAVIVideo(void);
+qbool CL_OpenAVIForWriting(char *filename);
+void CL_TakeVideoFrame(void);
+void CL_WriteAVIVideoFrame(const byte * imageBuffer, int size);
+void CL_WriteAVIAudioFrame(const byte * pcmBuffer, int size);
+qbool CL_CloseAVI(void);
+qbool CL_VideoRecording(void);
+
+//
 // cl_cin.c
 //
 void SCR_RunCinematic (void);

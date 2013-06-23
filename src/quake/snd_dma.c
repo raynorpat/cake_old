@@ -838,6 +838,11 @@ void GetSoundtime (void)
 	
 	fullsamples = dma.samples / dma.channels;
 
+	if(CL_VideoRecording()) {
+		soundtime += (int)(0.5 + cls.frametime * dma.speed);
+		return;
+	}
+
 // it is possible to miscount buffers if it has wrapped twice between
 // calls to S_Update.  Oh well.
 	samplepos = SNDDMA_GetDMAPos();

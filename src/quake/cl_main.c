@@ -328,13 +328,16 @@ void CL_Spawn (void)
 /*
 =====================
 CL_ClearState
-
 =====================
 */
 void CL_ClearState (void)
 {
 	int			i;
 	extern float	scr_centertime_off;
+
+	// stop recording any video
+	if(CL_VideoRecording())
+		CL_CloseAVI();
 
 	S_StopAllSounds (true);
 
@@ -393,6 +396,10 @@ void CL_Disconnect (void)
 	VID_SetCaption (PROGRAM);
 
 	CL_WipeParticles ();
+
+	// stop recording any video
+	if(CL_VideoRecording())
+		CL_CloseAVI();
 
 	// stop sounds (especially looping!)
 	S_StopAllSounds (true);
@@ -472,6 +479,10 @@ void CL_Reconnect_f (void)
 {
 	if (cls.download)  // don't change when downloading
 		return;
+
+	// stop recording any video
+	if(CL_VideoRecording())
+		CL_CloseAVI();
 
 	S_StopAllSounds (true);
 
@@ -951,6 +962,7 @@ void CL_Init (void)
 	CL_InitPrediction ();
 	CL_InitCam ();
 	CL_Ents_Init ();
+	CL_InitAVIVideo ();
 	TP_Init ();
 	SCR_Init ();
 	Sbar_Init ();
@@ -1020,15 +1032,14 @@ static double CL_MinFrameTime ()
 {
 	double fps, fpscap;
 
-	if (cls.timedemo)
+	if (cls.timedemo || CL_VideoRecording())
 		return 0;
 
 	if (cls.demoplayback) {
 		if (!cl_maxfps.value)
 			return 0;
 		fps = max (30.0, cl_maxfps.value);
-	}
-	else {
+	} else {
 		if (cl_independentPhysics.value) 
 			fps = cl_maxfps.value ? max(cl_maxfps.value, 30) : 999999;
 		else {
@@ -1054,6 +1065,10 @@ static double MinPhysFrameTime ()
 	// server policy
 	float fpscap = (cl.maxfps ? cl.maxfps : 72.0);
 
+	// this makes things smooth in mvd demo play back, since mvd interpolation applied each frame
+	if (cls.demoplayback)
+		return 0;
+
 	// the user can lower it for testing
 	if (cl_physfps.value)
 		fpscap = min(fpscap, cl_physfps.value);
@@ -1067,7 +1082,6 @@ static double MinPhysFrameTime ()
 /*
 ==================
 CL_Frame
-
 ==================
 */
 void CL_Frame (double time)
@@ -1090,7 +1104,12 @@ void CL_Frame (double time)
 		cls.trueframetime = minframetime;
 	extratime -= cls.trueframetime;
 
-	cls.frametime = min (cls.trueframetime, 0.2);
+	if(CL_VideoRecording() && cl_aviFrameRate.value) {
+		double videotime = (cl_aviFrameRate.value > 0) ? (1.0 / cl_aviFrameRate.value) : (1 / 30.0);
+		cls.frametime = bound(1.0 / 1000, videotime, 1.0);
+	} else {
+		cls.frametime = min (cls.trueframetime, 0.2);
+	}
 
 	if (cl_independentPhysics.value && !cls.demoplayback) 
 	{
@@ -1198,6 +1217,11 @@ void CL_Frame (double time)
 
 	// update cinematic
 	SCR_RunCinematic ();
+
+	if(CL_VideoRecording() && cl_aviFrameRate.value && cls.state == ca_active) {
+		// record video frame
+		CL_TakeVideoFrame();
+	}
 
 	if (host_speeds.value)
 	{

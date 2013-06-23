@@ -213,6 +213,8 @@ void R_NewMap (struct model_s *worldmodel);
 // never store this pointer for later use!
 void R_RSShot (byte **pcxdata, int *pcxsize);
 
+void R_TakeVideoFrame(int width, int height, byte * captureBuffer, byte * encodeBuffer, qbool motionJpeg);
+
 void R_SetPalette (unsigned char *palette);
 
 // 2D drawing functions

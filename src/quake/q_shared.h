@@ -58,6 +58,7 @@ typedef enum {false, true} qbool;
 #define NULL ((void *)0)
 #endif
 
+#define PAD(x,y) (((x)+(y)-1) & ~((y)-1))
 
 #ifdef _WIN32
 #define IS_SLASH(c) ((c) == '/' || (c) == '\\')

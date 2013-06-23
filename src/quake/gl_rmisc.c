@@ -858,3 +858,44 @@ void R_RSShot (byte **pcxdata, int *pcxsize)
 
 	// return with pcxdata and pcxsize
 } 
+
+/* 
+============================================================================== 
+ 
+						VIDEO
+ 
+============================================================================== 
+*/ 
+
+/* 
+================== 
+R_TakeVideoFrame
+================== 
+*/
+void R_TakeVideoFrame(int width, int height, byte * captureBuffer, byte * encodeBuffer, qbool motionJpeg)
+{
+	int             i, frameSize;
+
+	qglReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, captureBuffer);
+
+	/*
+	if(motionJpeg)
+	{
+		frameSize = SaveJPGToBuffer(encodeBuffer, 90, width, height, captureBuffer);
+		CL_WriteAVIVideoFrame(encodeBuffer, frameSize);
+	}
+	else
+	*/
+	{
+		frameSize = width * height;
+
+		for(i = 0; i < frameSize; i++)  // Pack to 24bpp and swap R and B
+		{
+			encodeBuffer[i * 3] = captureBuffer[i * 4 + 2];
+			encodeBuffer[i * 3 + 1] = captureBuffer[i * 4 + 1];
+			encodeBuffer[i * 3 + 2] = captureBuffer[i * 4];
+		}
+
+		CL_WriteAVIVideoFrame(encodeBuffer, frameSize * 3);
+	}
+}
