@@ -1644,8 +1644,8 @@ void Mod_FloodFillSkin( byte *skin, int skinwidth, int skinheight )
 	}
 }
 
-#define MDL_STANDARD (TEXPREF_MIPMAP)
-#define MDL_NOBRIGHT (TEXPREF_MIPMAP | TEXPREF_NOBRIGHT)
+#define MDL_STANDARD	(TEXPREF_MIPMAP)
+#define MDL_NOBRIGHT	(TEXPREF_MIPMAP | TEXPREF_NOBRIGHT)
 #define MDL_FULLBRIGHT	(TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT)
 
 char *texpaths[] = {"textures/progs/", "textures/models/", "progs/", "models/", NULL};

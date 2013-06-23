@@ -197,7 +197,7 @@ void COM_AddParm (char *parm);
 void COM_Init (void);
 void COM_Shutdown (void);
 
-
+int COM_filelength (FILE *f);
 char *COM_SkipPath (char *pathname);
 char *COM_FileExtension (char *in);
 void COM_StripExtension (char *in, char *out);
