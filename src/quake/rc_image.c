@@ -42,10 +42,10 @@ byte *Image_LoadImage (char *name, int *width, int *height)
 	sprintf (loadfilename, "%s.tga", name);
 	FS_FOpenFile (loadfilename, &f);
 
+#if 0
 	if (f)
 		return Image_LoadTGA (f, width, height);
-
-	/*
+#else
 	if (f)
 	{
 		// NB - it is expected that the caller will do a Hunk_FreeToLowMark
@@ -59,7 +59,7 @@ byte *Image_LoadImage (char *name, int *width, int *height)
 
 		return tgaload;
 	}
-	*/
+#endif
 
 	sprintf (loadfilename, "%s.pcx", name);
 	FS_FOpenFile (loadfilename, &f);
