@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "keys.h"
 #include "sound.h"
 #include "version.h"
+#include "cl_slist.h"
 
 #ifndef _WIN32
 #include <dirent.h>
@@ -34,66 +35,70 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer,
-	m_setup, m_options, m_video, m_keys, m_help, m_quit,
-	m_gameoptions, m_fps, m_demos} m_state;
+	m_setup, m_options, m_video, m_keys, m_help, m_credits, m_quit,
+	m_gameoptions, m_slist, m_sedit, m_fps, m_demos} m_state;
 
 void M_Menu_Main_f (void);
 	void M_Menu_SinglePlayer_f (void);
 		void M_Menu_Load_f (void);
 		void M_Menu_Save_f (void);
+		void M_Menu_Help_f (void);
+		void M_Menu_Credits_f (void);
 	void M_Menu_MultiPlayer_f (void);
+		void M_Menu_ServerList_f (void);
+			void M_Menu_SEdit_f (void);
 		void M_Menu_Setup_f (void);
-		void M_Menu_Demos_f (void);
 		void M_Menu_GameOptions_f (void);
+	void M_Menu_Demos_f (void);
 	void M_Menu_Options_f (void);
 		void M_Menu_Keys_f (void);
 		void M_Menu_Fps_f (void);
 		void M_Menu_Video_f (void);
-	void M_Menu_Help_f (void);
 	void M_Menu_Quit_f (void);
 
 void M_Main_Draw (void);
 	void M_SinglePlayer_Draw (void);
 		void M_Load_Draw (void);
 		void M_Save_Draw (void);
+		void M_Help_Draw (void);
+		void M_Credits_Draw (void);
 	void M_MultiPlayer_Draw (void);
+		void M_ServerList_Draw (void);
+			void M_SEdit_Draw (void);
 		void M_Setup_Draw (void);
-		void M_Demos_Draw (void);
 		void M_GameOptions_Draw (void);
+	void M_Demos_Draw (void);
 	void M_Options_Draw (void);
 		void M_Keys_Draw (void);
 		void M_Fps_Draw (void);
 		void M_Video_Draw (void);
-	void M_Help_Draw (void);
 	void M_Quit_Draw (void);
 
 void M_Main_Key (int key);
 	void M_SinglePlayer_Key (int key);
 		void M_Load_Key (int key);
 		void M_Save_Key (int key);
+		void M_Help_Key (int key);
+		void M_Credits_Key (int key);
 	void M_MultiPlayer_Key (int key);
+		void M_ServerList_Key (int key);
+			void M_SEdit_Key (int key);
 		void M_Setup_Key (int key);
-		void M_Demos_Key (int key);
 		void M_GameOptions_Key (int key);
+	void M_Demos_Key (int key);
 	void M_Options_Key (int key);
 		void M_Keys_Key (int key);
 		void M_Fps_Key (int key);
 		void M_Video_Key (int key);
-	void M_Help_Key (int key);
 	void M_Quit_Key (int key);
 
-
-qbool	m_entersound;		// play after drawing a frame, so caching
-							// won't disrupt the sound
-
-int		m_topmenu;			// set if a submenu was entered via a
-							// menu_* command
-
+qbool	m_entersound;		// play after drawing a frame, so caching won't disrupt the sound
+int		m_topmenu;			// set if a submenu was entered via a menu_* command
 
 //=============================================================================
 /* Support Routines */
 
-cvar_t	scr_menuscale = {"scr_menuscale", "4", CVAR_ARCHIVE};
+cvar_t	scr_menuscale = {"scr_menuscale", "2", CVAR_ARCHIVE};
 
 void M_DrawChar (int cx, int line, int num)
 {
@@ -128,6 +133,32 @@ static void M_ItemPrint(int cx, int cy, char *str, int unghosted)
 		M_PrintWhite (cx, cy, str);
 }
 
+void M_Centerprint (int cy, char *str)
+{
+	int cx;
+	cx = vid.width / 2 - (strlen(str) * 4);
+
+	while (*str)
+	{
+		R_DrawChar (cx, cy, (*str) + 128);
+		str++;
+		cx += 8;
+	}
+}
+
+void M_CenterprintWhite (int cy, char *str)
+{
+	int cx;
+	cx = vid.width / 2 - (strlen(str) * 4);
+
+	while (*str)
+	{
+		R_DrawChar (cx, cy, *str);
+		str++;
+		cx += 8;
+	}
+}
+
 void M_DrawPic (int x, int y, qpic_t *pic)
 {
 	R_DrawPic (x, y, pic);
@@ -142,6 +173,108 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 {
 	Draw_TextBox (x, y, width, lines);
 }
+
+//=======================================================
+
+#define BUTTON_HEIGHT	10
+#define BUTTON_START	50
+#define	BUTTON_MENU_X	100
+#define LAYOUT_RED		116
+
+/*
+================
+M_Main_Layout
+
+JHL:ADD; Draws the main menu in desired manner
+================
+*/
+void PrintRed (int cx, int cy, char *str)
+{
+	while (*str)
+	{
+		R_DrawChar (cx, cy, (*str) + 128);
+		str++;
+		cx += 8;
+	}
+}
+
+void PrintWhite (int cx, int cy, char *str)
+{
+	while (*str)
+	{
+		R_DrawChar (cx, cy, *str);
+		str++;
+		cx += 8;
+	}
+}
+
+void M_Main_ButtonList (char *buttons[], int cursor_location, int in_main)
+{
+	int	x, y,
+		x_mod,
+		x_length,
+		i;
+
+	x_length = 0;
+
+	for ( i = 0; buttons[i] != 0; i++ )
+	{
+		x_length = x_length + (strlen(buttons[i])*8);
+	}
+
+	x_mod = (vid.width - x_length) / (i+1);
+	y = vid.height / 14;
+	x = 0;
+
+	for ( i = 0; buttons[i] != 0; i++ )
+	{
+		// center on point origin
+		x = x + x_mod;
+		if (cursor_location == i)
+		{
+			PrintWhite (x, y, buttons[i]);
+			if (in_main == true)
+				R_DrawChar (x-10, y, 12+((int)(curtime * 4)&1));
+		}
+		else
+			PrintRed (x, y, buttons[i]);
+		x = x + (strlen(buttons[i])*8);
+	}
+}
+
+void M_Main_Layout (int f_cursor, int f_inmenu)
+{
+	// the layout
+	char	*names[] =
+	{
+		"Single",
+		"Multiplayer",
+		"Demos",
+		"Options",
+		"Quit",
+		0
+	};
+
+	RB_SetCanvas (CANVAS_NONE);
+
+	// top
+	R_DrawFilledRect (0, 0, vid.width, vid.height / 8, 0, 1);
+	R_DrawFilledRect (0, vid.height / 16, vid.width, 1, LAYOUT_RED, 1);
+	
+	// bottom
+	R_DrawFilledRect (0,vid.height - 24, vid.width, vid.height, 0, 1);
+
+	// bottom fade
+
+	M_Main_ButtonList (names, f_cursor, f_inmenu);
+
+	// HACK: In submenu, so do the background
+	if (f_inmenu == false)
+		R_FadeScreen ();
+
+	RB_SetCanvas (CANVAS_MENU);
+}
+
 
 //=============================================================================
 
@@ -214,28 +347,21 @@ void M_LeaveMenu (int parent)
 int	m_main_cursor;
 #define	MAIN_ITEMS	5
 
+#define		M_M_SINGLE	0
+#define		M_M_MULTI	1
+#define		M_M_DEMOS	2
+#define		M_M_OPTION	3
+#define		M_M_QUIT	4
 
 void M_Menu_Main_f (void)
 {
 	M_EnterMenu (m_main);
 }
 
-
 void M_Main_Draw (void)
 {
-	int		f;
-	qpic_t	*p;
-
-	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
-	p = R_CachePic ("gfx/ttl_main.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
-	M_DrawPic (72, 32, R_CachePic ("gfx/mainmenu.lmp") );
-
-	f = (int)(curtime * 10)%6;
-
-	M_DrawPic (54, 32 + m_main_cursor * 20, R_CachePic(va("gfx/menudot%i.lmp", f+1)));
+	M_Main_Layout (m_main_cursor, true);
 }
-
 
 void M_Main_Key (int key)
 {
@@ -246,28 +372,18 @@ void M_Main_Key (int key)
 		m_state = m_none;
 		break;
 
+	case K_LEFTARROW:
 	case K_UPARROW:
 		S_LocalSound ("misc/menu1.wav");
 		if (--m_main_cursor < 0)
 			m_main_cursor = MAIN_ITEMS - 1;
 		break;
 
+	case K_RIGHTARROW:
 	case K_DOWNARROW:
 		S_LocalSound ("misc/menu1.wav");
 		if (++m_main_cursor >= MAIN_ITEMS)
 			m_main_cursor = 0;
-		break;
-
-	case K_HOME:
-	case K_PGUP:
-		S_LocalSound ("misc/menu1.wav");
-		m_main_cursor = 0;
-		break;
-
-	case K_END:
-	case K_PGDN:
-		S_LocalSound ("misc/menu1.wav");
-		m_main_cursor = MAIN_ITEMS - 1;
 		break;
 
 	case K_ENTER:
@@ -275,23 +391,23 @@ void M_Main_Key (int key)
 
 		switch (m_main_cursor)
 		{
-		case 0:
+		case M_M_SINGLE:
 			M_Menu_SinglePlayer_f ();
 			break;
 
-		case 1:
+		case M_M_MULTI:
 			M_Menu_MultiPlayer_f ();
 			break;
 
-		case 2:
+		case M_M_OPTION:
 			M_Menu_Options_f ();
 			break;
 
-		case 3:
-			M_Menu_Help_f ();
+		case M_M_DEMOS:
+			M_Menu_Demos_f ();
 			break;
 
-		case 4:
+		case M_M_QUIT:
 			M_Menu_Quit_f ();
 			break;
 		}
@@ -458,9 +574,10 @@ void M_Options_Draw (void)
 	float		r;
 	qpic_t	*p;
 
-	M_DrawPic (16, 4, R_CachePic("gfx/qplaque.lmp"));
+	M_Main_Layout (M_M_OPTION, false);
+
 	p = R_CachePic ("gfx/p_option.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
 
 	M_PrintWhite (16, 32, "    Customize controls");
 	M_PrintWhite (16, 40, "         Go to console");
@@ -512,7 +629,7 @@ void M_Options_Draw (void)
 	M_Print (16, 160, "             Use Mouse");
 	M_DrawCheckbox (220, 160, vid_mouse.value);
 
-// cursor
+	// cursor
 	M_DrawChar (200, 32 + options_cursor*8, 12+((int)(curtime*4)&1));
 }
 
@@ -679,6 +796,8 @@ void M_Keys_Draw (void)
 	int		x, y;
 	qpic_t	*p;
 
+	M_Main_Layout (M_M_OPTION, false);
+
 	p = R_CachePic ("gfx/ttl_cstm.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
 
@@ -687,7 +806,7 @@ void M_Keys_Draw (void)
 	else
 		M_Print (18, 32, "Enter to change, del to clear");
 
-// search for known bindings
+	// search for known bindings
 	for (i=0 ; i<NUMCOMMANDS ; i++)
 	{
 		y = 48 + 8*i;
@@ -816,7 +935,8 @@ void M_Fps_Draw (void)
 {
 	qpic_t	*p;
 
-	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
+	M_Main_Layout (M_M_OPTION, false);
+
 	p = R_CachePic ("gfx/ttl_cstm.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
 
@@ -862,7 +982,7 @@ void M_Fps_Draw (void)
 
 	M_PrintWhite (16, 128, "         High quality");
 
-// cursor
+	// cursor
 	M_DrawChar (200, 32 + fps_cursor*8, 12+((int)(curtime*4)&1));
 }
 
@@ -1094,7 +1214,8 @@ void M_Video_Draw (void)
 	qpic_t	*p;
 	int t;
 
-	M_DrawPic(16, 4, R_CachePic("gfx/qplaque.lmp"));
+	M_Main_Layout (M_M_OPTION, false);
+
 	p = R_CachePic("gfx/vidmodes.lmp");
 	M_DrawPic((320-p->width)/2, 4, p);
 
@@ -1242,6 +1363,12 @@ void M_Video_Key (int key)
 int		help_page;
 #define	NUM_HELP_PAGES	6
 
+#define HELP_MOVEMENT	0
+#define HELP_SWIMMING	1
+#define HELP_HAZARDS	2
+#define HELP_BUTTONS	3
+#define HELP_SECRETS	4
+#define HELP_ORDERING	5
 
 void M_Menu_Help_f (void)
 {
@@ -1249,13 +1376,162 @@ void M_Menu_Help_f (void)
 	help_page = 0;
 }
 
-
-
 void M_Help_Draw (void)
 {
-	M_DrawPic (0, 0, R_CachePic(va("gfx/help%i.lmp", help_page)));
-}
+	qpic_t	*p;
+	char	onscreen_help[64];
+	int		y;
 
+	M_Main_Layout (M_M_SINGLE, false);
+
+	M_DrawTextBox (-4, -4, 39, 29);
+
+	if (help_page == HELP_MOVEMENT)
+	{
+		p = R_CachePic ("gfx/menu_help.lmp");
+		M_DrawPic ((320 - p->width) / 2, 8, p);
+
+		y = 52;
+		M_PrintWhite (16, y, "BASIC MOVEMENT"); y += 8;
+		y += 8;
+		M_Print (16, y,	    "  Use the arrow keys to turn and");  y += 8;
+		M_Print (16, y,     "  move in the direction you're");  y += 8;
+		M_Print (16, y,     "  facing. Holding the SHIFT key");  y += 8;
+		M_Print (16, y,     "  down will speed your movement.");  y += 8;
+		M_Print (16, y,     "  To reconfigure your keys and");  y += 8;
+		M_Print (16, y,     "  mouse buttons, select the");  y += 8;
+		M_Print (16, y,     "  CUSTOMIZE KEYS from OPTIONS.");  y += 8;
+		M_Print (16, y,     "  menu.");  y += 8;
+		y += 16;
+		M_PrintWhite (16, y, "LOOKING AROUND"); y += 8;
+		y += 8;
+		M_Print (16, y,	    "  You can use the A and Z keys");  y += 8;
+		M_Print (16, y,     "  to look up and down. A better");  y += 8;
+		M_Print (16, y,     "  way to look around use the"); y += 8;
+		M_Print (16, y,		"  mouse. It allows you to"); y += 8;
+		M_Print (16, y,     "  observe your surroundings");  y += 8;
+		M_Print (16, y,     "  smoothly.");  y += 8;
+	}
+	else if (help_page == HELP_SWIMMING)
+	{
+		p = R_CachePic ("gfx/menu_help.lmp");
+		M_DrawPic ((320 - p->width) / 2, 8, p);
+
+		y = 52;
+		M_Print (16, y,	    "  It is very important to get");  y += 8;
+		M_Print (16, y,	    "  used to looking around because");  y += 8;
+		M_Print (16, y,	    "  many enemies come from above");  y += 8;
+		M_Print (16, y,	    "  and if you want to swim it");  y += 8;
+		M_Print (16, y,	    "  is a must.");  y += 8;
+		y += 16;
+		M_PrintWhite (16, y, "JUMPING AND SWIMMING"); y += 8;
+		y += 8;
+		M_Print (16, y,	    "  To jump up, press the SPACEBAR.");  y += 8;
+		M_Print (16, y,	    "  When you are in water, pressing");  y += 8;
+		M_Print (16, y,	    "  the SPACEBAR will make you");  y += 8;
+		M_Print (16, y,	    "  swim directly up to the surface");  y += 8;
+		M_Print (16, y,	    "  no matter which direction you");  y += 8;
+		M_Print (16, y,	    "  are facing - this is a good");  y += 8;
+		M_Print (16, y,	    "  panic button if you become");  y += 8;
+		M_Print (16, y,	    "  disoriented in the water.");  y += 8;
+	}
+	else if (help_page == HELP_HAZARDS)
+	{
+		p = R_CachePic ("gfx/menu_help.lmp");
+		M_DrawPic ((320 - p->width) / 2, 8, p);
+
+		y = 52;
+		M_Print (16, y,	    "  To swim in a certain direction,");  y += 8;
+		M_Print (16, y,	    "  look into that direction and");  y += 8;
+		M_Print (16, y,	    "  and press the UP arrow to move");  y += 8;
+		M_Print (16, y,	    "  forward. DO NOT swim in green");  y += 8;
+		M_Print (16, y,	    "  slime or lava, unless you have");  y += 8;
+		M_Print (16, y,	    "  a Biosuit.");  y += 8;
+		y += 8;
+		p = R_CachePic ("gfx/menu_help_hazards.lmp");
+		M_DrawPic ((320 - p->width) / 2, y, p); y += p->height+16;
+		M_PrintWhite (16, y, "OPENING DOORS AND PUSHING BUTTONS"); y += 8;
+		y += 8;
+		M_Print (16, y,	    "  To open doors and push buttons,");  y += 8;
+		M_Print (16, y,	    "  merely touch them by moving");  y += 8;
+		M_Print (16, y,	    "  into them. If a door cannot be");  y += 8;
+		M_Print (16, y,	    "  opened there is usually a");  y += 8;
+		M_Print (16, y,	    "  message stating the reason.");  y += 8;
+	}
+	else if (help_page == HELP_BUTTONS)
+	{
+		p = R_CachePic ("gfx/menu_help.lmp");
+		M_DrawPic ((320 - p->width) / 2, 8, p);
+
+		y = 52;
+		M_Print (16, y,	    "  If a door needs a key, get the");  y += 8;
+		M_Print (16, y,	    "  key and come back and touch");  y += 8;
+		M_Print (16, y,	    "  the door.");  y += 8;
+		y += 8;
+		p = R_CachePic ("gfx/menu_help_keys.lmp");
+		M_DrawPic ((320 - p->width) / 2, y, p); y += p->height+16;
+		M_Print (16, y,	    "  Most of the time, pressing a");  y += 8;
+		M_Print (16, y,	    "  button will affect an object");  y += 8;
+		M_Print (16, y,	    "  nearby. Some buttons can be");  y += 8;
+		M_Print (16, y,	    "  pressed multiple times - You will");  y += 8;
+		M_Print (16, y,	    "  see them press in, them come");  y += 8;
+		M_Print (16, y,	    "  back out, ready for another");  y += 8;
+		M_Print (16, y,	    "  press. Most buttons animate so");  y += 8;
+		M_Print (16, y,	    "  they are easy to locate.");  y += 8;
+		y += 8;
+		p = R_CachePic ("gfx/menu_help_buttons.lmp");
+		M_DrawPic ((320 - p->width) / 2, y, p);
+	}
+	else if (help_page == HELP_SECRETS)
+	{
+		p = R_CachePic ("gfx/menu_help.lmp");
+		M_DrawPic ((320 - p->width) / 2, 8, p);
+
+		y = 52;
+		M_PrintWhite (16, y, "SHOOTING BUTTONS AND SECRET WALLS"); y += 8;
+		y += 8;
+		M_Print (16, y,	    "  Some buttons must be shot");  y += 8;
+		M_Print (16, y,     "  (or hit with your axe) to use");  y += 8;
+		M_Print (16, y,     "  them.");  y += 8;
+		y += 8;
+		p = R_CachePic ("gfx/menu_help_shoot.lmp");
+		M_DrawPic ((320 - p->width) / 2, y, p); y += p->height+16;
+		M_Print (16, y,	    "  To find secret areas, look for");  y += 8;
+		M_Print (16, y,	    "  walls that have a texture on");  y += 8;
+		M_Print (16, y,	    "  them that is different than");  y += 8;
+		M_Print (16, y,	    "  the surrounding walls, then");  y += 8;
+		M_Print (16, y,	    "  shoot it (or hit it with your");  y += 8;
+		M_Print (16, y,	    "  axe)!");  y += 8;
+	}
+	else if (help_page == HELP_ORDERING)
+	{
+		p = R_CachePic ("gfx/menu_help_ordering.lmp");
+		M_DrawPic ((320 - p->width) / 2, 8, p);
+
+		y = 52;
+		M_Print	(16,y, "All four episodes can be"); y += 8;
+		M_Print	(16,y, "ordered by calling"); y += 8;
+		y += 16;
+		M_PrintWhite (16, y, "1-800-idGAMES"); y += 8;
+		y += 16;
+		M_Print	(16, y, "Quake's price is $45 plus"); y += 8;
+		M_Print	(16, y, "$5 shipping and handling."); y += 8;
+		y += 16;
+		M_Print	(16, y, "If you live outside the U.S.A."); y += 8;
+		M_Print	(16, y, "consult the ORDER.TXT file"); y += 8;
+		M_Print	(16, y, "in the Quake directory for"); y += 8;
+		M_Print	(16, y, "ordering information or"); y += 8;
+		M_Print	(16, y, "visit your local software"); y += 8;
+		M_Print	(16, y, "retailer."); y += 8;
+	}
+
+	RB_SetCanvas(CANVAS_NONE);
+
+	// do the help message
+	sprintf (onscreen_help, "Page %i/%i", help_page+1, NUM_HELP_PAGES);
+	M_Centerprint (vid.height - 16, onscreen_help);
+	M_CenterprintWhite (vid.height - 8, "Use the arrow keys to scroll the pages.");
+}
 
 void M_Help_Key (int key)
 {
@@ -1278,7 +1554,118 @@ void M_Help_Key (int key)
 	case K_LEFTARROW:
 		m_entersound = true;
 		if (--help_page < 0)
-			help_page = NUM_HELP_PAGES-1;
+			help_page = NUM_HELP_PAGES - 1;
+		break;
+	}
+}
+
+//=============================================================================
+/* CREDITS MENU */
+
+int		credits_page;
+#define	NUM_CREDITS_PAGES	2
+
+#define CREDITS_CAKE	0
+#define CREDITS_ID		1
+
+void M_Menu_Credits_f (void)
+{
+	M_EnterMenu (m_credits);
+	credits_page = 0;
+}
+
+void M_Credits_Draw (void)
+{
+	char	onscreen_help[64];
+	int		y;
+
+	M_Main_Layout (M_M_SINGLE, false);
+
+	M_DrawTextBox (-4, -4, 39, 29);
+
+	if (credits_page == CREDITS_CAKE)
+	{
+		y = 16;
+		M_PrintWhite (16, y, "Cake - Super QuakeWorld Engine Project");
+
+		y = (int)(curtime * 10)%6;
+		M_DrawPic (160, 26, R_CachePic( va("gfx/menudot%i.lmp", y+1 ) ) );
+
+		y = 56;
+		M_PrintWhite (16, y,  "Programming and Project Lead"); y += 8;
+		M_Print (16, y,	      " Pat 'raynorpat' Raynor"); y += 8;
+		y += 8;
+		M_PrintWhite (16, y,  "Special Thanks"); y += 8;
+		M_Print (16, y,       " Anton 'Tonik' Gavrilov     mh"); y += 8;
+		M_Print (16, y,       " Spike                      LordHavoc"); y += 8;
+		M_Print (16, y,       " Tim 'timbo' Angus          QuakeForge"); y += 8;
+		y += 16;
+		M_PrintWhite (16, y, "Cake is open source software; you can"); y += 8;
+		M_PrintWhite (16, y, "redistribute it and/or modify it under"); y += 8;
+		M_PrintWhite (16, y, "the terms of the GNU General Public"); y += 8;
+		M_PrintWhite (16, y, "License. See the GNU General Public"); y += 8;
+		M_PrintWhite (16, y, "License for more details.");
+	}
+	else if (credits_page == CREDITS_ID)
+	{
+		y = 16;
+		M_PrintWhite (16, y, "QUAKE by id Software");
+
+		y = 28;
+		M_PrintWhite (16, y,  "Programming        Art"); y += 8;
+		M_Print (16, y,	      " John Carmack       Adrian Carmack"); y += 8;
+		M_Print (16, y,		  " Michael Abrash     Kevin Cloud"); y += 8;
+		M_Print (16, y,       " John Cash          Paul Steed"); y += 8;
+		M_Print (16, y,       " Dave 'Zoid' Kirsch"); y += 8;
+		y += 8;
+		M_PrintWhite (16, y,  "Design             Biz"); y += 8;
+		M_Print (16, y,       " John Romero        Jay Wilbur"); y += 8;
+		M_Print (16, y,       " Sandy Petersen     Mike Wilson"); y += 8;
+		M_Print (16, y,       " American McGee     Donna Jackson"); y += 8;
+		M_Print (16, y,       " Tim Willits        Todd Hollenshead"); y += 8;
+		y += 8;
+		M_PrintWhite (16, y,  "Support            Projects\n"); y += 8;
+		M_Print (16, y,       " Barrett Alexander  Shawn Green\n"); y += 8;
+		y += 8;
+		M_PrintWhite (16, y,  "Sound Effects"); y += 8;
+		M_Print (16, y,       " Trent Reznor and Nine Inch Nails"); y += 8;
+		y += 16;
+		M_PrintWhite (16, y, "Quake is a trademark of Id Software,"); y += 8;
+		M_PrintWhite (16, y, "inc., (c)1996 Id Software, inc. All"); y += 8;
+		M_PrintWhite (16, y, "rights reserved. NIN logo is a"); y += 8;
+		M_PrintWhite (16, y, "registered trademark licensed to"); y += 8;
+		M_PrintWhite (16, y, "Nothing Interactive, Inc. All rights"); y += 8;
+		M_PrintWhite (16, y, "reserved.");
+	}
+
+	RB_SetCanvas(CANVAS_NONE);
+
+	// do the credits message
+	sprintf (onscreen_help, "Page %i/%i", credits_page+1, NUM_CREDITS_PAGES);
+	M_Centerprint (vid.height - 16, onscreen_help);
+	M_CenterprintWhite (vid.height - 8, "Use the arrow keys to scroll the pages.");
+}
+
+void M_Credits_Key (int key)
+{
+	switch (key)
+	{
+	case K_ESCAPE:
+		M_Menu_SinglePlayer_f ();
+		break;
+
+	case K_DOWNARROW:
+	case K_RIGHTARROW:
+		m_entersound = true;
+		if (++credits_page >= NUM_CREDITS_PAGES)
+			credits_page = 0;
+		break;
+
+	case K_UPARROW:
+	case K_LEFTARROW:
+		m_entersound = true;
+		if (--credits_page < 0)
+			credits_page = NUM_CREDITS_PAGES - 1;
 		break;
 	}
 
@@ -1379,6 +1766,10 @@ void M_Quit_Draw (void)
 	  "                        "
 	};
 
+	R_FadeScreen ();
+
+	RB_SetCanvas (CANVAS_MENU);
+
 	M_DrawTextBox (56, 76, 24, 4);
 	M_Print (64, 84,  quitMessage[msgNumber*4+0]);
 	M_Print (64, 92,  quitMessage[msgNumber*4+1]);
@@ -1389,67 +1780,99 @@ void M_Quit_Draw (void)
 //=============================================================================
 /* SINGLE PLAYER MENU */
 
-#ifndef CLIENTONLY
+#define	SINGLEPLAYER_ITEMS	5
 
-#define	SINGLEPLAYER_ITEMS	3
+#define	GAME_NEW		0
+#define	GAME_LOAD		1
+#define	GAME_SAVE		2
+#define	GAME_HELP		3
+#define	GAME_CREDITS	4
+
+int game_cursor_table[] = {BUTTON_START,
+	   					   BUTTON_START + BUTTON_HEIGHT,
+						   BUTTON_START + BUTTON_HEIGHT*2,
+						   BUTTON_START + BUTTON_HEIGHT*4,
+						   BUTTON_START + BUTTON_HEIGHT*5};
+
 int	m_singleplayer_cursor;
-qbool m_singleplayer_confirm;
+int	dim_load, dim_save;
 
 extern	cvar_t	maxclients, teamplay, deathmatch, coop, skill, fraglimit, timelimit;
 
 void M_Menu_SinglePlayer_f (void)
 {
 	M_EnterMenu (m_singleplayer);
-	m_singleplayer_confirm = false;
 }
-
 
 void M_SinglePlayer_Draw (void)
 {
-	int		f;
 	qpic_t	*p;
+	char	*names[] =
+	{
+		"New game",
+		"Load",
+		"Save",
+		"Help",
+		"Credits",
+		0
+	};
 
-	if (m_singleplayer_confirm) {
-		M_DrawTextBox (50, 9*8, 25, 4);
-		M_PrintWhite (64, 11*8, "Are you sure you want to");
-		M_PrintWhite (64, 12*8, "    start a new game?");
-		return;
-	}
+	M_Main_Layout (M_M_SINGLE, false);
 
-	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
 	p = R_CachePic ("gfx/ttl_sgl.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
-	M_DrawPic (72, 32, R_CachePic ("gfx/sp_menu.lmp") );
+	M_DrawPic ((320 - p->width) / 2, 4, p);
 
-	f = (int)(curtime * 10)%6;
-	M_DrawPic (54, 32 + m_singleplayer_cursor * 20, R_CachePic(va("gfx/menudot%i.lmp", f+1)));
+	dim_load = false;
+	dim_save = false;
+
+	//HACK: dim "save"/"load" if we can't choose 'em!
+	if (cl.maxclients != 1 || deathmatch.value || coop.value)
+	{
+		dim_load = true;
+		dim_save = true;
+	}
+	
+	if (!com_serveractive || cl.intermission)
+		dim_save = true;
+
+	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_NEW], names[0]);
+	
+	if (dim_load)
+		M_Print (BUTTON_MENU_X, game_cursor_table[GAME_LOAD], names[1]);
+	else
+		M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_LOAD], names[1]);
+
+	if (dim_save)
+		M_Print (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
+	else
+		M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
+
+	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_HELP], names[3]);
+	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_CREDITS], names[4]);
+
+	if ((m_singleplayer_cursor == 1 && dim_load == true) || (m_singleplayer_cursor == 2 && dim_save == true))
+		m_singleplayer_cursor = 0;
+
+	// cursor
+	M_DrawChar (BUTTON_MENU_X - 10, game_cursor_table[m_singleplayer_cursor], 12+((int)(curtime * 4)&1));
 }
 
 static void StartNewGame (void)
 {
 	key_dest = key_game;
+
 	Cvar_Set (&maxclients, "1");
-//	Cvar_Set (&maxspectators, "0");
 	Cvar_Set (&teamplay, "0");
 	Cvar_Set (&deathmatch, "0");
 	Cvar_Set (&coop, "0");
+
 	Host_EndGame ();
-//	Cbuf_AddText ("gamedir qw\n");
 	Cbuf_AddText ("map start\n");
 }
 
 void M_SinglePlayer_Key (int key)
 {
-	if (m_singleplayer_confirm) {
-		if (key == K_ESCAPE || key == 'n') {
-			m_singleplayer_confirm = false;
-			m_entersound = true;
-		}
-		else if (key == 'y' || key == K_ENTER)
-			StartNewGame ();
-		return;
-	}
-
+again:
 	switch (key)
 	{
 	case K_BACKSPACE:
@@ -1470,75 +1893,39 @@ void M_SinglePlayer_Key (int key)
 			m_singleplayer_cursor = SINGLEPLAYER_ITEMS - 1;
 		break;
 
-	case K_HOME:
-	case K_PGUP:
-		S_LocalSound ("misc/menu1.wav");
-		m_singleplayer_cursor = 0;
-		break;
-
-	case K_END:
-	case K_PGDN:
-		S_LocalSound ("misc/menu1.wav");
-		m_singleplayer_cursor = SINGLEPLAYER_ITEMS - 1;
-		break;
-
 	case K_ENTER:
 		switch (m_singleplayer_cursor)
 		{
-		case 0:
-			if (com_serveractive) {
-				// bring up confirmation dialog
-				m_singleplayer_confirm = true;
-				m_entersound = true;
-			}
-			else
-				StartNewGame ();
+		case GAME_NEW:
+			StartNewGame ();
 			break;
 
-		case 1:
+		case GAME_LOAD:
+			if (dim_load == true)
+				m_entersound = false;
 			M_Menu_Load_f ();
 			break;
 
-		case 2:
+		case GAME_SAVE:
+			if (dim_save == true)
+				m_entersound = false;
 			M_Menu_Save_f ();
+			break;
+
+		case GAME_HELP:
+			M_Menu_Help_f ();
+			break;
+
+		case GAME_CREDITS:
+			M_Menu_Credits_f ();
 			break;
 		}
 	}
+	if (m_singleplayer_cursor == GAME_LOAD && dim_load == true)
+		goto again;
+	if (m_singleplayer_cursor == GAME_SAVE && dim_save == true)
+		goto again;
 }
-
-#else	// !CLIENTONLY
-
-void M_Menu_SinglePlayer_f (void)
-{
-	M_EnterMenu (m_singleplayer);
-}
-
-void M_SinglePlayer_Draw (void)
-{
-	qpic_t	*p;
-
-	M_DrawPic (16, 4, R_CachePic("gfx/qplaque.lmp"));
-	p = R_CachePic ("gfx/ttl_sgl.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
-//	M_DrawPic (72, 32, R_CachePic("gfx/sp_menu.lmp"));
-
-	M_DrawTextBox (60, 10*8, 23, 4);
-	M_PrintWhite (88, 12*8, "This client is for");
-	M_PrintWhite (88, 13*8, "Internet play only");
-}
-
-void M_SinglePlayer_Key (key)
-{
-	switch (key) {
-	case K_BACKSPACE:
-		m_topmenu = m_none;	// intentional fallthrough
-	case K_ESCAPE:
-	case K_ENTER:
-		M_LeaveMenu (m_main);
-		break;
-	}
-}
-#endif	// CLIENTONLY
 
 
 //=============================================================================
@@ -1581,6 +1968,13 @@ void M_ScanSaves (void)
 #ifndef CLIENTONLY
 void M_Menu_Load_f (void)
 {
+	dim_load = false;
+	if (cl.maxclients != 1 || deathmatch.value || coop.value)
+		dim_load = true;
+	
+	if (dim_load == true)
+		return;
+
 	M_EnterMenu (m_load);
 	M_ScanSaves ();
 }
@@ -1588,9 +1982,14 @@ void M_Menu_Load_f (void)
 
 void M_Menu_Save_f (void)
 {
-	if (!com_serveractive)
-		return;
-	if (cl.intermission)
+	dim_save = false;
+	if (cl.maxclients != 1 || deathmatch.value || coop.value)
+		dim_save = true;
+	
+	if (!com_serveractive || cl.intermission)
+		dim_save = true;
+
+	if (dim_save == true)
 		return;
 
 	M_EnterMenu (m_save);
@@ -1604,14 +2003,16 @@ void M_Load_Draw (void)
 	int		i;
 	qpic_t	*p;
 
+	M_Main_Layout (M_M_SINGLE, false);
+
 	p = R_CachePic ("gfx/p_load.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
 
 	for (i = 0; i < MAX_SAVEGAMES; i++)
-		M_Print (16, 32 + 8*i, m_filenames[i]);
+		M_Print (16, 32 + BUTTON_HEIGHT * i, m_filenames[i]);
 
-// line cursor
-	M_DrawChar (8, 32 + load_cursor*8, 12+((int)(curtime*4)&1));
+	// line cursor
+	M_DrawChar (8, 32 + load_cursor * BUTTON_HEIGHT, 12 + ((int)(curtime * 4)&1));
 }
 
 
@@ -1620,14 +2021,16 @@ void M_Save_Draw (void)
 	int		i;
 	qpic_t	*p;
 
+	M_Main_Layout (M_M_SINGLE, false);
+
 	p = R_CachePic ("gfx/p_save.lmp");
 	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
 
 	for (i = 0; i < MAX_SAVEGAMES ; i++)
-		M_Print (16, 32 + 8*i, m_filenames[i]);
+		M_Print (16, 32 + BUTTON_HEIGHT * i, m_filenames[i]);
 
-// line cursor
-	M_DrawChar (8, 32 + load_cursor*8, 12+((int)(curtime*4)&1));
+	// line cursor
+	M_DrawChar (8, 32 + load_cursor * BUTTON_HEIGHT, 12 + ((int)(curtime * 4)&1));
 }
 
 
@@ -1713,35 +2116,39 @@ void M_Save_Key (int key)
 /* MULTIPLAYER MENU */
 
 int	m_multiplayer_cursor;
-#ifdef CLIENTONLY
-#define	MULTIPLAYER_ITEMS	2
-#else
+
 #define	MULTIPLAYER_ITEMS	3
-#endif
 
 void M_Menu_MultiPlayer_f (void)
 {
 	M_EnterMenu (m_multiplayer);
 }
 
-
 void M_MultiPlayer_Draw (void)
 {
 	qpic_t	*p;
+	char	*names[] =
+	{
+		"Join game",
+		"Create game",
+		"Player setup",
+		0
+	};
 
-	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp"));
+	M_Main_Layout (M_M_MULTI, false);
+
 	p = R_CachePic ("gfx/p_multi.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
-	M_Print (80, 40, "Player Setup");
-	M_Print (80, 48, "Demos");
-#ifndef CLIENTONLY
-	M_Print (80, 56, "New Game");
-#endif
+	M_DrawPic ((320 - p->width) / 2, 4, p);
 
-// cursor
-	M_DrawChar (64, 40 + m_multiplayer_cursor*8, 12+((int)(curtime*4)&1));
+	M_DrawPic ((320 - p->width) / 2, 4, p);
+
+	M_PrintWhite (BUTTON_MENU_X, BUTTON_START, names[0]);
+	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + BUTTON_HEIGHT, names[1]);
+	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + (BUTTON_HEIGHT * 2), names[2]);
+
+	// cursor
+	M_DrawChar (BUTTON_MENU_X - 10, BUTTON_START + (m_multiplayer_cursor * BUTTON_HEIGHT), 12 + ((int)(curtime * 4)&1));
 }
-
 
 void M_MultiPlayer_Key (int key)
 {
@@ -1782,25 +2189,21 @@ void M_MultiPlayer_Key (int key)
 		switch (m_multiplayer_cursor)
 		{
 		case 0:
-			M_Menu_Setup_f ();
+			M_Menu_ServerList_f ();
 			break;
 
 		case 1:
-			M_Menu_Demos_f ();
-			break;
-
-#ifndef CLIENTONLY
-		case 2:
 			M_Menu_GameOptions_f ();
 			break;
-#endif
+
+		case 2:
+			M_Menu_Setup_f ();
+			break;
 		}
 	}
 }
 
-
 //=============================================================================
-
 /* DEMO MENU */
 
 extern cvar_t sv_demoDir;
@@ -1850,27 +2253,25 @@ int Demo_SortCompare(const void *p1, const void *p2) {
 	if ((retval = d2->type - d1->type) || d1->type > dt_dir)
 		return retval;
 
-	
 	if (d1->type == dt_dir)
 		return strcasecmp(d1->name, d2->name);
-
 	
 	sign = demo_reversesort ? -1 : 1;
 
 	switch (demo_sorttype) {
-	case ds_name:
-		return sign * strcasecmp(d1->name, d2->name);
-	case ds_size:
-		return sign * (d1->size - d2->size);		
-	case ds_time:
+		case ds_name:
+			return sign * strcasecmp(d1->name, d2->name);
+		case ds_size:
+			return sign * (d1->size - d2->size);		
+		case ds_time:
 #ifdef _WIN32
-		return -sign * CompareFileTime(&d1->time, &d2->time);
+			return -sign * CompareFileTime(&d1->time, &d2->time);
 #else
-		return -sign * (d1->time - d2->time);
+			return -sign * (d1->time - d2->time);
 #endif
-	default:
-		Sys_Error("Demo_SortCompare: unknown demo_sorttype (%d)", demo_sorttype);
-		return 0;
+		default:
+			Sys_Error("Demo_SortCompare: unknown demo_sorttype (%d)", demo_sorttype);
+			return 0;
 	}
 }
 
@@ -1956,7 +2357,7 @@ static void Demo_ReadDirectory(void) {
 #endif
 
 	do {
-	#ifdef _WIN32
+#ifdef _WIN32
 		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 			if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, ".."))
 				continue;
@@ -1979,7 +2380,7 @@ static void Demo_ReadDirectory(void) {
 		}
 
 		Q_strncpyz (name, fd.cFileName, sizeof(name));
-	#else
+#else
 		stat (va("%s/%s", demo_currentdir, dstruct->d_name), &fileinfo);
 
 		if (S_ISDIR(fileinfo.st_mode)) {
@@ -2002,7 +2403,7 @@ static void Demo_ReadDirectory(void) {
 		}
 
 		Q_strncpyz (name, dstruct->d_name, sizeof(name));
-	#endif
+#endif
 
 		if (demolist_count == MAX_DEMO_FILES)
 			break;
@@ -2068,6 +2469,8 @@ void M_Demos_Draw (void) {
 	int demoindex, scroll_index;
 	float frac, time, elapsed;
 
+	M_Main_Layout (M_M_DEMOS, false);
+
 	M_Print (140, 8, "DEMOS");
 	Q_strncpyz(demoname_scroll, demo_currentdir[0] ? demo_currentdir : "/", sizeof(demoname_scroll));
 	M_PrintWhite (16, 16, demoname_scroll);
@@ -2115,14 +2518,12 @@ void M_Demos_Draw (void) {
 			frac = scroll_index = 0;
 			Q_snprintfz(last_demo_name, sizeof(last_demo_name), "%s  ***  ", demolist[demoindex]->name);
 			last_demo_length = strlen(last_demo_name);
-		} else {
-			
+		} else {			
 			elapsed = 3.5 * max(time - last_demo_time - 0.75, 0);
 			scroll_index = (int) elapsed;
 			frac = bound(0, elapsed - scroll_index, 1);
 			scroll_index = scroll_index % last_demo_length;
 		}
-
 
 		if (last_demo_length <= 38 + 7) {
 			Q_strncpyz(demoname_scroll, demolist[demoindex]->name, sizeof(demoname_scroll));
@@ -2147,7 +2548,7 @@ void M_Demos_Key (int key) {
 		m_topmenu = m_none;	// intentional fallthrough
 	case K_ESCAPE:
 		Q_strncpyz(demo_prevdemo, demolist[demo_cursor + demo_base]->name, sizeof(demo_prevdemo));
-		M_LeaveMenu (m_multiplayer);
+		M_LeaveMenu (m_main);
 		break;
 
 	case K_UPARROW:
@@ -2363,7 +2764,6 @@ void M_Menu_GameOptions_f (void)
 	_timelimit = max (0, min((int)timelimit.value, 60));
 }
 
-
 int gameoptions_cursor_table[] = {40, 56, 64, 72, 80, 96, 104, 120, 128};
 #define	NUM_GAMEOPTIONS	9
 int		gameoptions_cursor;
@@ -2372,9 +2772,10 @@ void M_GameOptions_Draw (void)
 {
 	qpic_t	*p;
 
-	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
+	M_Main_Layout (M_M_MULTI, false);
+
 	p = R_CachePic ("gfx/p_multi.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
 
 	M_DrawTextBox (152, 32, 10, 1);
 	M_Print (160, 40, "begin game");
@@ -2436,10 +2837,9 @@ void M_GameOptions_Draw (void)
     M_Print (160, 128, levels[episodes[startepisode].firstLevel + startlevel].description);
 	M_Print (160, 136, levels[episodes[startepisode].firstLevel + startlevel].name);
 
-// line cursor
+	// line cursor
 	M_DrawChar (144, gameoptions_cursor_table[gameoptions_cursor], 12+((int)(curtime*4)&1));
 }
-
 
 void M_NetStart_Change (int dir)
 {
@@ -2607,17 +3007,321 @@ void M_GameOptions_Key (int key)
 			Cvar_Set (&maxclients, va("%i", _maxclients));
 			Cvar_Set (&maxspectators, va("%i", _maxspectators));
 
-			// Cbuf_AddText ("gamedir qw\n");
 			Cbuf_AddText ( va ("map %s\n", levels[episodes[startepisode].firstLevel + startlevel].name) );
 			return;
 		}
-
-//		M_NetStart_Change (1);
 		break;
 	}
 }
 #endif	// !CLIENTONLY
 
+//=============================================================================
+/* SERVERLIST MENU */
+
+#define MENU_X 50
+#define MENU_Y 30
+#define STAT_X 50
+#define STAT_Y 122
+
+int m_multip_cursor=0;
+int m_multip_mins;
+int m_multip_maxs;
+int m_multip_horiz;
+int m_multip_state;
+
+void M_Menu_ServerList_f (void)
+{
+	M_EnterMenu (m_slist);
+	m_multip_mins = 0;
+	m_multip_maxs = 10;
+	m_multip_horiz = 0;
+	m_multip_state = 0;
+}
+
+void M_ServerList_Draw (void)
+{
+	int serv;
+	int line = 1;
+	qpic_t *p;
+
+	M_Main_Layout (M_M_MULTI, false);
+
+	p = R_CachePic("gfx/p_multi.lmp");
+	M_DrawPic((320-p->width)/2,4,p);
+
+	if (!(slist[0].server)) {
+		M_DrawTextBox(60,80,23,4);
+		M_PrintWhite(110,12*8,"No server list");
+		M_PrintWhite(140,13*8,"found.");
+		return;
+	}
+	M_DrawTextBox(STAT_X,STAT_Y,23,4);
+	M_DrawTextBox(STAT_X,STAT_Y+38,23,3);
+	M_DrawTextBox(MENU_X,MENU_Y,23,(m_multip_maxs - m_multip_mins)+1);
+	for (serv = m_multip_mins; serv <= m_multip_maxs; serv++) {
+		if (slist[serv].server) {
+			M_Print(MENU_X+18,line*8+MENU_Y,
+				va("%1.21s",
+				strlen(slist[serv].description) <= m_multip_horiz ? "" : slist[serv].description+m_multip_horiz));
+			line++;
+		}
+	}
+	M_PrintWhite(STAT_X+18,STAT_Y+16,"IP/Hostname:");
+	M_Print(STAT_X+18,STAT_Y+24,slist[m_multip_cursor].server);
+	M_DrawChar(MENU_X+8,(m_multip_cursor - m_multip_mins + 1) * 8+MENU_Y, 12+((int)(curtime*4)&1));
+}
+
+void M_ServerList_Key (int key)
+{
+	if (!(slist[0].server) && key != K_ESCAPE && key != K_INS)
+		return;
+
+	switch(key)
+	{
+	case K_BACKSPACE:
+		m_topmenu = m_none;	// intentional fallthrough
+	case K_ESCAPE:
+		M_LeaveMenu (m_multiplayer);
+		break;
+
+	case K_UPARROW:
+		S_LocalSound("misc/menu1.wav");
+		if (m_multip_cursor > 0)
+		{
+			if (keydown[K_CTRL])
+			{
+				SList_Switch(m_multip_cursor,m_multip_cursor-1);
+				m_multip_cursor--;
+			}
+			else
+				m_multip_cursor--;
+		}
+		break;
+
+	case K_DOWNARROW:
+		S_LocalSound("misc/menu1.wav");
+		if (keydown[K_CTRL])
+		{
+			if (m_multip_cursor != SList_Len() - 1) {
+				SList_Switch(m_multip_cursor,m_multip_cursor+1);
+				m_multip_cursor++;
+			}
+		}
+		else if (m_multip_cursor < (MAX_SERVER_LIST-1) && slist[m_multip_cursor+1].server) {
+			m_multip_cursor++;
+		}
+		break;
+
+	case K_HOME:
+		S_LocalSound("misc/menu1.wav");
+		m_multip_cursor = 0;
+		break;
+
+	case K_END:
+		S_LocalSound("misc/menu1.wav");
+		m_multip_cursor = SList_Len() - 1;
+		break;
+		
+	case K_PGUP:
+		S_LocalSound("misc/menu1.wav");
+		m_multip_cursor -= (m_multip_maxs - m_multip_mins);
+		if (m_multip_cursor < 0)
+			m_multip_cursor = 0;
+		break;
+
+	case K_PGDN:
+		S_LocalSound("misc/menu1.wav");
+		m_multip_cursor += (m_multip_maxs - m_multip_mins);
+		if (m_multip_cursor >= MAX_SERVER_LIST)
+			m_multip_cursor = MAX_SERVER_LIST - 1;
+		while (!(slist[m_multip_cursor].server))
+			m_multip_cursor--;
+		break;
+
+	case K_RIGHTARROW:
+		S_LocalSound("misc/menu1.wav");
+		if (m_multip_horiz < 256)
+			m_multip_horiz++;
+		break;
+
+	case K_LEFTARROW:
+		S_LocalSound("misc/menu1.wav");
+		if (m_multip_horiz > 0 )
+			m_multip_horiz--;
+		break;
+
+	case K_ENTER:
+		if (keydown[K_CTRL])
+		{
+			M_Menu_SEdit_f();
+			break;
+		}
+		m_state = m_main;
+		M_ToggleMenu_f();
+		Cbuf_AddText(va("%s %s\n", keydown[K_SHIFT] ? "observe" : "join", slist[m_multip_cursor].server));
+		break;
+
+	case 'e':
+	case 'E':
+		M_Menu_SEdit_f();
+		break;
+
+	case K_INS:
+		S_LocalSound("misc/menu2.wav");
+		if (SList_Len() < (MAX_SERVER_LIST-1)) {
+			memmove(&slist[m_multip_cursor+1],
+				&slist[m_multip_cursor],
+				(SList_Len() - m_multip_cursor)*sizeof(slist[0]));
+			SList_Reset_NoFree(m_multip_cursor);
+			SList_Set(m_multip_cursor,"127.0.0.1","<BLANK>");
+		}
+		break;
+
+	case K_DEL:
+		S_LocalSound("misc/menu2.wav");
+		if (SList_Len() > 0) {
+			free(slist[m_multip_cursor].server);
+			free(slist[m_multip_cursor].description);
+			if (SList_Len()-1 == m_multip_cursor) {
+				SList_Reset_NoFree(m_multip_cursor);
+				m_multip_cursor = !m_multip_cursor ? 0 : m_multip_cursor-1;
+			} else {
+				memmove(&slist[m_multip_cursor],
+				&slist[m_multip_cursor+1],
+				(SList_Len()-m_multip_cursor-1) * sizeof(slist[0]));
+				SList_Reset_NoFree(SList_Len()-1);
+			}
+		}
+		break;
+	default:
+		break;
+	}
+	if (m_multip_cursor < m_multip_mins) {
+		m_multip_maxs -= (m_multip_mins - m_multip_cursor);
+		m_multip_mins = m_multip_cursor;
+	}
+	if (m_multip_cursor > m_multip_maxs) {
+		m_multip_mins += (m_multip_cursor - m_multip_maxs);
+		m_multip_maxs = m_multip_cursor;
+	}
+}
+
+#define SERV_X 60
+#define SERV_Y 64
+#define DESC_X 60
+#define DESC_Y 40
+#define SERV_L 22
+#define DESC_L 22
+
+char serv[256];
+char desc[256];
+int serv_max;
+int serv_min;
+int desc_max;
+int desc_min;
+int sedit_state;
+
+void M_Menu_SEdit_f (void) {
+	M_EnterMenu (m_sedit);
+	sedit_state = 0;
+	strlcpy (serv, slist[m_multip_cursor].server, sizeof(serv));
+	strlcpy (desc, slist[m_multip_cursor].description, sizeof(desc));
+	serv_max = strlen(serv) > SERV_L ? strlen(serv) : SERV_L;
+	serv_min = serv_max - (SERV_L);
+	desc_max = strlen(desc) > DESC_L ? strlen(desc) : DESC_L;
+	desc_min = desc_max - (DESC_L);
+}
+
+void M_SEdit_Draw (void) {
+	qpic_t *p;
+
+	M_Main_Layout (M_M_MULTI, false);
+
+	p = R_CachePic("gfx/p_multi.lmp");
+	M_DrawPic((320 - p->width) / 2, 4, p);
+
+	M_DrawTextBox(SERV_X,SERV_Y,23,1);
+	M_DrawTextBox(DESC_X,DESC_Y,23,1);
+	M_PrintWhite(SERV_X,SERV_Y-4,"Hostname/IP:");
+	M_PrintWhite(DESC_X,DESC_Y-4,"Description:");
+	M_Print(SERV_X+9,SERV_Y+8,va("%1.22s",serv+serv_min));
+	M_Print(DESC_X+9,DESC_Y+8,va("%1.22s",desc+desc_min));
+	if (sedit_state == 0)
+		M_DrawChar(SERV_X+9+8*(strlen(serv)-serv_min), SERV_Y+8,10+((int)(curtime*4)&1));
+	if (sedit_state == 1)
+		M_DrawChar(DESC_X+9+8*(strlen(desc)-desc_min),	DESC_Y+8,10+((int)(curtime*4)&1));
+}
+
+void M_SEdit_Key (int key) {
+	int	l;
+	switch (key) {
+		case K_ESCAPE:
+			M_Menu_ServerList_f ();
+			break;
+		case K_ENTER:
+			SList_Set(m_multip_cursor,serv,desc);
+			M_Menu_ServerList_f ();
+			break;
+		case K_UPARROW:
+			S_LocalSound("misc/menu1.wav");
+			sedit_state = sedit_state == 0 ? 1 : 0;
+			break;
+		case K_DOWNARROW:
+			S_LocalSound("misc/menu1.wav");
+			sedit_state = sedit_state == 1 ? 0 : 1;
+			break;
+		case K_BACKSPACE:
+			switch (sedit_state) {
+				case 0:
+					if ((l = strlen(serv)))
+						serv[--l] = 0;
+					if (strlen(serv)-6 < serv_min && serv_min) {
+						serv_min--;
+						serv_max--;
+					}
+					break;
+				case 1:
+					if ((l = strlen(desc)))
+						desc[--l] = 0;
+					if (strlen(desc)-6 < desc_min && desc_min) {
+						desc_min--;
+						desc_max--;
+					}
+					break;
+				default:
+					break;
+			}
+			break;
+		default:
+			if (key < 32 || key > 127)
+				break;
+			switch(sedit_state) {
+				case 0:
+					l = strlen(serv);
+					if (l < 254) {
+						serv[l+1] = 0;
+						serv[l] = key;
+					}
+					if (strlen(serv) > serv_max) {
+						serv_min++;
+						serv_max++;
+					}
+					break;
+				case 1:
+					l = strlen(desc);
+					if (l < 254) {
+						desc[l+1] = 0;
+						desc[l] = key;
+					}
+					if (strlen(desc) > desc_max) {
+						desc_min++;
+						desc_max++;
+					}
+					break;
+			}
+			break;
+	}
+}
 
 //=============================================================================
 /* SETUP MENU */
@@ -2646,14 +3350,14 @@ void M_Menu_Setup_f (void)
 	setup_bottom = setup_oldbottom = (int)bottomcolor.value;
 }
 
-
 void M_Setup_Draw (void)
 {
 	qpic_t	*p;
 
-	M_DrawPic (16, 4, R_CachePic ("gfx/qplaque.lmp") );
+	M_Main_Layout (M_M_MULTI, false);
+
 	p = R_CachePic ("gfx/p_multi.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
 
 	M_Print (64, 40, "Your name");
 	M_DrawTextBox (160, 32, 16, 1);
@@ -2682,7 +3386,6 @@ void M_Setup_Draw (void)
 	if (setup_cursor == 1)
 		M_DrawChar (168 + 8*strlen(setup_team), setup_cursor_table [setup_cursor], 10+((int)(curtime*4)&1));
 }
-
 
 void M_Setup_Key (int k)
 {
@@ -2730,7 +3433,6 @@ void M_Setup_Key (int k)
 	case K_RIGHTARROW:
 		if (setup_cursor < 2)
 			return;
-//forward:
 		S_LocalSound ("misc/menu3.wav");
 		if (setup_cursor == 2)
 			setup_top = setup_top + 1;
@@ -2739,13 +3441,6 @@ void M_Setup_Key (int k)
 		break;
 
 	case K_ENTER:
-//		if (setup_cursor == 0 || setup_cursor == 1)
-//			return;
-
-//		if (setup_cursor == 2 || setup_cursor == 3)
-//			goto forward;
-
-		// setup_cursor == 4 (OK)
 		Cvar_Set (&name, setup_name);
 		Cvar_Set (&team, setup_team);
 		Cvar_Set (&topcolor, va("%i", setup_top));
@@ -2802,10 +3497,8 @@ void M_Setup_Key (int k)
 		setup_bottom = 13;
 }
 
-
 //=============================================================================
 /* Menu Subsystem */
-
 
 void M_Init (void)
 {
@@ -2940,7 +3633,7 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
 #endif
 	Cmd_AddCommand ("menu_multiplayer", M_Menu_MultiPlayer_f);
-//	Cmd_AddCommand ("menu_slist", M_Menu_ServerList_f);
+	Cmd_AddCommand ("menu_slist", M_Menu_ServerList_f);
 	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
 	Cmd_AddCommand ("menu_demos", M_Menu_Demos_f);
 	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
@@ -2949,6 +3642,7 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_video", M_Menu_Video_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_help", M_Menu_Help_f);
+	Cmd_AddCommand ("credits", M_Menu_Credits_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 }
 
@@ -2957,11 +3651,6 @@ void M_Draw (void)
 {
 	if (m_state == m_none || key_dest != key_menu)
 		return;
-
-	if (scr_con_current != vid.height)
-		R_FadeScreen ();
-
-	RB_SetCanvas (CANVAS_MENU);
 
 	switch (m_state)
 	{
@@ -3012,6 +3701,10 @@ void M_Draw (void)
 		M_Help_Draw ();
 		break;
 
+	case m_credits:
+		M_Credits_Draw ();
+		break;
+
 	case m_quit:
 		M_Quit_Draw ();
 		break;
@@ -3021,6 +3714,14 @@ void M_Draw (void)
 		M_GameOptions_Draw ();
 		break;
 #endif
+
+	case m_slist:	 
+		M_ServerList_Draw ();	 
+		break;	 
+ 	 
+	case m_sedit:	 
+		M_SEdit_Draw ();	 
+		break;
 
 	case m_demos:
 		M_Demos_Draw ();
@@ -3085,6 +3786,10 @@ void M_Keydown (int key)
 		M_Help_Key (key);
 		return;
 
+	case m_credits:
+		M_Credits_Key (key);
+		return;
+
 	case m_quit:
 		M_Quit_Key (key);
 		return;
@@ -3094,6 +3799,14 @@ void M_Keydown (int key)
 		M_GameOptions_Key (key);
 		return;
 #endif
+
+	case m_slist:	 
+		M_ServerList_Key (key);	 
+		return;	 
+ 	 
+	case m_sedit:	 
+		M_SEdit_Key (key);	 
+		break;
 
 	case m_demos:
 		M_Demos_Key (key);
