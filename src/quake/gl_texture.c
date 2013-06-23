@@ -1190,8 +1190,6 @@ must be called before any texture loading
 */
 void TexMgr_Init (void)
 {
-	int i;
-
 	Cvar_Register (&gl_picmip);
 
 	Cmd_AddCommand ("gl_texturemode", &TexMgr_TextureMode_f);

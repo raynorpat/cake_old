@@ -240,7 +240,7 @@ readnext:
 	{
 		if (msec)
 		{
-			extern void CL_ParseClientdata ();
+			void CL_ParseClientdata ();
 
 			cls.mvd_oldtime = cls.mvd_newtime;
 			cls.mvd_newtime = demotime;
