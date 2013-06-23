@@ -294,8 +294,8 @@ static void CL_LerpMovePhys (double msgtime, float f)
 		nolerp[1] = nolerp[0];
 		nolerp[0] = false;
 
-	for (i = 0; i < 3; i++)
-	{
+		for (i = 0; i < 3; i++)
+		{
 			if (fabs(lerp_origin[0][i] - lerp_origin[1][i]) > 100)
 			{
 				break;
