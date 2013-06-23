@@ -184,6 +184,16 @@ void CL_ParseBeam (int type)
 	end[1] = MSG_ReadCoord ();
 	end[2] = MSG_ReadCoord ();
 
+	// ZQuake protocol extension:
+	// TE_LIGHTNING1 with entity num in -1288..-265 range is TE_BEAM
+	if (type == 1 && (ent >= -1288 && ent <= -265) /* 1024 slots */) {
+		if (!cl_beam_mod)
+			cl_beam_mod = Mod_ForName ("progs/beam.mdl", true);
+		m = cl_beam_mod;
+		ent -= -1288;
+		goto do_beam;
+	}
+
 	switch (type) {
 	case 1:
 		if (!cl_bolt1_mod)
@@ -200,13 +210,15 @@ void CL_ParseBeam (int type)
 			cl_bolt3_mod = Mod_ForName ("progs/bolt3.mdl", true);
 		m = cl_bolt3_mod;
 		break;
-	case 4: default:
+	case 4:
+	default:
 		if (!cl_beam_mod)
 			cl_beam_mod = Mod_ForName ("progs/beam.mdl", true);
 		m = cl_beam_mod;
 		break;
 	}
 
+do_beam:
 	if (ent == Cam_PlayerNum() + 1)
 		VectorCopy (end, playerbeam_end);	// for cl_fakeshaft
 
@@ -331,9 +343,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case TE_EXPLOSION:			// rocket explosion
-	// particles
-
+	case TE_EXPLOSION:			// rocket explosion particles
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
