@@ -45,12 +45,10 @@ typedef struct
 
 typedef struct
 {
-	int				key;		// FIXME
 	vec3_t			origin;
 	float			radius;
-	float			die;		// stop lighting after this time
 	float			minlight;
-	vec3_t			color;
+	int				rgb[3];
 } dlight_t;
 
 typedef struct efrag_s
