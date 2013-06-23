@@ -346,9 +346,11 @@ void SV_SpawnServer (char *mapname, qbool devmap)
 
 	if (pr_nqprogs) {
 		// register the cvars that NetQuake provides for mod use
+		char **var;
 		char *nqcvars[] = {"gamecfg", "scratch1", "scratch2", "scratch3", "scratch4",
 			"saved1", "saved2", "saved3", "saved4", "savedgamecfg", "temp1", NULL};
-		for (char **var = nqcvars; *var; var++)
+
+		for (var = nqcvars; *var; var++)
 			Cvar_Get(*var, "0", 0);
 	}
 	
