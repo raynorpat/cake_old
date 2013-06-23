@@ -946,7 +946,7 @@ void Sky_NewMap (void);
 void Sky_LoadTexture (texture_t *mt, byte *data);
 void Sky_LoadSkyBox (char *name);
 
-void R_GetTranslatedPlayerSkin (int colormap, unsigned int *texture, unsigned int *fb_texture);
+void R_GetTranslatedPlayerSkin (int colormap, gltexture_t **texture, gltexture_t **fb_texture);
 void R_FlushTranslations (void);
 
 typedef struct skin_s {

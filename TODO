@@ -1,4 +1,3 @@
 TODO LIST - difficulty ratings are: 0 = trivial, 1 = easy, 2 = moderate, 3 = hard, 4 = nightmare
 ================================================================================================
 1 bug engine mvd: player angles are not recorded properly
-3 bug engine renderer: player skins are getting corrupt after so many frames

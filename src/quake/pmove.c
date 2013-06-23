@@ -397,7 +397,6 @@ PM_Accelerate
 */
 void PM_Accelerate (vec3_t wishdir, float wishspeed, float accel)
 {
-	int			i;
 	float		addspeed, accelspeed, currentspeed;
 
 	if (pm->pm_type == PM_DEAD)
@@ -418,7 +417,6 @@ void PM_Accelerate (vec3_t wishdir, float wishspeed, float accel)
 
 void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 {
-	int			i;
 	float		addspeed, accelspeed, currentspeed, wishspd = wishspeed;
 	float		originalspeed = 0.0, newspeed = 0.0, speedcap = 0.0;
 		
@@ -619,7 +617,7 @@ void PM_CategorizePosition (playermove_t *pm)
 {
 	vec3_t		point;
 	int			cont;
-	trace_t	trace;
+	trace_t		trace;
 
 // if the player hull point one unit down is solid, the player
 // is on ground
@@ -636,7 +634,9 @@ void PM_CategorizePosition (playermove_t *pm)
 	{
 		trace = PM_PlayerTrace (pm, pm->origin, point);
 		if (trace.fraction == 1 || trace.plane.normal[2] < MIN_STEP_NORMAL)
+		{
 			pm->onground = false;
+		}
 		else
 		{
 			pm->onground = true;

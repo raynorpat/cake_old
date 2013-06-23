@@ -629,7 +629,6 @@ void Cam_Lock(int playernum);
 //
 // cl_cin.c
 //
-
 void SCR_RunCinematic (void);
 
 void SCR_DrawCinematic (void);

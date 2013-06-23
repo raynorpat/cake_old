@@ -511,7 +511,7 @@ void R_SetupAliasModel (entity_t *e)
 		state->fb = paliashdr->fbtextures[e->skinnum][anim];
 
 	if (e->colormap && (e->model->modhint == MOD_PLAYER || e->renderfx & RF_PLAYERMODEL) && !gl_nocolors.value)
-		R_GetTranslatedPlayerSkin (e->colormap, &state->tx->texnum, &state->fb->texnum);
+		R_GetTranslatedPlayerSkin (e->colormap, &state->tx, &state->fb);
 }
 
 
