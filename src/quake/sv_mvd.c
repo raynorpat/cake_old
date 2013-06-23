@@ -2388,7 +2388,7 @@ void SV_MVDPlayNum_f(void)
 		return;
 	}
 
-	name = SV_MVDNum(atoi(val)); 
+	name = SV_MVDNum(atoi(val));
 
 	if (name)
 		Cbuf_AddText(va("mvdplay %s\n", name));

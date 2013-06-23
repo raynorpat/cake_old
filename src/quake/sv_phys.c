@@ -563,8 +563,8 @@ void SV_Physics_Pusher (edict_t *ent)
 	float	thinktime;
 	float	oldltime;
 	float	movetime;
-vec3_t oldorg, move;
-float	l;
+	vec3_t oldorg, move;
+	float	l;
 
 	oldltime = ent->v.ltime;
 	
@@ -593,20 +593,18 @@ VectorCopy (ent->v.origin, oldorg);
 		PR_ExecuteProgram (ent->v.think);
 		if (!ent->inuse)
 			return;
-VectorSubtract (ent->v.origin, oldorg, move);
 
-l = VectorLength(move);
-if (l > 1.0/64)
-{
-//	Com_Printf ("**** snap: %f\n", Length (l));
-	VectorCopy (oldorg, ent->v.origin);
-	SV_Push (ent, move);
-}
-
+		VectorSubtract (ent->v.origin, oldorg, move);
+		
+		l = VectorLength(move);
+		if (l > 1.0/64)
+		{
+		//	Com_Printf ("**** snap: %f\n", Length (l));
+			VectorCopy (oldorg, ent->v.origin);
+			SV_Push (ent, move);
+		}
 	}
-
 }
-
 
 /*
 =============
@@ -821,7 +819,6 @@ void SV_ProgStartFrame (void)
 /*
 ================
 SV_RunEntity
-
 ================
 */
 void SV_RunEntity (edict_t *ent)
@@ -851,7 +848,7 @@ void SV_RunEntity (edict_t *ent)
 		SV_Physics_Toss (ent);
 		break;
 	default:
-		Host_Error ("SV_Physics: bad movetype %i", (int)ent->v.movetype);			
+		Host_Error ("SV_Physics: bad movetype %i", (int)ent->v.movetype);
 	}
 }
 
@@ -892,7 +889,6 @@ void SV_RunNQNewmis (void)
 /*
 ================
 SV_RunNewmis
-
 ================
 */
 void SV_RunNewmis (void)

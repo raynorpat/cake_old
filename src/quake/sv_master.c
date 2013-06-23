@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "server.h"
 
+#define HEARTBEAT_SECONDS 300
+
 // address of the master server
 static netadr_t	master_adr[MAX_MASTERS];
 
@@ -69,7 +71,7 @@ SV_Heartbeat_f
 */
 void SV_Heartbeat_f (void)
 {
-	svs.last_heartbeat = -9999;
+	svs.last_heartbeat = -99999;
 }
 
 
@@ -81,12 +83,14 @@ Send a message to the master every few minutes to
 let it know we are alive, and log information
 ================
 */
-#define	HEARTBEAT_SECONDS	300
 void Master_Heartbeat (void)
 {
 	char		string[2048];
 	int			active;
 	int			i;
+
+	if (sv.state != ss_game)
+		return;
 
 	if (svs.realtime - svs.last_heartbeat < HEARTBEAT_SECONDS)
 		return;		// not time to send yet

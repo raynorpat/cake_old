@@ -257,35 +257,41 @@ SV_WritePlayersToClient
 static void SV_WritePlayersToClient (client_t *client, byte *pvs, qbool disable_updates, sizebuf_t *msg)
 {
 	int			i, j;
-	client_t	*cl;
-	edict_t		*ent;
 	int			msec;
 	usercmd_t	cmd;
 	int			pflags;
 	int			pm_type = 0, pm_code = 0;
 
-	for (j=0,cl=svs.clients ; j<MAX_CLIENTS ; j++,cl++)
+	for (j = 0; j < MAX_CLIENTS; j++)
 	{
+		client_t *	cl = &svs.clients[j];
+		edict_t *	ent = NULL;
+		edict_t *	self_ent = NULL;
+
 		if (cl->state != cs_spawned)
 			continue;
 
+		self_ent = client->edict;
 		ent = cl->edict;
 
 		// ZOID visibility tracking
-		if (cl != client &&	!(client->spec_track && client->spec_track - 1 == j)) 
+		if (ent != self_ent &&	!(client->spec_track && client->spec_track - 1 == j)) 
 		{
 			if (cl->spectator)
 				continue;
 
 			// ignore if not touching a PV leaf
-			for (i=0 ; i < ent->num_leafs ; i++)
-				if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
-					break;
-			if (i == ent->num_leafs)
-				continue;		// not visible
+			if ( pvs ) {
+				for (i=0 ; i < ent->num_leafs ; i++)
+					if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
+						break;
+
+				if (i == ent->num_leafs)
+					continue;		// not visible
+			}
 		}
 		
-		if (disable_updates && ent != client->edict)
+		if (disable_updates && ent != self_ent)
 			continue;
 
 		pflags = PF_MSEC | PF_COMMAND;
@@ -308,7 +314,7 @@ static void SV_WritePlayersToClient (client_t *client, byte *pvs, qbool disable_
 		{	// only send origin and velocity to spectators
 			pflags &= PF_VELOCITY1 | PF_VELOCITY2 | PF_VELOCITY3;
 		}
-		else if (cl == client)
+		else if (ent == self_ent)
 		{	// don't send a lot of data on personal entity
 			pflags &= ~(PF_MSEC|PF_COMMAND);
 			if (ent->v.weaponframe)

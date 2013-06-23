@@ -33,7 +33,6 @@ is not a staircase.
 
 =============
 */
-
 qbool SV_CheckBottom (edict_t *ent)
 {
 	vec3_t	mins, maxs, start, stop;
@@ -407,11 +406,8 @@ void SV_MoveToGoal (void)
 		return;
 
 // bump around...
-	if ( (rand()&3)==1 ||
-	!SV_StepDirection (ent, ent->v.ideal_yaw, dist))
+	if ( (rand()&3)==1 || !SV_StepDirection (ent, ent->v.ideal_yaw, dist))
 	{
 		SV_NewChaseDir (ent, goal, dist);
 	}
 }
-
-/* vi: set noet ts=4 sts=4 ai sw=4: */
