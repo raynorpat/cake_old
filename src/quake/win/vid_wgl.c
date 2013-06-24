@@ -1334,27 +1334,13 @@ static void IN_MouseMove (usercmd_t *cmd)
 	mouse_x *= sensitivity.value;
 	mouse_y *= sensitivity.value;
 
-// add mouse X/Y movement to cmd
-	if ( (in_strafe.state & 1) || (lookstrafe.value && mlook_active))
-		cmd->sidemove += m_side.value * mouse_x;
-	else
-		cl.viewangles[YAW] -= m_yaw.value * mouse_x;
-
-	if (mlook_active)
-		V_StopPitchDrift ();
-
-	if (mlook_active && !(in_strafe.state & 1))
-	{
-		cl.viewangles[PITCH] += m_pitch.value * mouse_y;
-		if (cl.viewangles[PITCH] > cl.maxpitch)
-			cl.viewangles[PITCH] = cl.maxpitch;
-		if (cl.viewangles[PITCH] < cl.minpitch)
-			cl.viewangles[PITCH] = cl.minpitch;
-	}
-	else
-	{
-		cmd->forwardmove -= m_forward.value * mouse_y;
-	}
+	// add mouse X/Y movement to cmd
+	cl.viewangles[YAW] -= m_yaw.value * mouse_x;
+	cl.viewangles[PITCH] += m_pitch.value * mouse_y;
+	if (cl.viewangles[PITCH] > cl.maxpitch)
+		cl.viewangles[PITCH] = cl.maxpitch;
+	if (cl.viewangles[PITCH] < cl.minpitch)
+		cl.viewangles[PITCH] = cl.minpitch;
 }
 
 
@@ -1672,10 +1658,7 @@ static void IN_JoyMove (usercmd_t *cmd)
 		return;
 	}
 
-	if (in_speed.state & 1)
-		speed = cl_movespeedkey.value;
-	else
-		speed = 1;
+	speed = cl_movespeedkey.value;
 	aspeed = speed * cls.frametime;
 
 	// loop through the axes
@@ -1708,7 +1691,7 @@ static void IN_JoyMove (usercmd_t *cmd)
 		switch (dwAxisMap[i])
 		{
 		case AxisForward:
-			if ((joy_advanced.value == 0.0) && mlook_active)
+			if (joy_advanced.value == 0.0)
 			{
 				// user wants forward control to become look control
 				if (fabs(fAxisValue) > joy_pitchthreshold.value)
@@ -1723,16 +1706,6 @@ static void IN_JoyMove (usercmd_t *cmd)
 					{
 						cl.viewangles[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
-					V_StopPitchDrift();
-				}
-				else
-				{
-					// no pitch movement
-					// disable pitch return-to-center unless requested by user
-					// *** this code can be removed when the lookspring bug is fixed
-					// *** the bug always has the lookspring feature on
-					if(lookspring.value == 0.0)
-						V_StopPitchDrift();
 				}
 			}
 			else
@@ -1753,56 +1726,31 @@ static void IN_JoyMove (usercmd_t *cmd)
 			break;
 
 		case AxisTurn:
-			if ((in_strafe.state & 1) || (lookstrafe.value && mlook_active))
+			// user wants turn control to be turn control
+			if (fabs(fAxisValue) > joy_yawthreshold.value)
 			{
-				// user wants turn control to become side control
-				if (fabs(fAxisValue) > joy_sidethreshold.value)
+				if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
 				{
-					cmd->sidemove -= (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
+					cl.viewangles[YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
 				}
-			}
-			else
-			{
-				// user wants turn control to be turn control
-				if (fabs(fAxisValue) > joy_yawthreshold.value)
+				else
 				{
-					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
-					{
-						cl.viewangles[YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
-					}
-					else
-					{
-						cl.viewangles[YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
-					}
-
+					cl.viewangles[YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
 				}
 			}
 			break;
 
 		case AxisLook:
-			if (mlook_active)
+			if (fabs(fAxisValue) > joy_pitchthreshold.value)
 			{
-				if (fabs(fAxisValue) > joy_pitchthreshold.value)
+				// pitch movement detected and pitch movement desired by user
+				if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
 				{
-					// pitch movement detected and pitch movement desired by user
-					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
-					{
-						cl.viewangles[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
-					}
-					else
-					{
-						cl.viewangles[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
-					}
-					V_StopPitchDrift();
+					cl.viewangles[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 				}
 				else
 				{
-					// no pitch movement
-					// disable pitch return-to-center unless requested by user
-					// *** this code can be removed when the lookspring bug is fixed
-					// *** the bug always has the lookspring feature on
-					if(lookspring.value == 0.0)
-						V_StopPitchDrift();
+					cl.viewangles[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
 				}
 			}
 			break;

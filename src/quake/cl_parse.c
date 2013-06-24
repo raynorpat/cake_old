@@ -1359,11 +1359,7 @@ void CL_ProcessServerInfo (void)
 		cl.allow_fakeshaft = *p ? (Q_atoi(p) != 0) : true;	// allowed by default
 	}
 
-	p = Info_ValueForKey (cl.serverinfo, "allow_frj");
-	cl.allow_frj = *p ? Q_atoi(p) : true;		// allowed by default
-
 	fpd = cls.demoplayback ? 0 : atoi(Info_ValueForKey(cl.serverinfo, "fpd"));
-
 
 	// Get the server's ZQuake extension bits
 	cl.z_ext = atoi(Info_ValueForKey(cl.serverinfo, "*z_ext"));

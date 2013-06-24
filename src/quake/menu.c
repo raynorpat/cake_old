@@ -36,7 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer,
 	m_setup, m_options, m_video, m_keys, m_help, m_credits, m_quit,
-	m_gameoptions, m_slist, m_sedit, m_fps, m_demos} m_state;
+	m_gameoptions, m_slist, m_sedit, m_fps, m_demos, m_mods} m_state;
 
 void M_Menu_Main_f (void);
 	void M_Menu_SinglePlayer_f (void);
@@ -47,9 +47,10 @@ void M_Menu_Main_f (void);
 	void M_Menu_MultiPlayer_f (void);
 		void M_Menu_ServerList_f (void);
 			void M_Menu_SEdit_f (void);
+		void M_Menu_Demos_f (void);
 		void M_Menu_Setup_f (void);
 		void M_Menu_GameOptions_f (void);
-	void M_Menu_Demos_f (void);
+	void M_Menu_Mods_f (void);
 	void M_Menu_Options_f (void);
 		void M_Menu_Keys_f (void);
 		void M_Menu_Fps_f (void);
@@ -65,9 +66,10 @@ void M_Main_Draw (void);
 	void M_MultiPlayer_Draw (void);
 		void M_ServerList_Draw (void);
 			void M_SEdit_Draw (void);
-		void M_Setup_Draw (void);
+		void M_Demos_Draw (void);
 		void M_GameOptions_Draw (void);
-	void M_Demos_Draw (void);
+		void M_Setup_Draw (void);
+	void M_Mods_Draw (void);
 	void M_Options_Draw (void);
 		void M_Keys_Draw (void);
 		void M_Fps_Draw (void);
@@ -83,9 +85,10 @@ void M_Main_Key (int key);
 	void M_MultiPlayer_Key (int key);
 		void M_ServerList_Key (int key);
 			void M_SEdit_Key (int key);
-		void M_Setup_Key (int key);
+		void M_Demos_Key (int key);
 		void M_GameOptions_Key (int key);
-	void M_Demos_Key (int key);
+		void M_Setup_Key (int key);
+	void M_Mods_Key (int key);
 	void M_Options_Key (int key);
 		void M_Keys_Key (int key);
 		void M_Fps_Key (int key);
@@ -249,7 +252,7 @@ void M_Main_Layout (int f_cursor, int f_inmenu)
 	{
 		"Single",
 		"Multiplayer",
-		"Demos",
+		"Mods",
 		"Options",
 		"Quit",
 		0
@@ -349,7 +352,7 @@ int	m_main_cursor;
 
 #define		M_M_SINGLE	0
 #define		M_M_MULTI	1
-#define		M_M_DEMOS	2
+#define		M_M_MODS	2
 #define		M_M_OPTION	3
 #define		M_M_QUIT	4
 
@@ -403,8 +406,8 @@ void M_Main_Key (int key)
 			M_Menu_Options_f ();
 			break;
 
-		case M_M_DEMOS:
-			M_Menu_Demos_f ();
+		case M_M_MODS:
+			M_Menu_Mods_f ();
 			break;
 
 		case M_M_QUIT:
@@ -418,7 +421,7 @@ void M_Main_Key (int key)
 //=============================================================================
 /* OPTIONS MENU */
 
-#define	OPTIONS_ITEMS	17
+#define	OPTIONS_ITEMS	11
 
 #define	SLIDER_RANGE	10
 
@@ -426,13 +429,11 @@ static int		options_cursor;
 
 extern cvar_t	v_gamma;
 extern cvar_t	v_contrast;
-extern cvar_t	cl_run;
 
 void M_Menu_Options_f (void)
 {
 	M_EnterMenu (m_options);
 }
-
 
 void M_AdjustSliders (int dir)
 {
@@ -492,33 +493,8 @@ void M_AdjustSliders (int dir)
 			s_volume.value = 1;
 		Cvar_SetValue (&s_volume, s_volume.value);
 		break;
-
-	case 9:	// always run
-		Cvar_SetValue (&cl_run, !cl_run.value);
-		break;
-
-	case 10:	// mouse look
-		Cvar_SetValue (&freelook, !freelook.value);
-		break;
-
-	case 11:	// invert mouse
-		Cvar_SetValue (&m_pitch, -m_pitch.value);
-		break;
-
-	case 12:	// lookstrafe
-		Cvar_SetValue (&lookstrafe, !lookstrafe.value);
-		break;
-
-	case 13:
-		Cvar_SetValue (&cl_sbar, !cl_sbar.value);
-		break;
-
-	case 17:	// vid_mouse
-		Cvar_SetValue (&vid_mouse, !vid_mouse.value);
-		break;
 	}
 }
-
 
 void M_DrawSlider (int x, int y, float range)
 {
@@ -607,27 +583,9 @@ void M_Options_Draw (void)
 	r = s_volume.value;
 	M_DrawSlider (220, 96, r);
 
-	M_Print (16, 104,  "            Always Run");
-	M_DrawCheckbox (220, 104, cl_run.value);
+	M_PrintWhite (16, 104, "        Effect Options");
 
-	M_Print (16, 112, "            Mouse look");
-	M_DrawCheckbox (220, 112, freelook.value);
-
-	M_Print (16, 120, "          Invert Mouse");
-	M_DrawCheckbox (220, 120, m_pitch.value < 0);
-
-	M_Print (16, 128, "            Lookstrafe");
-	M_DrawCheckbox (220, 128, lookstrafe.value);
-
-	M_Print (16, 136, "    Use old status bar");
-	M_DrawCheckbox (220, 136, cl_sbar.value);
-
-	M_PrintWhite (16, 144, "          FPS settings");
-
-	M_PrintWhite (16, 152, "         Video Options");
-
-	M_Print (16, 160, "             Use Mouse");
-	M_DrawCheckbox (220, 160, vid_mouse.value);
+	M_PrintWhite (16, 112, "         Video Options");
 
 	// cursor
 	M_DrawChar (200, 32 + options_cursor*8, 12+((int)(curtime*4)&1));
@@ -659,10 +617,10 @@ void M_Options_Key (int k)
 		case 2:
 			Cbuf_AddText ("exec default.cfg\n");
 			break;
-		case 14:
+		case 9:
 			M_Menu_Fps_f ();
 			break;
-		case 15:
+		case 10:
 			M_Menu_Video_f ();
 			break;
 		default:
@@ -724,12 +682,10 @@ char *bindnames[][2] =
 {"+movedown",		"swim down"},
 {"impulse 12", 		"previous weapon"},
 {"impulse 10", 		"next weapon"},
-{"+speed", 			"run"},
 {"+left", 			"turn left"},
 {"+right", 			"turn right"},
 {"+lookup", 		"look up"},
 {"+lookdown", 		"look down"},
-{"centerview", 		"center view"},
 };
 
 #define	NUMCOMMANDS	(sizeof(bindnames)/sizeof(bindnames[0]))
@@ -1174,9 +1130,9 @@ static video_resolution_t video_resolutions_hardcoded[] =
 };
 // this is the number of the default mode (640x480) in the list above
 
-#define VIDEO_ITEMS 7
+#define VIDEO_ITEMS 8
 static int video_cursor = 0;
-static int video_cursor_table[VIDEO_ITEMS] = {68, 88, 96, 104, 112, 120, 128};
+static int video_cursor_table[VIDEO_ITEMS] = {68, 88, 96, 104, 112, 120, 128, 136};
 static int video_resolution;
 
 video_resolution_t *video_resolutions;
@@ -1255,6 +1211,11 @@ void M_Video_Draw (void)
 	// Vertical Sync
 	M_ItemPrint(16, video_cursor_table[t], "         Vertical Sync", gl_videosyncavailable);
 	M_DrawCheckbox(220, video_cursor_table[t], vid_vsync.value);
+	t++;
+
+	// Mouse
+	M_Print(16, video_cursor_table[t], "         Use Mouse");
+	M_DrawCheckbox(220, video_cursor_table[t], vid_mouse.value);
 	t++;
 
 	// "Apply" button
@@ -2117,7 +2078,7 @@ void M_Save_Key (int key)
 
 int	m_multiplayer_cursor;
 
-#define	MULTIPLAYER_ITEMS	3
+#define	MULTIPLAYER_ITEMS	4
 
 void M_Menu_MultiPlayer_f (void)
 {
@@ -2130,6 +2091,7 @@ void M_MultiPlayer_Draw (void)
 	char	*names[] =
 	{
 		"Join game",
+		"Demos",
 		"Create game",
 		"Player setup",
 		0
@@ -2197,6 +2159,10 @@ void M_MultiPlayer_Key (int key)
 			break;
 
 		case 2:
+			M_Menu_Demos_f ();
+			break;
+
+		case 3:
 			M_Menu_Setup_f ();
 			break;
 		}
@@ -2469,7 +2435,7 @@ void M_Demos_Draw (void) {
 	int demoindex, scroll_index;
 	float frac, time, elapsed;
 
-	M_Main_Layout (M_M_DEMOS, false);
+	M_Main_Layout (M_M_MULTI, false);
 
 	M_Print (140, 8, "DEMOS");
 	Q_strncpyz(demoname_scroll, demo_currentdir[0] ? demo_currentdir : "/", sizeof(demoname_scroll));
@@ -3498,6 +3464,23 @@ void M_Setup_Key (int k)
 }
 
 //=============================================================================
+/* MODS MENU */
+
+void M_Menu_Mods_f (void)
+{
+	M_EnterMenu (m_mods);
+}
+
+void M_Mods_Draw (void)
+{
+}
+
+void M_Mods_Key (int key)
+{
+}
+
+
+//=============================================================================
 /* Menu Subsystem */
 
 void M_Init (void)
@@ -3640,6 +3623,7 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddCommand ("menu_fps", M_Menu_Fps_f);
 	Cmd_AddCommand ("menu_video", M_Menu_Video_f);
+	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_help", M_Menu_Help_f);
 	Cmd_AddCommand ("credits", M_Menu_Credits_f);
@@ -3725,6 +3709,11 @@ void M_Draw (void)
 
 	case m_demos:
 		M_Demos_Draw ();
+		break;
+
+	case m_mods:
+		M_Mods_Draw ();
+		break;
 	}
 	
 	if (m_entersound)
@@ -3810,6 +3799,10 @@ void M_Keydown (int key)
 
 	case m_demos:
 		M_Demos_Key (key);
+		break;
+
+	case m_mods:
+		M_Mods_Key (key);
 		break;
 	}
 }

@@ -318,7 +318,6 @@ typedef struct
 	float		maxpitch;
 	qbool		allow_fbskins;
 	qbool		allow_fakeshaft;
-	qbool		allow_frj;
 
 	int			parsecount;		// server message counter
 	int			oldparsecount;	// previouse server message counter
@@ -440,7 +439,6 @@ extern client_state_t	cl;
 //
 extern cvar_t	cl_warncmd;
 extern cvar_t	cl_shownet;
-extern cvar_t	cl_sbar;
 extern cvar_t   noskins;
 extern cvar_t   allskins;
 extern cvar_t   baseskin;

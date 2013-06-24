@@ -30,8 +30,6 @@ qbool		sb_hipnotic;
 #define STAT_MINUS		10	// num frame for '-' stats digit
 static qpic_t	*sb_nums[2][11];
 static qpic_t	*sb_colon, *sb_slash;
-static qpic_t	*sb_ibar;
-static qpic_t	*sb_sbar;
 static qpic_t	*sb_scorebar;
 
 static qpic_t	*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
@@ -251,8 +249,6 @@ static void sbar_start (void)
 
 	sb_disc = R_CacheWadPic ("disc");
 
-	sb_sbar = R_CacheWadPic ("sbar");
-	sb_ibar = R_CacheWadPic ("ibar");
 	sb_scorebar = R_CacheWadPic ("scorebar");
 
 	sb_hipnotic = false;
@@ -563,14 +559,8 @@ static void Sbar_DrawInventory (void)
 	char	num[6];
 	float	time;
 	int		flashon;
-	qbool	headsup;
 
-	headsup = !cl_sbar.value;
-
-	if (!headsup)
-		Sbar_DrawPic (0, -24, sb_ibar);
-
-// weapons
+	// weapons
 	for (i=0 ; i<7 ; i++)
 	{
 		if (cl.stats[STAT_ITEMS] & (IT_SHOTGUN<<i) )
@@ -589,15 +579,13 @@ static void Sbar_DrawInventory (void)
 			else
 				flashon = (flashon%5) + 2;
 
-			if (!headsup)
-				Sbar_DrawPic (i*24, -16, sb_weapons[flashon][i]);
+			Sbar_DrawPic (i*24, -16, sb_weapons[flashon][i]);
 		}
 	}
 
-// hipnotic weapons
+	// hipnotic weapons
     if (sb_hipnotic) {
 		int grenadeflashing = 0;
-//		Com_Printf ("hipnotic weapons\n");
 		for (i = 0; i < 4; i++) {
 			if (cl.stats[STAT_ITEMS] & (1<<hipweapons[i]) ) {
 				time = cl.item_gettime[hipweapons[i]];
@@ -638,22 +626,20 @@ static void Sbar_DrawInventory (void)
 		}
     }
 
-// ammo counts
+	// ammo counts
 	for (i=0 ; i<4 ; i++)
 	{
 		sprintf (num, "%3i",cl.stats[STAT_SHELLS+i] );
-		if (!headsup) {
-			if (num[0] != ' ')
-				Sbar_DrawChar ( (6*i+1)*8 - 2, -24, 18 + num[0] - '0');
-			if (num[1] != ' ')
-				Sbar_DrawChar ( (6*i+2)*8 - 2, -24, 18 + num[1] - '0');
-			if (num[2] != ' ')
-				Sbar_DrawChar ( (6*i+3)*8 - 2, -24, 18 + num[2] - '0');
-		}
+		if (num[0] != ' ')
+			Sbar_DrawChar ( (6*i+1)*8 - 2, -24, 18 + num[0] - '0');
+		if (num[1] != ' ')
+			Sbar_DrawChar ( (6*i+2)*8 - 2, -24, 18 + num[1] - '0');
+		if (num[2] != ' ')
+			Sbar_DrawChar ( (6*i+3)*8 - 2, -24, 18 + num[2] - '0');
 	}
 	
 	flashon = 0;
-// items
+	// items
 	for (i=0 ; i<6 ; i++) {
 		if (cl.stats[STAT_ITEMS] & (1<<(17+i))) {
 			time = cl.item_gettime[17+i];
@@ -676,7 +662,7 @@ static void Sbar_DrawInventory (void)
 			}
 	}
 
-// sigils
+	// sigils
 	for (i=0 ; i<4 ; i++)
 		if (cl.stats[STAT_ITEMS] & (1<<(28+i)))
 		{
@@ -735,9 +721,6 @@ Sbar_DrawNormal
 */
 static void Sbar_DrawNormal (void)
 {
-	if (cl_sbar.value)
-		Sbar_DrawPic (0, 0, sb_sbar);
-
 // armor
 	if (cl.stats[STAT_ITEMS] & IT_INVULNERABILITY)
 	{

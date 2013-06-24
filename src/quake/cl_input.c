@@ -27,6 +27,23 @@ cvar_t	cl_nodelta = {"cl_nodelta","0"};
 cvar_t	cl_c2spps = {"cl_c2spps","0"};
 cvar_t	cl_c2sImpulseBackup = {"cl_c2sImpulseBackup","3"};
 
+cvar_t	cl_upspeed = {"cl_upspeed", "400"};
+cvar_t	cl_forwardspeed = {"cl_forwardspeed", "400", CVAR_ARCHIVE};
+cvar_t	cl_backspeed = {"cl_backspeed", "400", CVAR_ARCHIVE};
+cvar_t	cl_sidespeed = {"cl_sidespeed", "400", CVAR_ARCHIVE};
+
+cvar_t	cl_movespeedkey = {"cl_movespeedkey", "2.0", CVAR_ARCHIVE};
+cvar_t	cl_anglespeedkey = {"cl_anglespeedkey", "1.5"};
+
+cvar_t	cl_yawspeed = {"cl_yawspeed","140"};
+cvar_t	cl_pitchspeed = {"cl_pitchspeed","150"};
+
+cvar_t	sensitivity = {"sensitivity","12",CVAR_ARCHIVE};
+
+cvar_t	m_pitch = {"m_pitch","0.022", CVAR_ARCHIVE};
+cvar_t	m_yaw = {"m_yaw","0.022"};
+cvar_t	m_forward = {"m_forward","1"};
+cvar_t	m_side = {"m_side","0.8"};
 
 /*
 ===============================================================================
@@ -50,10 +67,9 @@ state bit 2 is edge triggered on the down to up transition
 */
 
 
-kbutton_t	in_mlook, in_klook;
 kbutton_t	in_left, in_right, in_forward, in_back;
 kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
-kbutton_t	in_strafe, in_speed, in_use, in_jump, in_attack;
+kbutton_t	in_use, in_jump, in_attack;
 kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7;
 kbutton_t	in_up, in_down;
 
@@ -122,14 +138,6 @@ void KeyUp (kbutton_t *b)
 	b->state |= 4; 		// impulse up
 }
 
-void IN_KLookDown (void) {KeyDown(&in_klook);}
-void IN_KLookUp (void) {KeyUp(&in_klook);}
-void IN_MLookDown (void) {KeyDown(&in_mlook);}
-void IN_MLookUp (void) {
-KeyUp(&in_mlook);
-if (!mlook_active &&  lookspring.value)
-	V_StartPitchDrift();
-}
 void IN_UpDown(void) {KeyDown(&in_up);}
 void IN_UpUp(void) {KeyUp(&in_up);}
 void IN_DownDown(void) {KeyDown(&in_down);}
@@ -151,11 +159,6 @@ void IN_MoveleftUp(void) {KeyUp(&in_moveleft);}
 void IN_MoverightDown(void) {KeyDown(&in_moveright);}
 void IN_MoverightUp(void) {KeyUp(&in_moveright);}
 
-void IN_SpeedDown(void) {KeyDown(&in_speed);}
-void IN_SpeedUp(void) {KeyUp(&in_speed);}
-void IN_StrafeDown(void) {KeyDown(&in_strafe);}
-void IN_StrafeUp(void) {KeyUp(&in_strafe);}
-
 void IN_AttackDown(void) {KeyDown(&in_attack);}
 void IN_AttackUp(void) {KeyUp(&in_attack);}
 void IN_UseDown (void) {KeyDown(&in_use);}
@@ -172,32 +175,6 @@ void IN_Button7Down(void) {KeyDown(&in_button7);}
 void IN_Button7Up(void) {KeyUp(&in_button7);}
 void IN_JumpDown (void) {KeyDown(&in_jump);}
 void IN_JumpUp (void) {KeyUp(&in_jump);}
-
-//
-// builtin forward rocket jump script 
-//
-
-void IN_FRJDown (void)
-{
-	IN_JumpDown ();
-
-	if (!cl.allow_frj && cls.state == ca_active) {
-		Com_Printf ("frj not allowed on this server\n");
-		return;
-	}
-
-	in_invertview = true;
-	in_impulse = 7;
-	IN_AttackDown ();
-}
-
-void IN_FRJUp (void)
-{
-	in_invertview = false;
-	IN_AttackUp ();
-	IN_JumpUp ();
-}
-
 
 //void IN_Impulse (void) {in_impulse=Q_atoi(Cmd_Argv(1));}
 
@@ -317,33 +294,7 @@ float CL_KeyState (kbutton_t *key, qbool lookbutton)
 	return val;
 }
 
-
-
-
 //==========================================================================
-
-cvar_t	cl_upspeed = {"cl_upspeed", "400"};
-cvar_t	cl_forwardspeed = {"cl_forwardspeed", "400", CVAR_ARCHIVE};
-cvar_t	cl_backspeed = {"cl_backspeed", "400", CVAR_ARCHIVE};
-cvar_t	cl_sidespeed = {"cl_sidespeed", "400", CVAR_ARCHIVE};
-
-cvar_t	cl_run = {"cl_run", "0", CVAR_ARCHIVE};
-cvar_t	cl_movespeedkey = {"cl_movespeedkey", "2.0", CVAR_ARCHIVE};
-cvar_t	cl_anglespeedkey = {"cl_anglespeedkey", "1.5"};
-
-cvar_t	cl_yawspeed = {"cl_yawspeed","140"};
-cvar_t	cl_pitchspeed = {"cl_pitchspeed","150"};
-
-cvar_t	lookspring = {"lookspring","0",CVAR_ARCHIVE};
-cvar_t	lookstrafe = {"lookstrafe","0",CVAR_ARCHIVE};
-cvar_t	sensitivity = {"sensitivity","12",CVAR_ARCHIVE};
-cvar_t	freelook = {"freelook","1",CVAR_ARCHIVE};
-
-cvar_t	m_pitch = {"m_pitch","0.022", CVAR_ARCHIVE};
-cvar_t	m_yaw = {"m_yaw","0.022"};
-cvar_t	m_forward = {"m_forward","1"};
-cvar_t	m_side = {"m_side","0.8"};
-
 
 /*
 ================
@@ -358,32 +309,16 @@ void CL_AdjustAngles (void)
 	float	up, down;
 	float	yawspeed;
 	
-	if (in_speed.state & 1)
-		speed = cls.frametime * cl_anglespeedkey.value;
-	else
-		speed = cls.frametime;
+	speed = cls.frametime * cl_anglespeedkey.value;
 
-	if (!(in_strafe.state & 1))
-	{
-		if (cl.allow_frj)
-			yawspeed = speed * cl_yawspeed.value;
-		else {
-			yawspeed = cl_yawspeed.value;
-			if (in_speed.state & 1)
-				yawspeed *= cl_anglespeedkey.value;
-			yawspeed = bound (-1000, yawspeed, 1000);
-			yawspeed *= cls.frametime;
-		}
-		cl.viewangles[YAW] -= yawspeed * CL_KeyState (&in_right, true);
-		cl.viewangles[YAW] += yawspeed * CL_KeyState (&in_left, true);
-		cl.viewangles[YAW] = anglemod(cl.viewangles[YAW]);
-	}
-	if (in_klook.state & 1)
-	{
-		V_StopPitchDrift ();
-		cl.viewangles[PITCH] -= speed*cl_pitchspeed.value * CL_KeyState (&in_forward, true);
-		cl.viewangles[PITCH] += speed*cl_pitchspeed.value * CL_KeyState (&in_back, true);
-	}
+	yawspeed = cl_yawspeed.value;
+	yawspeed *= cl_anglespeedkey.value;
+	yawspeed = bound (-1000, yawspeed, 1000);
+	yawspeed *= cls.frametime;
+
+	cl.viewangles[YAW] -= yawspeed * CL_KeyState (&in_right, true);
+	cl.viewangles[YAW] += yawspeed * CL_KeyState (&in_left, true);
+	cl.viewangles[YAW] = anglemod(cl.viewangles[YAW]);
 	
 	up = CL_KeyState (&in_lookup, true);
 	down = CL_KeyState(&in_lookdown, true);
@@ -391,9 +326,6 @@ void CL_AdjustAngles (void)
 	cl.viewangles[PITCH] -= speed*cl_pitchspeed.value * up;
 	cl.viewangles[PITCH] += speed*cl_pitchspeed.value * down;
 
-	if (up || down)
-		V_StopPitchDrift ();
-		
 	if (cl.viewangles[PITCH] > cl.maxpitch)
 		cl.viewangles[PITCH] = cl.maxpitch;
 	if (cl.viewangles[PITCH] < cl.minpitch)
@@ -420,11 +352,6 @@ void CL_BaseMove (usercmd_t *cmd)
 	memset (cmd, 0, sizeof(*cmd));
 	
 	VectorCopy (cl.viewangles, cmd->angles);
-	if (in_strafe.state & 1)
-	{
-		cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_right, false);
-		cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_left, false);
-	}
 
 	cmd->sidemove += cl_sidespeed.value * CL_KeyState (&in_moveright, false);
 	cmd->sidemove -= cl_sidespeed.value * CL_KeyState (&in_moveleft, false);
@@ -432,21 +359,13 @@ void CL_BaseMove (usercmd_t *cmd)
 	cmd->upmove += cl_upspeed.value * CL_KeyState (&in_up, false);
 	cmd->upmove -= cl_upspeed.value * CL_KeyState (&in_down, false);
 
-	if (! (in_klook.state & 1) )
-	{	
-		cmd->forwardmove += cl_forwardspeed.value * CL_KeyState (&in_forward, false);
-		cmd->forwardmove -= cl_backspeed.value * CL_KeyState (&in_back, false);
-	}	
+	cmd->forwardmove += cl_forwardspeed.value * CL_KeyState (&in_forward, false);
+	cmd->forwardmove -= cl_backspeed.value * CL_KeyState (&in_back, false);
 
-//
-// adjust for speed key
-//
-	if ((in_speed.state & 1) ^ (cl_run.value != 0))
-	{
-		cmd->forwardmove *= cl_movespeedkey.value;
-		cmd->sidemove *= cl_movespeedkey.value;
-		cmd->upmove *= cl_movespeedkey.value;
-	}	
+	// adjust for speed key
+	cmd->forwardmove *= cl_movespeedkey.value;
+	cmd->sidemove *= cl_movespeedkey.value;
+	cmd->upmove *= cl_movespeedkey.value;
 }
 
 int MakeChar (int i)
@@ -737,14 +656,10 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-lookup", IN_LookupUp);
 	Cmd_AddCommand ("+lookdown", IN_LookdownDown);
 	Cmd_AddCommand ("-lookdown", IN_LookdownUp);
-	Cmd_AddCommand ("+strafe", IN_StrafeDown);
-	Cmd_AddCommand ("-strafe", IN_StrafeUp);
 	Cmd_AddCommand ("+moveleft", IN_MoveleftDown);
 	Cmd_AddCommand ("-moveleft", IN_MoveleftUp);
 	Cmd_AddCommand ("+moveright", IN_MoverightDown);
 	Cmd_AddCommand ("-moveright", IN_MoverightUp);
-	Cmd_AddCommand ("+speed", IN_SpeedDown);
-	Cmd_AddCommand ("-speed", IN_SpeedUp);
 	Cmd_AddCommand ("+attack", IN_AttackDown);
 	Cmd_AddCommand ("-attack", IN_AttackUp);
 	Cmd_AddCommand ("+use", IN_UseDown);
@@ -765,28 +680,17 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-button7", IN_Button7Up);
 	Cmd_AddCommand ("impulse", IN_Impulse);
 	Cmd_AddCommand ("weapon", IN_Impulse);
-	Cmd_AddCommand ("+klook", IN_KLookDown);
-	Cmd_AddCommand ("-klook", IN_KLookUp);
-	Cmd_AddCommand ("+mlook", IN_MLookDown);
-	Cmd_AddCommand ("-mlook", IN_MLookUp);
-	Cmd_AddCommand ("+frj", IN_FRJDown);
-	Cmd_AddCommand ("-frj", IN_FRJUp);
-
 
 	Cvar_Register (&cl_upspeed);
 	Cvar_Register (&cl_forwardspeed);
 	Cvar_Register (&cl_backspeed);
 	Cvar_Register (&cl_sidespeed);
-	Cvar_Register (&cl_run);
 	Cvar_Register (&cl_movespeedkey);
 	Cvar_Register (&cl_yawspeed);
 	Cvar_Register (&cl_pitchspeed);
 	Cvar_Register (&cl_anglespeedkey);
 
-	Cvar_Register (&lookspring);
-	Cvar_Register (&lookstrafe);
 	Cvar_Register (&sensitivity);
-	Cvar_Register (&freelook);
 
 	Cvar_Register (&m_pitch);
 	Cvar_Register (&m_yaw);

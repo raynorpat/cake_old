@@ -202,7 +202,7 @@ void Host_Init (int argc, char **argv)
 	COM_Init ();
 	Key_Init ();
 
-	FS_InitFilesystem ();
+	FS_Init ();
 	COM_CheckRegistered ();
 
 	Con_Init ();

@@ -220,7 +220,7 @@ extern char com_gamedirfile[MAX_QPATH];
 extern qbool	file_from_pak;		// set if file came from a pak file
 extern qbool	file_from_gamedir;	// set if file came from a gamedir (and gamedir wasn't id1/qw)
 
-void FS_InitFilesystem (void);
+void FS_Init (void);
 void FS_SetGamedir (char *dir);
 int FS_FOpenFile (char *filename, FILE **file);
 qbool FS_FindFile (char *filename);

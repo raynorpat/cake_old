@@ -38,7 +38,6 @@ void OnChange_logfile_var (cvar_t *var, char *string, qbool *cancel);
 cvar_t	logfile_var = {"logfile", "0", 0, OnChange_logfile_var};
 FILE	*logfile;
 
-void FS_InitFilesystem (void);
 void COM_Path_f (void);
 
 char	com_gamedirfile[MAX_QPATH];
@@ -1037,10 +1036,10 @@ void FS_SetGamedir (char *dir)
 
 /*
 ================
-FS_InitFilesystem
+FS_Init
 ================
 */
-void FS_InitFilesystem (void)
+void FS_Init (void)
 {
 	int		i;
 
