@@ -42,7 +42,7 @@ particle_t *R_NewParticle (particle_type_t *pt)
 	particle_t	*p;
 	int i;
 
-	// with pointfiles we can have loads of particles, so set this as an absolute upper limit to prevent memory running out
+	// we can have loads of particles, so set this as an absolute upper limit to prevent memory running out
 	if (r_numparticles >= 65536)
 		return NULL;
 	else if (free_particles)
@@ -218,63 +218,6 @@ void CL_ClearParticles (void)
 }
 
 
-/*
-===============
-CL_ReadPointFile_f
-===============
-*/
-void CL_ReadPointFile_f (void)
-{
-	FILE	*f;
-	vec3_t	org;
-	int		r;
-	int		c;
-	particle_t	*p;
-	particle_type_t *pt;
-	char	name[MAX_OSPATH];
-
-	if (!com_serveractive && !r_refdef2.allow_cheats)
-		return;
-
-	sprintf (name, "maps/%s.pts", host_mapname.string);
-
-	FS_FOpenFile (name, &f);
-	if (!f)
-	{
-		Com_Printf ("couldn't open %s\n", name);
-		return;
-	}
-	
-	Com_Printf ("Reading %s...\n", name);
-	c = 0;
-
-	pt = R_NewParticleType (vec3_origin);
-
-	for ( ;; )
-	{
-		r = fscanf (f,"%f %f %f\n", &org[0], &org[1], &org[2]);
-		if (r != 3)
-			break;
-
-		c++;
-		
-		if (!(p = R_NewParticle (pt)))
-		{
-			Com_Printf ("Not enough free particles\n");
-			break;
-		}
-
-		p->die = 99999;
-		p->color = (-c)&15;
-		p->type = pt_static;
-		VectorClear (p->vel);
-		VectorCopy (org, p->org);
-	}
-
-	fclose (f);
-	Com_Printf ("%i points read\n", c);
-}
-	
 /*
 ===============
 CL_ParticleExplosion

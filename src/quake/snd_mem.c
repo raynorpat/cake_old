@@ -96,7 +96,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	int		len;
 	float	stepscale;
 	sfxcache_t	*sc;
-	byte	stackbuf[1*1024];		// avoid dirtying the cache heap
+	fs_offset_t filesize;
 
 // see if still in memory
 	sc = Cache_Check (&s->cache);
@@ -107,15 +107,11 @@ sfxcache_t *S_LoadSound (sfx_t *s)
     strcpy (namebuffer, "sound/");
     strcat (namebuffer, s->name);
 
-	data = FS_LoadStackFile (namebuffer, stackbuf, sizeof(stackbuf));
-
+	data = FS_LoadFile (namebuffer, false, &filesize);
 	if (!data)
-	{
-		Com_DPrintf ("Couldn't load %s\n", namebuffer);
 		return NULL;
-	}
 
-	info = GetWavinfo (s->name, data, fs_filesize);
+	info = GetWavinfo (s->name, data, filesize);
 	if (info.channels != 1)
 	{
 		Com_Printf ("%s is a stereo sample\n",s->name);
@@ -127,7 +123,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	len = len * info.width * info.channels;
 
-	sc = (sfxcache_t *) Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
+	sc = (sfxcache_t *) Cache_Alloc (&s->cache, len + sizeof(sfxcache_t), s->name);
 	if (!sc)
 		return NULL;
 

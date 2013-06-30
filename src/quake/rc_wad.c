@@ -96,15 +96,16 @@ void W_LoadWadFile (char *filename)
 	wadinfo_t		*header;
 	unsigned		i;
 	int				infotableofs;
+	fs_offset_t		filesize;
 
 	// only one .wad can be loaded at a time
 	W_FreeWadFile ();
 
-	wad_base = FS_LoadHeapFile (filename);
+	wad_base = FS_LoadFile (filename, false, &filesize);
 	if (!wad_base)
 		Sys_Error ("W_LoadWadFile: couldn't load %s", filename);
 
-	wad_filesize = fs_filesize;
+	wad_filesize = filesize;
 
 	header = (wadinfo_t *)wad_base;
 	

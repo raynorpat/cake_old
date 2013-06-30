@@ -74,7 +74,7 @@ void SV_Fraglogfile_f (void)
 	// find an unused name
 	for (i=0 ; i<MAX_LOGFILES ; i++)
 	{
-		snprintf (name, sizeof(name), "%s/frag_%i.log", com_gamedir, i);
+		Q_snprintf (name, sizeof(name), "%s/frag_%i.log", fs_gamedir, i);
 		sv_fraglogfile = fopen (name, "r");
 		if (!sv_fraglogfile)
 		{	// can't read it, so create this one
@@ -139,7 +139,7 @@ command from the console or progs.
 void SV_Map_f (void)
 {
 	char	expanded[MAX_QPATH];
-	FILE	*f;
+	qfile_t	*f;
 
 	if (Cmd_Argc() != 2) {
 		Com_Printf ("map <mapname> : continue game on a new map\n");
@@ -147,13 +147,11 @@ void SV_Map_f (void)
 	}
 
 	// check to make sure the level exists
-	snprintf (expanded, sizeof(expanded), "maps/%s.bsp", Cmd_Argv(1));
-	FS_FOpenFile (expanded, &f);
-	if (!f) {
-		Com_Printf ("Can't find %s\n", expanded);
+	Q_snprintf (expanded, sizeof(expanded), "maps/%s.bsp", Cmd_Argv(1));
+	f = FS_Open (expanded, "rb", false, true);
+	if (!f)
 		return;
-	}
-	fclose (f);
+	FS_Close (f);
 
 	if (sv.mvdrecording)
 		SV_MVDStop_f();
@@ -593,10 +591,9 @@ void SV_Gamedir (void)
 ================
 SV_Floodport_f
 
-Sets the gamedir and path to a different directory.
+Sets the message flood protection 
 ================
 */
-
 void SV_Floodprot_f (void)
 {
 	int arg1, arg2, arg3;
@@ -638,159 +635,6 @@ void SV_Floodprot_f (void)
 }
 
 /*
-================
-SV_Gamedir_f
-
-Sets the gamedir and path to a different directory.
-================
-*/
-void SV_Gamedir_f (void)
-{
-	char			*dir;
-
-	if (Cmd_Argc() == 1)
-	{
-		Com_Printf ("Current gamedir: %s\n", com_gamedirfile);
-		return;
-	}
-
-	if (Cmd_Argc() != 2)
-	{
-		Com_Printf ("Usage: gamedir <newdir>\n");
-		return;
-	}
-
-	dir = Cmd_Argv(1);
-
-	if (strstr(dir, "..") || strstr(dir, "/")
-		|| strstr(dir, "\\") || strstr(dir, ":") )
-	{
-		Com_Printf ("gamedir should be a single filename, not a path\n");
-		return;
-	}
-
-#ifndef SERVERONLY
-	if (CL_ClientState())
-	{
-		Com_Printf ("you must disconnect before changing gamedir\n");
-		return;
-	}
-#endif
-
-	FS_SetGamedir (dir);
-
-#if 0
-	// Tonik: this is to fight lame admins having all sorts of shit in their servers'
-	// *gamedir, causing nuisance like configs and downloads being written
-	// where you don't really want them to be.
-	// Fortress, arena, etc do need a separate *gamedir; for everything else,
-	// you'll have to force it with "sv_gamedir foo" if indeed necessary
-	if (!strcmp(dir, "fortress") || !strcmp(dir, "arena") || !strcmp(dir, "ctf")
-		|| !strcmp(dir, "rogue") || !strcmp(dir, "hipnotic"))
-		Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
-	else
-		Info_SetValueForStarKey (svs.info, "*gamedir", "", MAX_SERVERINFO_STRING);
-#else
-	Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
-#endif
-}
-
-/*
-================
-SV_Snap
-================
-*/
-void SV_Snap (int uid)
-{
-	client_t	*cl;
-	char		pcxname[80]; 
-	char		checkname[MAX_OSPATH];
-	int			i;
-	FILE		*f;
-
-	for (i = 0, cl = svs.clients; i < MAX_CLIENTS; i++, cl++)
-	{
-		if (cl->state < cs_connected)
-			continue;
-		if (cl->userid == uid)
-			break;
-	}
-	if (i >= MAX_CLIENTS) {
-		Com_Printf ("userid not found\n");
-		return;
-	}
-
-	COM_CreatePath (va("%s/snap/", com_gamedir));
-	sprintf (pcxname, "%d-00.pcx", uid);
-		
-	for (i=0 ; i<=99 ; i++) 
-	{ 
-		pcxname[strlen(pcxname) - 6] = i/10 + '0'; 
-		pcxname[strlen(pcxname) - 5] = i%10 + '0'; 
-		snprintf (checkname, sizeof(checkname), "%s/snap/%s", com_gamedir, pcxname);
-		f = fopen (checkname, "rb");
-		if (!f)
-			break;  // file doesn't exist
-		fclose (f);
-	} 
-	if (i==100) 
-	{
-		Com_Printf ("Snap: Couldn't create a file, clean some out.\n"); 
-		return;
-	}
-	strcpy(cl->uploadfn, checkname);
-
-	memcpy(&cl->snap_from, &net_from, sizeof(net_from));
-	if (sv_redirected != RD_NONE)
-		cl->remote_snap = true;
-	else
-		cl->remote_snap = false;
-
-	ClientReliableWrite_Begin (cl, svc_stufftext);
-	ClientReliableWrite_String ("cmd snap\n");
-	ClientReliableWrite_End ();
-	Com_Printf ("Requesting snap from user %d...\n", uid);
-}
-
-/*
-================
-SV_Snap_f
-================
-*/
-void SV_Snap_f (void)
-{
-	int			uid;
-
-	if (Cmd_Argc() != 2)
-	{
-		Com_Printf ("Usage: snap <userid>\n");
-		return;
-	}
-
-	uid = atoi(Cmd_Argv(1));
-
-	SV_Snap(uid);
-}
-
-/*
-================
-SV_Snap
-================
-*/
-void SV_SnapAll_f (void)
-{
-	client_t *cl;
-	int			i;
-
-	for (i = 0, cl = svs.clients; i < MAX_CLIENTS; i++, cl++)
-	{
-		if (cl->state < cs_connected || cl->spectator)
-			continue;
-		SV_Snap (cl->userid);
-	}
-}
-
-/*
 ==================
 SV_InitOperatorCommands
 ==================
@@ -808,8 +652,6 @@ void SV_InitOperatorCommands (void)
 
 	Cmd_AddCommand ("fraglogfile", SV_Fraglogfile_f);
 
-	Cmd_AddCommand ("snap", SV_Snap_f);
-	Cmd_AddCommand ("snapall", SV_SnapAll_f);
 	Cmd_AddCommand ("kick", SV_Kick_f);
 	Cmd_AddCommand ("status", SV_Status_f);
 	Cmd_AddCommand ("serverstatus", SV_Status_f);
@@ -836,9 +678,9 @@ void SV_InitOperatorCommands (void)
 #endif
 
 	Cmd_AddCommand ("localinfo", SV_Localinfo_f);
-	Cmd_AddCommand ("gamedir", SV_Gamedir_f);
 	Cmd_AddCommand ("sv_gamedir", SV_Gamedir);
 	Cmd_AddCommand ("floodprot", SV_Floodprot_f);
+
 	Cvar_Register (&sv_floodprotmsg);
 
 	cl_warncmd.value = 1;

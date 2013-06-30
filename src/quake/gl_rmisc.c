@@ -623,36 +623,26 @@ void R_ScreenShot_f (void)
 	char	pcxname[MAX_OSPATH]; 
 	char	checkname[MAX_OSPATH];
 	int		i, c, temp;
-	FILE	*f;
+	qfile_t	*f;
 
-	if (Cmd_Argc() == 2)
-	{
-		strlcpy (pcxname, Cmd_Argv(1), sizeof(pcxname));
-		COM_ForceExtension (pcxname, ".tga");
-	}
-	else
-	{
-		// 
-		// find a file name to save it to 
-		// 
-		strcpy(pcxname,"quake00.tga");
+	// find a file name to save it to 
+	strcpy(pcxname,"quake00.tga");
 		
-		for (i = 0; i <= 99; i++) 
-		{ 
-			pcxname[5] = i/10 + '0'; 
-			pcxname[6] = i%10 + '0'; 
-			sprintf (checkname, "%s/%s", cls.gamedir, pcxname);
-			f = fopen (checkname, "rb");
-			if (!f)
-				break;  // file doesn't exist
-			fclose (f);
-		} 
-		if (i==100) 
-		{
-			Com_Printf ("R_ScreenShot_f: Couldn't create a TGA file\n"); 
-			return;
-		}
-	}		
+	for (i = 0; i <= 99; i++) 
+	{ 
+		pcxname[5] = i/10 + '0'; 
+		pcxname[6] = i%10 + '0'; 
+		sprintf (checkname, "%s/%s", cls.gamedir, pcxname);
+		f = FS_Open (checkname, "rb", false, false);
+		if (!f)
+			break;  // file doesn't exist
+		FS_Close (f);
+	} 
+	if (i==100) 
+	{
+		Com_Printf ("R_ScreenShot_f: Couldn't create a TGA file\n"); 
+		return;
+	}
 
 	buffer = Q_malloc (vid.width * vid.height * 3 + 18);
 	memset (buffer, 0, 18);
@@ -673,191 +663,12 @@ void R_ScreenShot_f (void)
 		buffer[i] = buffer[i+2];
 		buffer[i+2] = temp;
 	}
-	COM_WriteFile (va("%s/%s", cls.gamedirfile, pcxname), buffer, vid.width*vid.height*3 + 18 );
+	FS_WriteFile (pcxname, buffer, vid.width*vid.height*3 + 18);
 
 	Q_free (buffer);
 	Com_Printf ("Wrote %s\n", pcxname);
 } 
- 
 
-
-/*
-Find closest color in the palette for named color
-*/
-int MipColor(int r, int g, int b)
-{
-	int i;
-	float dist;
-	int best = 0;
-	float bestdist;
-	int r1, g1, b1;
-	byte *pal = (byte *)d_8to24table;
-	static int lr = -1, lg = -1, lb = -1;
-	static int lastbest;
-
-	if (r == lr && g == lg && b == lb)
-		return lastbest;
-
-	bestdist = 256*256*3;
-
-	for (i = 0; i < 256; i++) {
-		r1 = pal[i*3] - r;
-		g1 = pal[i*3+1] - g;
-		b1 = pal[i*3+2] - b;
-		dist = r1*r1 + g1*g1 + b1*b1;
-		if (dist < bestdist) {
-			bestdist = dist;
-			best = i;
-		}
-	}
-	lr = r; lg = g; lb = b;
-	lastbest = best;
-	return best;
-}
-
-void R_DrawCharToSnap (int num, byte *dest, int width)
-{
-	int		row, col;
-	byte	*source;
-	int		drawline;
-	int		x;
-	extern byte *draw_chars;
-
-	row = num>>4;
-	col = num&15;
-	source = draw_chars + (row<<10) + (col<<3);
-
-	drawline = 8;
-
-	while (drawline--)
-	{
-		for (x=0 ; x<8 ; x++)
-			if (source[x])
-				dest[x] = source[x];
-			else
-				dest[x] = 98;
-		source += 128;
-		dest -= width;
-	}
-}
-
-void R_DrawStringToSnap (const char *s, byte *buf, int x, int y, int width)
-{
-	byte *dest;
-	const unsigned char *p;
-
-	dest = buf + ((y * width) + x);
-
-	p = (const unsigned char *)s;
-	while (*p) {
-		R_DrawCharToSnap(*p++, dest, width);
-		dest += 8;
-	}
-}
-
-
-/* 
-================== 
-R_RSShot
-
-Memory pointed to by pcxdata is allocated using Hunk_TempAlloc
-Never store this pointer for later use!
-
-On failure (not enough memory), *pcxdata will be set to NULL
-================== 
-*/
-#define RSSHOT_WIDTH 320
-#define RSSHOT_HEIGHT 200
-
-void R_RSShot (byte **pcxdata, int *pcxsize)
-{ 
-	int     x, y;
-	unsigned char	*src, *dest;
-	unsigned char	*newbuf;
-	int w, h;
-	int dx, dy, dex, dey, nx;
-	int r, b, g;
-	int count;
-	float fracw, frach;
-	char st[80];
-	time_t now;
-	byte *pal = (byte *)d_8to24table;
-	extern cvar_t name;
-
-// 
-// save the pcx file 
-// 
-	newbuf = Q_malloc (vid.height * vid.width * 3);
-
-	qglReadPixels (0, 0, vid.width, vid.height, GL_RGB, GL_UNSIGNED_BYTE, newbuf);
-
-	w = min (vid.width, RSSHOT_WIDTH);
-	h = min (vid.height, RSSHOT_HEIGHT);
-
-	fracw = (float)vid.width / (float)w;
-	frach = (float)vid.height / (float)h;
-
-	for (y = 0; y < h; y++) {
-		dest = newbuf + (w*3 * y);
-
-		for (x = 0; x < w; x++) {
-			r = g = b = 0;
-
-			dx = x * fracw;
-			dex = (x + 1) * fracw;
-			if (dex == dx) dex++; // at least one
-			dy = y * frach;
-			dey = (y + 1) * frach;
-			if (dey == dy) dey++; // at least one
-
-			count = 0;
-			for (/* */; dy < dey; dy++) {
-				src = newbuf + (vid.width * 3 * dy) + dx * 3;
-				for (nx = dx; nx < dex; nx++) {
-					r += *src++;
-					g += *src++;
-					b += *src++;
-					count++;
-				}
-			}
-			r /= count;
-			g /= count;
-			b /= count;
-			*dest++ = r;
-			*dest++ = g;
-			*dest++ = b;
-		}
-	}
-
-	// convert to eight bit
-	for (y = 0; y < h; y++) {
-		src = newbuf + (w * 3 * y);
-		dest = newbuf + (w * y);
-
-		for (x = 0; x < w; x++) {
-			*dest++ = MipColor(src[0], src[1], src[2]);
-			src += 3;
-		}
-	}
-
-	time(&now);
-	strcpy(st, ctime(&now));
-	st[strlen(st) - 1] = 0;
-	R_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 1, w);
-
-	strlcpy (st, cls.servername, sizeof(st));
-	R_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 11, w);
-
-	strlcpy (st, name.string, sizeof(st));
-	R_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 21, w);
-
-	// +w*(h-1) and -w are because we have the data upside down in newbuf
-	WritePCX (newbuf + w*(h-1), w, h, -w, pal, pcxdata, pcxsize);
-
-	Q_free (newbuf);
-
-	// return with pcxdata and pcxsize
-} 
 
 /* 
 ============================================================================== 

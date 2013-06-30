@@ -102,11 +102,10 @@ static qbool CL_GetNQDemoMessage (void)
 		}
 	}
 
-
 	// get the next message
-	fread (&net_message.cursize, 4, 1, cls.demofile);
+	FS_Read (cls.demofile, &net_message.cursize, 4);
 	for (i=0 ; i<3 ; i++) {
-		r = fread (&f, 4, 1, cls.demofile);
+		r = FS_Read (cls.demofile, &f, 4);
 		nq_mviewangles_temp[i] = LittleFloat (f);
 	}
 
@@ -114,10 +113,9 @@ static qbool CL_GetNQDemoMessage (void)
 	if (net_message.cursize > MAX_BIG_MSGLEN)
 		Host_Error ("Demo message > MAX_BIG_MSGLEN");
 
-	r = fread (net_message.data, net_message.cursize, 1, cls.demofile);
-	if (r != 1) {
+	r = FS_Read (cls.demofile, net_message.data, net_message.cursize);
+	if (r == 0)
 		Host_Error ("Unexpected end of demo");
-	}
 
 	return true;
 }
@@ -408,12 +406,11 @@ static void NQD_ParseServerData (void)
 		cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
 	}
 
-
-// local state
+	// local state
 	if (!cl.model_precache[1])
 		Host_Error ("NQD_ParseServerData: NULL worldmodel");
 
-	COM_StripExtension (COM_SkipPath (cl.model_name[1]), mapname);
+	FS_StripExtension (cl.model_name[1], mapname, sizeof(mapname));
 	Cvar_ForceSet (&host_mapname, mapname);
 
 	CL_ClearParticles ();
@@ -1276,7 +1273,7 @@ void NQD_StartPlayback ()
 	qbool	neg = false;
 
 	// parse forced cd track
-	while ((c = getc(cls.demofile)) != '\n') {
+	while ((c = FS_Getc(cls.demofile)) != '\n') {
 		if (c == '-')
 			neg = true;
 		else

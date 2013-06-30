@@ -523,9 +523,9 @@ static void M_DrawRangeSlider (int x, int y, float num, float rangemin, float ra
 	M_DrawChar (x+i*8, y, 130);
 	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
 	if (fabs((int)num - num) < 0.01)
-		Q_snprintfz(text, sizeof(text), "%i", (int)num);
+		Q_snprintf(text, sizeof(text), "%i", (int)num);
 	else
-		Q_snprintfz(text, sizeof(text), "%.3f", num);
+		Q_snprintf(text, sizeof(text), "%.3f", num);
 	M_Print(x + (SLIDER_RANGE+2) * 8, y, text);
 }
 
@@ -1898,29 +1898,38 @@ int		loadable[MAX_SAVEGAMES];
 
 void M_ScanSaves (void)
 {
-	int		i, j;
+	int		i, j, len;
 	char	name[MAX_OSPATH];
-	FILE	*f;
+	char	buf[SAVEGAME_COMMENT_LENGTH + 256];
+	const char *t;
+	qfile_t	*f;
 	int		version;
 
 	for (i=0 ; i<MAX_SAVEGAMES ; i++)
 	{
 		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
 		loadable[i] = false;
-		sprintf (name, "%s/save/s%i.sav", com_gamedir, i);
-		f = fopen (name, "r");
+		sprintf (name, "s%i.sav", i);
+		f = FS_Open (name, "rb", false, false);
 		if (!f)
 			continue;
-		fscanf (f, "%i\n", &version);
-		fscanf (f, "%79s\n", name);
-		strlcpy (m_filenames[i], name, sizeof(m_filenames[i]));
+		// read enough to get the comment
+		len = FS_Read(f, buf, sizeof(buf) - 1);
+		buf[sizeof(buf) - 1] = 0;
+		t = buf;
+		// version
+		COM_ParseTokenConsole(&t);
+		version = atoi(com_token);
+		// description
+		COM_ParseTokenConsole(&t);
+		strlcpy (m_filenames[i], com_token, sizeof (m_filenames[i]));
 
-	// change _ back to space
+		// change _ back to space
 		for (j=0 ; j<SAVEGAME_COMMENT_LENGTH ; j++)
 			if (m_filenames[i][j] == '_')
 				m_filenames[i][j] = ' ';
 		loadable[i] = true;
-		fclose (f);
+		FS_Close (f);
 	}
 }
 
@@ -2403,7 +2412,7 @@ void M_Menu_Demos_f (void) {
 	
 	if (!demo_currentdir_init) {
 		demo_currentdir_init = true;
-		strcpy(demo_currentdir, va("%s/%s", com_gamedir, sv_demoDir.string));	
+		strcpy(demo_currentdir, va("%s/%s", fs_gamedir, sv_demoDir.string));	
 	}
 	
 	Demo_ReadDirectory();
@@ -2449,9 +2458,9 @@ void M_Demos_Draw (void) {
 		case dt_file:
 			M_Print (24, y, demoname);
 			if (d->size > 99999 * 1024)
-				Q_snprintfz(demosize, sizeof(demosize), "%5iM", d->size >> 20);
+				Q_snprintf(demosize, sizeof(demosize), "%5iM", d->size >> 20);
 			else
-				Q_snprintfz(demosize, sizeof(demosize), "%5iK", d->size >> 10);
+				Q_snprintf(demosize, sizeof(demosize), "%5iK", d->size >> 10);
 			Demo_FormatSize(demosize);
 			M_PrintWhite (24 + 8 * DEMOLIST_NAME_WIDTH, y, demosize);
 			break;
@@ -2480,7 +2489,7 @@ void M_Demos_Draw (void) {
 			last_demo_index = demoindex;
 			last_demo_time = time;
 			frac = scroll_index = 0;
-			Q_snprintfz(last_demo_name, sizeof(last_demo_name), "%s  ***  ", demolist[demoindex]->name);
+			Q_snprintf(last_demo_name, sizeof(last_demo_name), "%s  ***  ", demolist[demoindex]->name);
 			last_demo_length = strlen(last_demo_name);
 		} else {			
 			elapsed = 3.5 * max(time - last_demo_time - 0.75, 0);
@@ -3464,17 +3473,231 @@ void M_Setup_Key (int k)
 //=============================================================================
 /* MODS MENU */
 
+// same limit of mod dirs as in fs.c
+#define MODLIST_MAXDIRS 16
+static int modlist_enabled [MODLIST_MAXDIRS];	// array of indexs to modlist
+static int modlist_numenabled;					// number of enabled (or in process to be..) mods
+
+typedef struct modlist_entry_s
+{
+	qbool loaded;		// used to determine whether this entry is loaded and running
+	int enabled;		// index to array of modlist_enabled
+
+	// name of the modification, this is (will...be) displayed on the menu entry
+	char name[128];
+	// directory where we will find it
+	char dir[MAX_QPATH];
+} modlist_entry_t;
+
+static int modlist_cursor;
+//static int modlist_viewcount;
+
+#define MODLIST_TOTALSIZE		256
+static int modlist_count = 0;
+static modlist_entry_t modlist[MODLIST_TOTALSIZE];
+
+void ModList_RebuildList(void)
+{
+	int i,j;
+	stringlist_t list;
+
+	stringlistinit(&list);
+	if (fs_basedir[0])
+		listdirectory(&list, fs_basedir);
+	else
+		listdirectory(&list, "./");
+	stringlistsort(&list);
+	modlist_count = 0;
+	modlist_numenabled = fs_numgamedirs;
+	for (i = 0;i < list.numstrings;i++)
+	{
+		if (modlist_count >= MODLIST_TOTALSIZE)
+			break;
+
+		// check all dirs to see if they "appear" to be mods
+		// reject any dirs that are part of the base game
+		// (such as "id1" and "hipnotic" when in GAME_HIPNOTIC mode)
+		if (gamedirname1 && !strcasecmp(gamedirname1, list.strings[i]))
+			continue;
+		if (gamedirname2 && !strcasecmp(gamedirname2, list.strings[i]))
+			continue;
+		if (FS_CheckNastyPath (list.strings[i], true))
+			continue;
+		if (!FS_CheckGameDir(list.strings[i]))
+			continue;
+
+		strlcpy (modlist[modlist_count].dir, list.strings[i], sizeof(modlist[modlist_count].dir));
+		// check currently loaded mods
+		modlist[modlist_count].loaded = false;
+		if (fs_numgamedirs)
+			for (j = 0; j < fs_numgamedirs; j++)
+				if (!strcasecmp(fs_gamedirs[j], modlist[modlist_count].dir))
+				{
+					modlist[modlist_count].loaded = true;
+					modlist[modlist_count].enabled = j;
+					modlist_enabled[j] = modlist_count;
+					break;
+				}
+		modlist_count ++;
+	}
+	stringlistfreecontents(&list);
+}
+
+void ModList_Enable (void)
+{
+	int i;
+	int numgamedirs;
+	char gamedirs[MODLIST_MAXDIRS][MAX_QPATH];
+
+	// copy our mod list into an array for FS_ChangeGameDirs
+	numgamedirs = modlist_numenabled;
+	for (i = 0; i < modlist_numenabled; i++)
+		strlcpy (gamedirs[i], modlist[modlist_enabled[i]].dir, sizeof (gamedirs[i]));
+
+	// this code snippet is from FS_ChangeGameDirs
+	if (fs_numgamedirs == numgamedirs)
+	{
+		for (i = 0;i < numgamedirs;i++)
+			if (strcasecmp(fs_gamedirs[i], gamedirs[i]))
+				break;
+		if (i == numgamedirs)
+			return; // already using this set of gamedirs, do nothing
+	}
+
+	// this part is basically the same as the FS_GameDir_f function
+	if ((cls.state == ca_connected && !cls.demoplayback) || com_serveractive)
+	{
+		// actually, changing during game would work fine, but would be stupid
+		Com_Printf("Can not change gamedir while client is connected or server is running!\n");
+		return;
+	}
+
+	FS_ChangeGameDirs (modlist_numenabled, gamedirs, true, true);
+}
+
+static void M_Menu_ModList_AdjustSliders (void)
+{
+	int i;
+
+	S_LocalSound ("sound/misc/menu3.wav");
+
+	// stop adding mods, we reach the limit
+	if (!modlist[modlist_cursor].loaded && (modlist_numenabled == MODLIST_MAXDIRS))
+		return;
+
+	modlist[modlist_cursor].loaded = !modlist[modlist_cursor].loaded;
+	if (modlist[modlist_cursor].loaded)
+	{
+		modlist[modlist_cursor].enabled = modlist_numenabled;
+
+		// push the value on the enabled list
+		modlist_enabled[modlist_numenabled++] = modlist_cursor;
+	}
+	else
+	{
+		// eliminate the value from the enabled list
+		for (i = modlist[modlist_cursor].enabled; i < modlist_numenabled; i++)
+		{
+			modlist_enabled[i] = modlist_enabled[i + 1];
+			modlist[modlist_enabled[i]].enabled--;
+		}
+		modlist_numenabled--;
+	}
+}
+
 void M_Menu_Mods_f (void)
 {
 	M_EnterMenu (m_mods);
+
+	modlist_cursor = 0;
+	ModList_RebuildList();
 }
 
 void M_Mods_Draw (void)
 {
+	qpic_t *p;
+	int n, y, visible, start, end;
+	char *s_available = "Available Mods";
+	char *s_enabled = "Enabled Mods";
+
+	M_Main_Layout (M_M_MODS, false);
+
+	p = R_CachePic ("gfx/p_option.lmp");
+	M_DrawPic((320 - p->width) / 2, 4, p);
+
+	M_PrintWhite(0 + 32, 32, s_available);
+	M_PrintWhite(224, 32, s_enabled);
+
+	// draw a list with all enabled mods
+	for (y = 0; y < modlist_numenabled; y++)
+		M_Print(224, 48 + y * 8, modlist[modlist_enabled[y]].dir);
+
+	// scroll the list as the cursor moves
+	y = 48;
+	visible = (int)((640 - 16 - y) / 8 / 2);
+	start = bound(0, modlist_cursor - (visible >> 1), modlist_count - visible);
+	end = min(start + visible, modlist_count);
+	if (end > start)
+	{
+		for (n = start;n < end;n++)
+		{
+			if (n == modlist_cursor)
+				R_DrawChar (16, y, 12+((int)(curtime*4)&1));
+			M_ItemPrint(80, y, modlist[n].dir, true);
+			M_DrawCheckbox(48, y, modlist[n].loaded);
+			y +=8;
+		}
+	}
+	else
+	{
+		M_PrintWhite(80, y, "No Mods found");
+	}
 }
 
 void M_Mods_Key (int key)
 {
+	switch (key)
+	{
+	case K_ESCAPE:
+		ModList_Enable ();
+		M_Menu_Main_f();
+		break;
+
+	case K_SPACE:
+		S_LocalSound ("sound/misc/menu2.wav");
+		ModList_RebuildList();
+		break;
+
+	case K_UPARROW:
+		S_LocalSound ("sound/misc/menu1.wav");
+		modlist_cursor--;
+		if (modlist_cursor < 0)
+			modlist_cursor = modlist_count - 1;
+		break;
+
+	case K_LEFTARROW:
+		M_Menu_ModList_AdjustSliders ();
+		break;
+
+	case K_DOWNARROW:
+		S_LocalSound ("sound/misc/menu1.wav");
+		modlist_cursor++;
+		if (modlist_cursor >= modlist_count)
+			modlist_cursor = 0;
+		break;
+
+	case K_RIGHTARROW:
+		M_Menu_ModList_AdjustSliders ();
+		break;
+
+	case K_ENTER:
+		S_LocalSound ("sound/misc/menu2.wav");
+		ModList_Enable ();
+		break;
+
+	default:
+		break;
+	}
 }
 
 

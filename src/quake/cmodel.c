@@ -994,11 +994,12 @@ cmodel_t *CM_LoadMap (char *name, qbool clientload, unsigned *checksum, unsigned
 	}
 
 	// load the file
-	buf = (unsigned int *)FS_LoadTempFile (name);
+	buf = (unsigned int *)FS_LoadFile (name, false, NULL);
 	if (!buf)
 		Host_Error ("CM_LoadMap: %s not found", name);
 
-	COM_FileBase (name, loadname);
+	strcpy(loadname, name);
+//	COM_FileBase (name, loadname);
 
 	header = (dheader_t *)buf;
 
@@ -1017,13 +1018,11 @@ cmodel_t *CM_LoadMap (char *name, qbool clientload, unsigned *checksum, unsigned
 	for (i = 0; i < HEADER_LUMPS; i++) {
 		if (i == LUMP_ENTITIES)
 			continue;
-		map_checksum ^= LittleLong(Com_BlockChecksum(cmod_base + header->lumps[i].fileofs, 
-			header->lumps[i].filelen));
+		map_checksum ^= LittleLong(Com_BlockChecksum(cmod_base + header->lumps[i].fileofs, header->lumps[i].filelen));
 
 		if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)
 			continue;
-		map_checksum2 ^= LittleLong(Com_BlockChecksum(cmod_base + header->lumps[i].fileofs, 
-			header->lumps[i].filelen));
+		map_checksum2 ^= LittleLong(Com_BlockChecksum(cmod_base + header->lumps[i].fileofs, header->lumps[i].filelen));
 	}
 	if (checksum)
 		*checksum = map_checksum;

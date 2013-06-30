@@ -34,33 +34,9 @@ typedef struct targaheader_s
 } targaheader_t;
 #pragma pack (pop)
 
-//
-// PCX header
-//
-typedef struct
-{
-    char	manufacturer;
-    char	version;
-    char	encoding;
-    char	bits_per_pixel;
-    unsigned short	xmin,ymin,xmax,ymax;
-    unsigned short	hres,vres;
-    unsigned char	palette[48];
-    char	reserved;
-    char	color_planes;
-    unsigned short	bytes_per_line;
-    unsigned short	palette_type;
-    char	filler[58];
-    unsigned 	data;			// unbounded
-} pcxheader_t;
+// ================================================================
 
 byte *Image_LoadImage (char *name, int *width, int *height);
-
-byte *Image_LoadTGA (FILE *fin, int *width, int *height);
-byte *Image_LoadPCX (FILE *f, int *width, int *height);
-
-void WritePCX (byte *data, int width, int height, int rowbytes, byte *palette,	// [in]
-				   byte **pcxdata, int *pcxsize);								// [out]
 
 #endif /* _RC_IMAGE_H_ */
 

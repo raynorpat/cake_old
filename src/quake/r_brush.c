@@ -523,7 +523,7 @@ void R_LMFindOptimalTSIMode (void)
 				qglDeleteTextures (1, &lm_texnum);
 				gl_Lightmap_Type = tsimodes[i].type;
 				gl_Lightmap_Format = tsimodes[i].format;
-				Com_Printf ("lightmaps use GL_RGBA/%s/%s\n", tsimodes[i].formatstr, tsimodes[i].typestr);
+				Com_DPrintf ("lightmaps use GL_RGBA/%s/%s\n", tsimodes[i].formatstr, tsimodes[i].typestr);
 				return;
 			}
 		}

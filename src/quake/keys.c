@@ -1061,7 +1061,7 @@ Key_WriteBindings
 Writes lines containing "bind key value"
 ============
 */
-void Key_WriteBindings (FILE *f)
+void Key_WriteBindings (qfile_t *f)
 {
 	int		i;
 
@@ -1069,9 +1069,9 @@ void Key_WriteBindings (FILE *f)
 		if (keybindings[i])
 		{
 			if (i == ';')
-				fprintf (f, "bind \";\" \"%s\"\n", keybindings[i]);
+				FS_Printf (f, "bind \";\" \"%s\"\n", keybindings[i]);
 			else
-				fprintf (f, "bind %s \"%s\"\n", Key_KeynumToString(i, NULL, 0), keybindings[i]);
+				FS_Printf (f, "bind %s \"%s\"\n", Key_KeynumToString(i, NULL, 0), keybindings[i]);
 		}
 }
 

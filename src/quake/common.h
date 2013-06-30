@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "q_shared.h"
 #include "zone.h"
+#include "fs.h"
 #include "cvar.h"
 #include "cmd.h"
 #include "net.h"
@@ -182,6 +183,10 @@ extern	qbool	com_eof;
 
 char *COM_Parse (char *data);
 
+int COM_ParseToken (const char **datapointer, int returnnewline);
+int COM_ParseTokenConsole (const char **datapointer);
+
+//============================================================================
 
 extern	int		com_argc;
 extern	char	**com_argv;
@@ -193,47 +198,18 @@ void COM_ClearArgv (int arg);
 int COM_CheckParm (char *parm);
 void COM_AddParm (char *parm);
 
+void COM_InitGameType (void);
 
 void COM_Init (void);
 void COM_Shutdown (void);
 
-int COM_filelength (FILE *f);
-char *COM_SkipPath (char *pathname);
-char *COM_FileExtension (char *in);
-void COM_StripExtension (char *in, char *out);
-void COM_FileBase (char *in, char *out);
-void COM_DefaultExtension (char *path, char *extension);
-void COM_ForceExtension (char *path, char *extension);
+//============================================================================
+
+void COM_ToLowerString (const char *in, char *out, size_t size_out);
+void COM_ToUpperString (const char *in, char *out, size_t size_out);
 
 char	*va(char *format, ...);
 // does a varargs printf into a temp buffer
-
-//============================================================================
-
-extern int fs_filesize;
-struct cache_user_s;
-
-extern char	com_gamedir[MAX_OSPATH];
-extern char	com_basedir[MAX_OSPATH];
-extern char com_gamedirfile[MAX_QPATH];
-
-extern qbool	file_from_pak;		// set if file came from a pak file
-extern qbool	file_from_gamedir;	// set if file came from a gamedir (and gamedir wasn't id1/qw)
-
-void FS_Init (void);
-void FS_SetGamedir (char *dir);
-int FS_FOpenFile (char *filename, FILE **file);
-qbool FS_FindFile (char *filename);
-byte *FS_LoadStackFile (char *path, void *buffer, int bufsize);
-byte *FS_LoadTempFile (char *path);
-byte *FS_LoadHunkFile (char *path);
-void FS_LoadCacheFile (char *path, struct cache_user_s *cu);
-byte *FS_LoadHeapFile (char *path);
-
-void COM_WriteFile (char *filename, void *data, int len);
-void COM_CreatePath (char *path);
-
-void COM_CheckRegistered (void);
 
 //============================================================================
 
@@ -251,6 +227,23 @@ void Info_Print (char *s);
 
 //============================================================================
 
+typedef struct stringlist_s
+{
+	// maxstrings changes as needed, causing reallocation of strings[] array
+	int maxstrings;
+	int numstrings;
+	char **strings;
+} stringlist_t;
+
+int matchpattern(const char *in, const char *pattern, int caseinsensitive);
+void stringlistinit(stringlist_t *list);
+void stringlistfreecontents(stringlist_t *list);
+void stringlistappend(stringlist_t *list, char *text);
+void stringlistsort(stringlist_t *list);
+void listdirectory(stringlist_t *list, const char *path);
+
+//============================================================================
+
 unsigned Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 byte	COM_BlockSequenceCRCByte (byte *base, int length, int sequence);
@@ -259,6 +252,23 @@ byte	COM_BlockSequenceCRCByte (byte *base, int length, int sequence);
 
 // com_mapcheck.c
 int Com_TranslateMapChecksum (char *mapname, int checksum);
+
+//============================================================================
+
+typedef enum gamemode_e
+{
+	GAME_NORMAL,
+	GAME_HIPNOTIC,
+	GAME_ROGUE,
+} gamemode_t;
+
+extern gamemode_t gamemode;
+extern const char *gamename;
+extern const char *gamedirname1;
+extern const char *gamedirname2;
+extern const char *gamescreenshotname;
+extern const char *gameuserdirname;
+extern char com_modname[MAX_OSPATH];
 
 //============================================================================
 

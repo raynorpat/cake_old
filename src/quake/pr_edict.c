@@ -61,7 +61,7 @@ int		fofs_buttonX[8-3];
 
 
 ddef_t *ED_FieldAtOfs (int ofs);
-qbool	ED_ParseEpair (void *base, ddef_t *key, char *s);
+qbool ED_ParseEpair (edict_t *ent, ddef_t *key, const char *s);
 
 
 /*
@@ -193,7 +193,7 @@ ddef_t *ED_FieldAtOfs (int ofs)
 ED_FindField
 ============
 */
-ddef_t *ED_FindField (char *name)
+ddef_t *ED_FindField (const char *name)
 {
 	ddef_t		*def;
 	int			i;
@@ -233,7 +233,7 @@ ddef_t *ED_FindGlobal (char *name)
 ED_FindFunction
 ============
 */
-dfunction_t *ED_FindFunction (char *name)
+dfunction_t *ED_FindFunction (const char *name)
 {
 	dfunction_t		*func;
 	int				i;
@@ -274,42 +274,44 @@ Returns a string describing *data in a type specific manner
 */
 char *PR_ValueString (etype_t type, eval_t *val)
 {
-	static char	line[256];
+	static char	line[1024];
 	ddef_t		*def;
 	dfunction_t	*f;
+	int n;
 	
 	type &= ~DEF_SAVEGLOBAL;
 
 	switch (type)
 	{
 	case ev_string:
-		sprintf (line, "%s", PR_GetString(val->string));
+		strlcpy (line, PR_GetString (val->string), sizeof (line));
 		break;
 	case ev_entity:	
-		sprintf (line, "entity %i", NUM_FOR_EDICT(PROG_TO_EDICT(val->edict)) );
+		n = val->edict;
+		Q_snprintf (line, sizeof (line), "entity %i", n);
 		break;
 	case ev_function:
 		f = pr_functions + val->function;
-		sprintf (line, "%s()", PR_GetString(f->s_name));
+		Q_snprintf (line, sizeof (line), "%s()", PR_GetString(f->s_name));
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		sprintf (line, ".%s", PR_GetString(def->s_name));
+		Q_snprintf (line, sizeof (line), ".%s", PR_GetString(def->s_name));
 		break;
 	case ev_void:
-		sprintf (line, "void");
+		Q_snprintf (line, sizeof (line), "void");
 		break;
 	case ev_float:
-		sprintf (line, "%5.1f", val->_float);
+		Q_snprintf (line, sizeof (line), "%10.4f", val->_float);
 		break;
 	case ev_vector:
-		sprintf (line, "'%5.1f %5.1f %5.1f'", val->vector[0], val->vector[1], val->vector[2]);
+		Q_snprintf (line, sizeof (line), "'%10.4f %10.4f %10.4f'", val->vector[0], val->vector[1], val->vector[2]);
 		break;
 	case ev_pointer:
-		sprintf (line, "pointer");
+		Q_snprintf (line, sizeof (line), "pointer");
 		break;
 	default:
-		sprintf (line, "bad type %i", type);
+		Q_snprintf (line, sizeof (line), "bad type %i", type);
 		break;
 	}
 	
@@ -326,7 +328,9 @@ Easier to parse than PR_ValueString
 */
 char *PR_UglyValueString (etype_t type, eval_t *val)
 {
-	static char	line[256];
+	static char line[4096];
+	int i;
+	char *s;
 	ddef_t		*def;
 	dfunction_t	*f;
 	
@@ -335,30 +339,50 @@ char *PR_UglyValueString (etype_t type, eval_t *val)
 	switch (type)
 	{
 	case ev_string:
-		sprintf (line, "%s", PR_GetString(val->string));
+		// Parse the string a bit to turn special characters
+		// (like newline, specifically) into escape codes,
+		// this fixes saving games from various mods
+		s = PR_GetString (val->string);
+		for (i = 0;i < (int)sizeof(line) - 2 && *s;)
+		{
+			if (*s == '\n')
+			{
+				line[i++] = '\\';
+				line[i++] = 'n';
+			}
+			else if (*s == '\r')
+			{
+				line[i++] = '\\';
+				line[i++] = 'r';
+			}
+			else
+				line[i++] = *s;
+			s++;
+		}
+		line[i] = '\0';
 		break;
 	case ev_entity:	
-		sprintf (line, "%i", NUM_FOR_EDICT(PROG_TO_EDICT(val->edict)));
+		Q_snprintf (line, sizeof (line), "%i", NUM_FOR_EDICT(PROG_TO_EDICT(val->edict)));
 		break;
 	case ev_function:
 		f = pr_functions + val->function;
-		sprintf (line, "%s", PR_GetString(f->s_name));
+		strlcpy (line, PR_GetString (f->s_name), sizeof (line));
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		sprintf (line, "%s", PR_GetString(def->s_name));
+		Q_snprintf (line, sizeof (line), ".%s", PR_GetString(def->s_name));
 		break;
 	case ev_void:
-		sprintf (line, "void");
+		Q_snprintf (line, sizeof (line), "void");
 		break;
 	case ev_float:
-		sprintf (line, "%f", val->_float);
+		Q_snprintf (line, sizeof (line), "%f", val->_float);
 		break;
 	case ev_vector:
-		sprintf (line, "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
+		Q_snprintf (line, sizeof (line), "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
 		break;
 	default:
-		sprintf (line, "bad type %i", type);
+		Q_snprintf (line, sizeof (line), "bad type %i", type);
 		break;
 	}
 	
@@ -384,17 +408,17 @@ char *PR_GlobalString (int ofs)
 	val = (void *)&pr_globals[ofs];
 	def = ED_GlobalAtOfs(ofs);
 	if (!def)
-		sprintf (line,"%i(?""?""?)", ofs);	// separate the ?'s to shut up gcc
+		Q_snprintf (line, sizeof (line), "%i(?)", ofs);
 	else
 	{
 		s = PR_ValueString (def->type, val);
-		sprintf (line,"%i(%s)%s", ofs, PR_GetString(def->s_name), s);
+		Q_snprintf (line, sizeof (line), "%i(%s)%s", ofs, PR_GetString(def->s_name), s);
 	}
 	
 	i = strlen(line);
 	for ( ; i<20 ; i++)
-		strcat (line," ");
-	strcat (line," ");
+		strlcat (line, " ", sizeof (line));
+	strlcat (line, " ", sizeof (line));
 		
 	return line;
 }
@@ -407,14 +431,14 @@ char *PR_GlobalStringNoContents (int ofs)
 	
 	def = ED_GlobalAtOfs(ofs);
 	if (!def)
-		sprintf (line,"%i(?""?""?)", ofs);	// separate the ?'s to shut up gcc
+		Q_snprintf (line, sizeof (line), "%i(?)", ofs);
 	else
-		sprintf (line,"%i(%s)", ofs, PR_GetString(def->s_name));
+		Q_snprintf (line, sizeof (line), "%i(%s)", ofs, PR_GetString(def->s_name));
 	
 	i = strlen(line);
 	for ( ; i<20 ; i++)
-		strcat (line," ");
-	strcat (line," ");
+		strlcat (line, " ", sizeof (line));
+	strlcat (line, " ", sizeof (line));
 		
 	return line;
 }
@@ -476,7 +500,7 @@ ED_Write
 For savegames
 =============
 */
-void ED_Write (FILE *f, edict_t *ed)
+void ED_Write (qfile_t *f, edict_t *ed)
 {
 	ddef_t	*d;
 	int		*v;
@@ -484,11 +508,11 @@ void ED_Write (FILE *f, edict_t *ed)
 	char	*name;
 	int		type;
 
-	fprintf (f, "{\n");
+	FS_Print (f, "{\n");
 
 	if (!ed->inuse)
 	{
-		fprintf (f, "}\n");
+		FS_Printf (f, "}\n");
 		return;
 	}
 	
@@ -509,11 +533,11 @@ void ED_Write (FILE *f, edict_t *ed)
 		if (j == type_size[type])
 			continue;
 	
-		fprintf (f,"\"%s\" ",name);
-		fprintf (f,"\"%s\"\n", PR_UglyValueString(d->type, (eval_t *)v));		
+		FS_Printf (f,"\"%s\" ",name);
+		FS_Printf (f,"\"%s\"\n", PR_UglyValueString(d->type, (eval_t *)v));		
 	}
 
-	fprintf (f, "}\n");
+	FS_Print (f, "}\n");
 }
 
 void ED_PrintNum (int ent)
@@ -616,14 +640,14 @@ FIXME: need to tag constants, doesn't really work
 ED_WriteGlobals
 =============
 */
-void ED_WriteGlobals (FILE *f)
+void ED_WriteGlobals (qfile_t *f)
 {
 	ddef_t		*def;
 	int			i;
 	char		*name;
 	int			type;
 
-	fprintf (f,"{\n");
+	FS_Print (f,"{\n");
 	for (i=0 ; i<progs->numglobaldefs ; i++)
 	{
 		def = &pr_globaldefs[i];
@@ -632,16 +656,14 @@ void ED_WriteGlobals (FILE *f)
 			continue;
 		type &= ~DEF_SAVEGLOBAL;
 
-		if (type != ev_string
-		&& type != ev_float
-		&& type != ev_entity)
+		if (type != ev_string && type != ev_float && type != ev_entity)
 			continue;
 
 		name = PR_GetString(def->s_name);
-		fprintf (f,"\"%s\" ", name);
-		fprintf (f,"\"%s\"\n", PR_UglyValueString(type, (eval_t *)&pr_globals[def->ofs]));		
+		FS_Printf (f,"\"%s\" ", name);
+		FS_Printf (f,"\"%s\"\n", PR_UglyValueString(type, (eval_t *)&pr_globals[def->ofs]));		
 	}
-	fprintf (f,"}\n");
+	FS_Print (f,"}\n");
 }
 
 /*
@@ -649,25 +671,23 @@ void ED_WriteGlobals (FILE *f)
 ED_ParseGlobals
 =============
 */
-void ED_ParseGlobals (char *data)
+void ED_ParseGlobals (const char *data)
 {
-	char	keyname[64];
-	ddef_t	*key;
+	char keyname[1024];
+	ddef_t *key;
 
 	while (1)
-	{	
-	// parse key
-		data = COM_Parse (data);
+	{
+		// parse key
+		if (!COM_ParseToken(&data, false))
+			Host_Error ("ED_ParseEntity: EOF without closing brace");
 		if (com_token[0] == '}')
 			break;
-		if (!data)
-			Host_Error ("ED_ParseEntity: EOF without closing brace");
 
 		strcpy (keyname, com_token);
 
-	// parse value	
-		data = COM_Parse (data);
-		if (!data)
+		// parse value
+		if (!COM_ParseToken(&data, false))
 			Host_Error ("ED_ParseEntity: EOF without closing brace");
 
 		if (com_token[0] == '}')
@@ -676,11 +696,11 @@ void ED_ParseGlobals (char *data)
 		key = ED_FindGlobal (keyname);
 		if (!key)
 		{
-			Com_Printf ("%s is not a global\n", keyname);
+			Com_DPrintf("'%s' is not a global\n", keyname);
 			continue;
 		}
 
-		if (!ED_ParseEpair ((void *)pr_globals, key, com_token))
+		if (!ED_ParseEpair(NULL, key, com_token))
 			Host_Error ("ED_ParseGlobals: parse error");
 	}
 }
@@ -693,7 +713,7 @@ void ED_ParseGlobals (char *data)
 ED_NewString
 =============
 */
-char *ED_NewString (char *string)
+char *ED_NewString (const char *string)
 {
 	char	*new, *new_p;
 	int		i,l;
@@ -709,6 +729,8 @@ char *ED_NewString (char *string)
 			i++;
 			if (string[i] == 'n')
 				*new_p++ = '\n';
+			else if (string[i] == 'r')
+				*new_p++ = '\r';
 			else
 				*new_p++ = '\\';
 		}
@@ -728,67 +750,74 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-qbool ED_ParseEpair (void *base, ddef_t *key, char *s)
+qbool ED_ParseEpair (edict_t *ent, ddef_t *key, const char *s)
 {
-	int		i;
-	char	string[128];
-	ddef_t	*def;
-	char	*v, *w;
-	void	*d;
-	dfunction_t	*func;
-	
-	d = (void *)((int *)base + key->ofs);
-	
+	int i;
+	ddef_t *def;
+	eval_t *val;
+	dfunction_t *func;
+
+	if (ent)
+		val = (eval_t *)((int *)&ent->v + key->ofs);
+	else
+		val = (eval_t *)((int *)pr_globals + key->ofs);
+
 	switch (key->type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_string:
-		*(string_t *)d = PR_SetString(ED_NewString (s));
+		val->string = PR_SetString(ED_NewString(s));
 		break;
-		
+
 	case ev_float:
-		*(float *)d = atof (s);
+		while (*s && *s <= ' ')
+			s++;
+		val->_float = atof(s);
 		break;
-		
+
 	case ev_vector:
-		strcpy (string, s);
-		v = string;
-		w = string;
-		for (i=0 ; i<3 ; i++)
+		for (i = 0;i < 3;i++)
 		{
-			while (*v && *v != ' ')
-				v++;
-			*v = 0;
-			((float *)d)[i] = atof (w);
-			w = v = v+1;
+			while (*s && *s <= ' ')
+				s++;
+			if (*s)
+				val->vector[i] = atof(s);
+			else
+				val->vector[i] = 0;
+			while (*s > ' ')
+				s++;
 		}
 		break;
-		
+
 	case ev_entity:
-		*(int *)d = EDICT_TO_PROG(EDICT_NUM(atoi (s)));
+		while (*s && *s <= ' ')
+			s++;
+		i = atoi(s);
+		val->edict = EDICT_TO_PROG(EDICT_NUM(i));
 		break;
 		
 	case ev_field:
-		def = ED_FindField (s);
+		def = ED_FindField(s);
 		if (!def)
 		{
-			Com_Printf ("Can't find field %s\n", s);
+			Com_DPrintf("ED_ParseEpair: Can't find field %s\n", s);
 			return false;
 		}
-		*(int *)d = G_INT(def->ofs);
+		val->_int = def->ofs;
 		break;
-	
+
 	case ev_function:
-		func = ED_FindFunction (s);
+		func = ED_FindFunction(s);
 		if (!func)
 		{
-			Com_Printf ("Can't find function %s\n", s);
+			Com_Printf("ED_ParseEpair: Can't find function %s\n", s);
 			return false;
 		}
-		*(func_t *)d = func - pr_functions;
+		val->function = func - pr_functions;
 		break;
-		
+
 	default:
-		break;
+		Com_Printf("ED_ParseEpair: Unknown key->type %i for key \"%s\"\n", key->type, PR_GetString(key->s_name));
+		return false;
 	}
 	return true;
 }
@@ -802,12 +831,13 @@ ed should be a properly initialized empty edict.
 Used for initial level load and for savegames.
 ====================
 */
-char *ED_ParseEdict (char *data, edict_t *ent)
+const char *ED_ParseEdict (const char *data, edict_t *ent)
 {
 	ddef_t	*key;
 	qbool	anglehack;
 	qbool	init;
 	char	keyname[256];
+	int n;
 
 	init = false;
 
@@ -818,32 +848,34 @@ char *ED_ParseEdict (char *data, edict_t *ent)
 // go through all the dictionary pairs
 	while (1)
 	{	
-	// parse key
-		data = COM_Parse (data);
+		// parse key
+		if (!COM_ParseToken(&data, false))
+			Host_Error ("ED_ParseEntity: EOF without closing brace");
 		if (com_token[0] == '}')
 			break;
-		if (!data)
-			Host_Error ("ED_ParseEntity: EOF without closing brace");
 		
-// anglehack is to allow QuakeEd to write single scalar angles
-// and allow them to be turned into vectors. (FIXME...)
-if (!strcmp(com_token, "angle"))
-{
-	strcpy (com_token, "angles");
-	anglehack = true;
-}
-else
-	anglehack = false;
+		// anglehack is to allow QuakeEd to write single scalar angles
+		// and allow them to be turned into vectors. (FIXME...)
+		anglehack = !strcmp (com_token, "angle");
+		if (anglehack)
+			strlcpy (com_token, "angles", sizeof (com_token));
 
-// FIXME: change light to _light to get rid of this hack
-if (!strcmp(com_token, "light"))
-	strcpy (com_token, "light_lev");	// hack for single light def
+		// FIXME: change light to _light to get rid of this hack
+		if (!strcmp(com_token, "light"))
+			strlcpy (com_token, "light_lev", sizeof (com_token));	// hack for single light def
 
-		strcpy (keyname, com_token);
+		strlcpy (keyname, com_token, sizeof (keyname));
+
+		// another hack to fix keynames with trailing spaces
+		n = strlen(keyname);
+		while (n && keyname[n-1] == ' ')
+		{
+			keyname[n-1] = 0;
+			n--;
+		}
 		
 	// parse value	
-		data = COM_Parse (data);
-		if (!data)
+		if (!COM_ParseToken(&data, false))
 			Host_Error ("ED_ParseEntity: EOF without closing brace");
 
 		if (com_token[0] == '}')
@@ -859,18 +891,18 @@ if (!strcmp(com_token, "light"))
 		key = ED_FindField (keyname);
 		if (!key)
 		{
-			Com_DPrintf ("%s is not a field\n", keyname);
+			Com_DPrintf("'%s' is not a field\n", keyname);
 			continue;
 		}
 
-if (anglehack)
-{
-char	temp[32];
-strcpy (temp, com_token);
-sprintf (com_token, "0 %s 0", temp);
-}
+		if (anglehack)
+		{
+			char	temp[32];
+			strlcpy (temp, com_token, sizeof (temp));
+			Q_snprintf (com_token, sizeof (com_token), "0 %s 0", temp);
+		}
 
-		if (!ED_ParseEpair ((void *)&ent->v, key, com_token))
+		if (!ED_ParseEpair(ent, key, com_token))
 			Host_Error ("ED_ParseEdict: parse error");
 	}
 
@@ -896,22 +928,24 @@ Used for both fresh maps and savegame loads.  A fresh map would also need
 to call ED_CallSpawnFunctions () to let the objects initialize themselves.
 ================
 */
-void ED_LoadFromFile (char *data)
+void ED_LoadFromFile (const char *data)
 {	
 	edict_t		*ent;
-	int			inhibit;
+	int parsed, inhibited, spawned, died;
 	dfunction_t	*func;
 	
 	ent = NULL;
-	inhibit = 0;
+	parsed = 0;
+	inhibited = 0;
+	spawned = 0;
+	died = 0;
 	pr_global_struct->time = sv.time;
 	
 // parse ents
 	while (1)
 	{
 // parse the opening brace	
-		data = COM_Parse (data);
-		if (!data)
+		if (!COM_ParseToken(&data, false))
 			break;
 		if (com_token[0] != '{')
 			Host_Error ("ED_LoadFromFile: found %s when expecting {",com_token);
@@ -921,6 +955,7 @@ void ED_LoadFromFile (char *data)
 		else
 			ent = ED_Alloc ();
 		data = ED_ParseEdict (data, ent);
+		parsed++;
 		
 // remove things from different skill levels or deathmatch
 		if (deathmatch.value)
@@ -928,7 +963,7 @@ void ED_LoadFromFile (char *data)
 			if (((int)ent->v.spawnflags & SPAWNFLAG_NOT_DEATHMATCH))
 			{
 				ED_Free (ent);
-				inhibit++;
+				inhibited++;
 				continue;
 			}
 		}
@@ -937,7 +972,7 @@ void ED_LoadFromFile (char *data)
 				|| (current_skill >= 2 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_HARD)) )
 		{
 			ED_Free (ent);
-			inhibit++;
+			inhibited++;
 			continue;
 		}
 
@@ -953,22 +988,26 @@ void ED_LoadFromFile (char *data)
 		}
 		
 	// look for the spawn function
-		func = ED_FindFunction ( PR_GetString(ent->v.classname) );
+		func = ED_FindFunction (PR_GetString(ent->v.classname));
 
 		if (!func)
 		{
-			Com_Printf ("No spawn function for:\n");
-			ED_Print (ent);
+			if (developer.integer) // don't confuse non-developers with errors
+			{
+				Com_Printf ("No spawn function for:\n");
+				ED_Print (ent);
+			}
 			ED_Free (ent);
 			continue;
 		}
 
 		pr_global_struct->self = EDICT_TO_PROG(ent);
 		PR_ExecuteProgram (func - pr_functions);
+		spawned++;
 		SV_FlushSignon();
 	}	
 
-	Com_DPrintf ("%i entities inhibited\n", inhibit);
+	Com_DPrintf("%i entities parsed, %i inhibited, %i spawned (%i removed self, %i stayed)\n", parsed, inhibited, spawned, died, spawned - died);
 }
 
 
@@ -977,14 +1016,13 @@ void ED_LoadFromFile (char *data)
 PR_LoadProgs
 ===============
 */
-extern qbool FS_FindFile (char *filename);
 void PR_LoadProgs (void)
 {
 	int	i;
 	char	num[32];
 	static int lumpsize[6] = { sizeof(dstatement_t), sizeof(ddef_t),
 		sizeof(ddef_t), sizeof(dfunction_t), 4, 4 };
-	int	filesize = 0;
+	fs_offset_t	filesize = 0;
 	char	*progsname;
 
 	progs = NULL;
@@ -998,69 +1036,68 @@ void PR_LoadProgs (void)
 
 	if (!deathmatch.value)
 	{
-		if (Q_stricmp(com_gamedirfile, "qw") && strcmp(com_gamedirfile, ""))
+		if (Q_stricmp(fs_gamedir, "qw") && strcmp(fs_gamedir, ""))
 		{
 			// if we're using a custom mod, anything
 			// in gamedir is preferred to stock *progs.dat
 			qbool check;
-			check = FS_FindFile ("spprogs.dat");
-			if (check && file_from_gamedir)
+			check = FS_FileExists ("spprogs.dat");
+			if (check)
 				goto use_spprogs;
 #ifdef WITH_NQPROGS
-			check = FS_FindFile ("progs.dat");
-			if (check && file_from_gamedir)
+			check = FS_FileExists ("progs.dat");
+			if (check)
 				goto use_progs;
 #endif
-			check = FS_FindFile ("qwprogs.dat");
-			if (check && file_from_gamedir)
+			check = FS_FileExists ("qwprogs.dat");
+			if (check)
 				goto use_qwprogs;
 		}
 
 use_spprogs:
-		progs = (dprograms_t *) FS_LoadHunkFile ("spprogs.dat");
+		progs = (dprograms_t *) FS_LoadFile ("spprogs.dat", false, &filesize);
 		progsname = "spprogs.dat";
 		pr_nqprogs = false;
 
 		if (!progs) {
 #ifdef WITH_NQPROGS
 use_progs:
-			progs = (dprograms_t *)FS_LoadHunkFile ("progs.dat");
+			progs = (dprograms_t *)FS_LoadFile ("progs.dat", false, &filesize);
 			progsname = "progs.dat";
 			pr_nqprogs = true;
 		}
 #endif
 		if (!progs) {
 use_qwprogs:
-			progs = (dprograms_t *)FS_LoadHunkFile ("qwprogs.dat");
+			progs = (dprograms_t *)FS_LoadFile ("qwprogs.dat", false, &filesize);
 			progsname = "qwprogs.dat";
 			pr_nqprogs = false;
 		}
 	}
 	else	// deathmatch
 	{
-		if (Q_stricmp(com_gamedirfile, "qw") && 
-			strcmp(com_gamedirfile, ""))
+		if (Q_stricmp(fs_gamedir, "qw") && strcmp(fs_gamedir, ""))
 		{
 			qbool check;
-			check = FS_FindFile ("qwprogs.dat");
-			if (check && file_from_gamedir)
+			check = FS_FileExists ("qwprogs.dat");
+			if (check)
 				goto dm_use_qwprogs;
 #ifdef WITH_NQPROGS
-			check = FS_FindFile ("progs.dat");
-			if (check && file_from_gamedir)
+			check = FS_FileExists ("progs.dat");
+			if (check)
 				goto dm_use_progs;
 #endif
 		}
 
 dm_use_qwprogs:
-		progs = (dprograms_t *) FS_LoadHunkFile ("qwprogs.dat");
+		progs = (dprograms_t *) FS_LoadFile ("qwprogs.dat", false, &filesize);
 		progsname = "qwprogs.dat";
 		pr_nqprogs = false;
 
 		if (!progs) {
 #ifdef WITH_NQPROGS
 dm_use_progs:
-			progs = (dprograms_t *)FS_LoadHunkFile ("progs.dat");
+			progs = (dprograms_t *)FS_LoadFile ("progs.dat", false, &filesize);
 			progsname = "progs.dat";
 			pr_nqprogs = true;
 		}
@@ -1070,12 +1107,10 @@ dm_use_progs:
 	if (!progs)
 		Host_Error ("PR_LoadProgs: couldn't load progs.dat");
 
-	filesize = fs_filesize;
-
 	if (filesize < (int)sizeof(*progs))
 		Host_Error("%s is corrupt", progsname);
 
-	Com_DPrintf ("Using %s (%i bytes).\n", progsname, filesize);
+	Com_DPrintf ("Using %s (%iK).\n", progsname, filesize / 1024);
 
 // add prog crc to the serverinfo
 	sprintf (num, "%i", CRC_Block ((byte *)progs, filesize));
@@ -1088,7 +1123,7 @@ dm_use_progs:
 	if (progs->version != PROG_VERSION)
 		Host_Error ("progs.dat has wrong version number (%i should be %i)", progs->version, PROG_VERSION);
 	if (progs->crc != (pr_nqprogs ? NQ_PROGHEADER_CRC : PROGHEADER_CRC))
-		Host_Error ("You must have the progs.dat from QuakeWorld installed");
+	Host_Error ("progs.dat system vars have been modified, progdefs.h is out of date");
 
 // check lump offsets and sizes
 	for (i = 0; i < 6; i ++) {

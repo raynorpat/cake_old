@@ -194,11 +194,11 @@ void SV_SaveSpawnparms (void)
 
 unsigned SV_CheckModel(char *mdl)
 {
-	byte	stackbuf[1024];		// avoid dirtying the cache heap
 	byte *buf;
+	fs_offset_t filesize;
 	unsigned short crc;
 
-	buf = (byte *)FS_LoadStackFile (mdl, stackbuf, sizeof(stackbuf));
+	buf = (byte *)FS_LoadFile (mdl, false, &filesize);
 	if (!buf)
 	{
 		if (!strcmp(mdl, "progs/player.mdl"))
@@ -208,7 +208,7 @@ unsigned SV_CheckModel(char *mdl)
 		else
 			Host_Error ("SV_CheckModel: could not load %s\n", mdl);
 	}
-	crc = CRC_Block(buf, fs_filesize);
+	crc = CRC_Block(buf, filesize);
 
 	return crc;
 }
@@ -296,7 +296,7 @@ void SV_SpawnServer (char *mapname, qbool devmap)
 	
 	strlcpy (sv.mapname, mapname, sizeof(sv.mapname));
 	Cvar_ForceSet (&host_mapname, sv.mapname);
-	snprintf (sv.modelname, sizeof(sv.modelname), "maps/%s.bsp", sv.mapname);
+	Q_snprintf (sv.modelname, sizeof(sv.modelname), "maps/%s.bsp", sv.mapname);
 
 	sv.worldmodel = CM_LoadMap (sv.modelname, false, &sv.map_checksum, &sv.map_checksum2);
 	sv.map_checksum2 = Com_TranslateMapChecksum (sv.mapname, sv.map_checksum2);
@@ -360,18 +360,18 @@ void SV_SpawnServer (char *mapname, qbool devmap)
 	// load and spawn all other entities
 	entitystring = NULL;
 	if (sv_loadentfiles.value) {
-		entitystring = (char *)FS_LoadHunkFile (va("maps/%s.ent", sv.mapname));
+		fs_offset_t filesize;
+		entitystring = (char *)FS_LoadFile (va("maps/%s.ent", sv.mapname), false, &filesize);
 		if (entitystring) {
 			Com_DPrintf ("Using entfile maps/%s.ent\n", sv.mapname);
-			Info_SetValueForStarKey (svs.info, "*entfile", va("%i",
-				CRC_Block((byte *)entitystring, fs_filesize)), MAX_SERVERINFO_STRING);
+			Info_SetValueForStarKey (svs.info, "*entfile", va("%i",	CRC_Block((byte *)entitystring, filesize)), MAX_SERVERINFO_STRING);
 		}
 	}
 	if (!entitystring) {
 		Info_SetValueForStarKey (svs.info,  "*entfile", "", MAX_SERVERINFO_STRING);
 		entitystring = CM_EntityString();
 	}
-	ED_LoadFromFile (entitystring);
+	ED_LoadFromFile ((char *)entitystring);
 
 	// look up some model indexes for specialized message compression
 	SV_FindModelNumbers ();

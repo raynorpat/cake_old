@@ -260,7 +260,7 @@ char *Macro_Weapons (void) {
 char *Macro_WeaponAndAmmo (void)
 {
 	char buf[sizeof(macro_buf)];
-	snprintf (buf, sizeof(buf), "%s:%s", Macro_Weapon(), Macro_Ammo());
+	Q_snprintf (buf, sizeof(buf), "%s:%s", Macro_Weapon(), Macro_Ammo());
 	strcpy (macro_buf, buf);
 	return macro_buf;
 }
@@ -390,7 +390,7 @@ char *Macro_Powerups (void)
 
 	effects = cl.frames[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum].effects;
 	if ( (effects & (EF_FLAG1|EF_FLAG2)) ||		// CTF
-		(cl.teamfortress && cl.stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
+		(cl.stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
 	{
 		if (macro_buf[0])
 			strcat(macro_buf, "/");
@@ -530,21 +530,6 @@ char *Macro_Need (void)
 		MacroBuf_strcat_with_separator ("health");
 	}
 
-	if (cl.teamfortress)
-	{
-		// in TF, we have all weapons from the start,
-		// and ammo is checked differently
-		if (cl.stats[STAT_ROCKETS] < tp_need_rockets.value)
-			MacroBuf_strcat_with_separator ("rockets");
-		if (cl.stats[STAT_SHELLS] < tp_need_shells.value)
-			MacroBuf_strcat_with_separator ("shells");
-		if (cl.stats[STAT_NAILS] < tp_need_nails.value)
-			MacroBuf_strcat_with_separator ("nails");
-		if (cl.stats[STAT_CELLS] < tp_need_cells.value)
-			MacroBuf_strcat_with_separator ("cells");
-		goto done;
-	}
-
 	// check weapon
 	weapon = 0;
 	for (i=strlen(tp_need_weapon.string)-1 ; i>=0 ; i--) {
@@ -579,7 +564,6 @@ char *Macro_Need (void)
 		}
 	}
 
-done:
 	if (!macro_buf[0])
 		strcpy (macro_buf, "nothing");
 
@@ -591,30 +575,7 @@ char *Macro_TF_Skin (void)
 	char *myskin;
 
 	myskin = Info_ValueForKey(cl.players[cl.playernum].userinfo, "skin");
-	if (!cl.teamfortress)
-		strcpy(macro_buf, myskin);
-	else {
-		if (!Q_stricmp(myskin, "tf_demo"))
-			strcpy(macro_buf, "demoman");
-		else if (!Q_stricmp(myskin, "tf_eng"))
-			strcpy (macro_buf, "engineer");
-		else if (!Q_stricmp(myskin, "tf_hwguy"))
-			strcpy(macro_buf, "hwguy");
-		else if (!Q_stricmp(myskin, "tf_medic"))
-			strcpy(macro_buf, "medic");
-		else if (!Q_stricmp(myskin, "tf_pyro"))
-			strcpy(macro_buf, "pyro");
-		else if (!Q_stricmp(myskin, "tf_scout"))
-			strcpy(macro_buf, "scout");
-		else if (!Q_stricmp(myskin, "tf_snipe"))
-			strcpy(macro_buf, "sniper");
-		else if (!Q_stricmp(myskin, "tf_sold"))
-			strcpy(macro_buf, "soldier");
-		else if (!Q_stricmp(myskin, "tf_spy"))
-			strcpy(macro_buf, "spy");
-		else
-			strcpy(macro_buf, myskin);
-	}
+	strcpy(macro_buf, myskin);
 	return macro_buf;
 }
 
@@ -926,15 +887,12 @@ void TP_LoadLocFile (char *filename, qbool quiet)
 	if (!*filename)
 		return;
 
-	snprintf (fullpath, sizeof(fullpath) - 4, "locs/%s", filename);
-	COM_DefaultExtension (fullpath, ".loc");
+	Q_snprintf (fullpath, sizeof(fullpath) - 4, "locs/%s", filename);
+	FS_DefaultExtension (fullpath, ".loc", sizeof(fullpath));
 
-	buf = (char *) FS_LoadTempFile (fullpath);
-	if (!buf) {
-		if (!quiet)
-			Com_Printf ("Could not load %s\n", fullpath);
+	buf = (char *) FS_LoadFile (fullpath, quiet, NULL);
+	if (!buf)
 		return;
-	}
 
 	loc_numentries = 0;
 
@@ -1199,8 +1157,7 @@ ok:
 
 	if (!strncmp(buf, " f_version\n", 11) || !strncmp(buf, " z_version\n", 11))
 	{
-		Cbuf_AddText (va("say ZQuake version %s "
-			QW_PLATFORM ":" QW_RENDERER "\n", VersionString()));
+		Cbuf_AddText (va("say Cake version %s "QW_PLATFORM "\n", VersionString()));
 		vars.f_version_reply_time = cls.realtime;
 	}
 }
@@ -1398,7 +1355,7 @@ void TP_NewMap (void)
 	{	// map name has changed
 		loc_numentries = 0;	// clear loc file
 		if (tp_loadlocs.value && cl.deathmatch && !cls.demoplayback) {
-			snprintf (locname, sizeof(locname), "%s.loc", host_mapname.string);
+			Q_snprintf (locname, sizeof(locname), "%s.loc", host_mapname.string);
 			TP_LoadLocFile (locname, true);
 		}
 		strlcpy (last_map, host_mapname.string, sizeof(last_map));
@@ -2133,8 +2090,7 @@ void TP_StatChanged (int stat, int value)
 				vars.respawntrigger_time = cls.realtime;
 
 				// they say custom cshifts are sometimes not cleared when you respawn....
-				if (cl.teamfortress)
-					cl.cshifts[CSHIFT_CUSTOM].percent = 0;
+				cl.cshifts[CSHIFT_CUSTOM].percent = 0;
 
 				if (!cl.spectator && CountTeammates())
 					TP_ExecTrigger ("f_respawn");
@@ -2146,8 +2102,7 @@ void TP_StatChanged (int stat, int value)
 			vars.deathtrigger_time = cls.realtime;
 			strcpy (vars.lastdeathloc, Macro_Location());
 			if (!cl.spectator && CountTeammates()) {
-				if (cl.teamfortress && (cl.stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2))
-					&& Cmd_FindAlias("f_flagdeath"))
+				if ((cl.stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2)) && Cmd_FindAlias("f_flagdeath"))
 					TP_ExecTrigger ("f_flagdeath");
 				else
 					TP_ExecTrigger ("f_death");
@@ -2160,9 +2115,8 @@ void TP_StatChanged (int stat, int value)
 		i = value &~ vars.items;
 
 		if (i & (IT_KEY1|IT_KEY2)) {
-			if (cl.teamfortress && !cl.spectator)
-				ExecTookTrigger (tp_name_flag.string, it_flag,
-				cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum].origin);
+			if (!cl.spectator)
+				ExecTookTrigger (tp_name_flag.string, it_flag, cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum].origin);
 		}
 
 		vars.olditems = vars.items;
@@ -2193,7 +2147,7 @@ qbool TP_CheckSoundTrigger (char *str)
 	int		i, j;
 	int		start, length;
 	char	soundname[MAX_OSPATH];
-	FILE	*f;
+	qfile_t	*f;
 
 	if (!tp_soundtrigger.string[0])
 		return false;
@@ -2233,13 +2187,13 @@ qbool TP_CheckSoundTrigger (char *str)
 				if (!snd_initialized)
 					return false;
 
-				COM_DefaultExtension (soundname, ".wav");
+				FS_DefaultExtension (soundname, ".wav", sizeof(soundname));
 
 				// make sure we have it on disk (FIXME)
-				FS_FOpenFile (va("sound/%s", soundname), &f);
+				f = FS_Open (va("sound/%s", soundname), "rb", false, true);
 				if (!f)
 					return false;
-				fclose (f);
+				FS_Close (f);
 
 				// now play the sound
 				S_LocalSound (soundname);

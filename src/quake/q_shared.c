@@ -184,7 +184,7 @@ char *Q_ftos (float value)
 	static char str[128];
 	int	i;
 
-	snprintf (str, sizeof(str), "%f", value);
+	Q_snprintf (str, sizeof(str), "%f", value);
 
 	for (i=strlen(str)-1 ; i>0 && str[i]=='0' ; i--)
 		str[i] = 0;
@@ -362,7 +362,7 @@ int Com_HashKey (char *name)
 
 short ShortSwap (short l)
 {
-	byte    b1,b2;
+	unsigned char    b1,b2;
 
 	b1 = l&255;
 	b2 = (l>>8)&255;
@@ -372,7 +372,7 @@ short ShortSwap (short l)
 
 int LongSwap (int l)
 {
-	byte    b1,b2,b3,b4;
+	unsigned char    b1,b2,b3,b4;
 
 	b1 = l&255;
 	b2 = (l>>8)&255;
@@ -386,16 +386,39 @@ float FloatSwap (float f)
 {
 	union
 	{
-		float	f;
-		byte	b[4];
+		float   f;
+		unsigned char    b[4];
 	} dat1, dat2;
-	
+
+
 	dat1.f = f;
 	dat2.b[0] = dat1.b[3];
 	dat2.b[1] = dat1.b[2];
 	dat2.b[2] = dat1.b[1];
 	dat2.b[3] = dat1.b[0];
 	return dat2.f;
+}
+
+
+// Extract integers from buffers
+unsigned int BuffBigLong (const unsigned char *buffer)
+{
+	return (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3];
+}
+
+unsigned short BuffBigShort (const unsigned char *buffer)
+{
+	return (buffer[0] << 8) | buffer[1];
+}
+
+unsigned int BuffLittleLong (const unsigned char *buffer)
+{
+	return (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] << 8) | buffer[0];
+}
+
+unsigned short BuffLittleShort (const unsigned char *buffer)
+{
+	return (buffer[1] << 8) | buffer[0];
 }
 
 //===========================================================================

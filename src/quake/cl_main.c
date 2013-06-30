@@ -120,11 +120,13 @@ static void CL_FixupModelNames (void)
 	simple_crypt (pmodel_name, sizeof(pmodel_name) - 1);
 }
 
+void CL_AdjustAngles (void);
+
 //============================================================================
 
 void OnChangeSkinForcing(cvar_t *var, char *str, qbool *cancel)
 {
-	if (cl.teamfortress || (cl.fpd & FPD_NO_FORCE_SKIN))
+	if (cl.fpd & FPD_NO_FORCE_SKIN)
 		return;
 
 	Cvar_Set (var, str);
@@ -442,11 +444,9 @@ void CL_Disconnect (void)
 	Cam_Reset();
 
 	if (cls.download) {
-		fclose(cls.download);
+		FS_Close(cls.download);
 		cls.download = NULL;
 	}
-
-	CL_StopUpload ();
 
 	// don't accept any remote packets
 	cls.server_adr = net_null;
@@ -881,11 +881,6 @@ void CL_InitLocal (void)
 	Cvar_Register (&cl_independentPhysics);
 	Cvar_Register (&cl_physfps);
 
-#ifndef RELEASE_VERSION
-	// inform everyone that we're using a development version
-//	Info_SetValueForStarKey (cls.userinfo, "*ver", va(PROGRAM " %s", VersionString()), MAX_INFO_STRING);
-#endif
-
 #ifdef VWEP_TEST
 	Info_SetValueForStarKey (cls.userinfo, "*vwtest", "1", MAX_INFO_STRING);
 #endif
@@ -908,22 +903,23 @@ void CL_InitLocal (void)
 
 	CL_InitCommands ();
 
+	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
 	Cmd_AddCommand ("connect", CL_Connect_f);
 	Cmd_AddCommand ("nqconnect", CL_NQConnect_f);
-	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 }
 
 static void CL_CheckGfxWad (void)
 {
-	FILE *f;
-	FS_FOpenFile ("gfx.wad", &f);
+	qfile_t *f;
+
+	f = FS_Open ("gfx.wad", "rb", false, false);
 	if (!f) {
 		Sys_Error ("Couldn't find gfx.wad.\n"
 			"Make sure you start " PROGRAM
-			" from your Quake directory or use -basedir <path>");
+			" from your games directory or use -basedir <path>");
 	}
-	fclose (f);
+	FS_Close (f);
 }
 
 /*
@@ -938,12 +934,11 @@ void CL_Init (void)
 
 	cls.state = ca_disconnected;
 
-	strcpy (cls.gamedirfile, com_gamedirfile);
-	strcpy (cls.gamedir, com_gamedir);
+	strcpy (cls.gamedir, fs_gamedir);
 
 	CL_CheckGfxWad ();
 
-	Sys_mkdir(va("%s/%s", com_basedir, "qw"));
+	Sys_mkdir(va("%s/%s", fs_basedir, "qw"));
 
 	V_Init ();
 

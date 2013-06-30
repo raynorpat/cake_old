@@ -345,8 +345,6 @@ Cmd_Exec_f
 void Cmd_Exec_f (void)
 {
 	char	*f;
-	int		mark;
-	char	name[MAX_OSPATH];
 
 	if (Cmd_Argc () != 2)
 	{
@@ -354,27 +352,13 @@ void Cmd_Exec_f (void)
 		return;
 	}
 
-	strlcpy (name, Cmd_Argv(1), sizeof(name) - 4);
-	mark = Hunk_LowMark ();
-	f = (char *)FS_LoadHunkFile (name);
+	f = (char *)FS_LoadFile (Cmd_Argv(1), false, NULL);
 	if (!f)
 	{
-		char *p;
-
-		p = COM_SkipPath (name);
-		if (!strchr (p, '.')) {
-			// no extension, so try the default (.cfg)
-			strcat (name, ".cfg");
-			f = (char *)FS_LoadHunkFile (name);
-		}
-
-		if (!f) {
-			Com_Printf ("couldn't exec %s\n", Cmd_Argv(1));
-			return;
-		}
+		Com_Printf("couldn't exec %s\n",Cmd_Argv(1));
+		return;
 	}
-	if (cl_warncmd.value || developer.value)
-		Com_Printf ("execing %s\n", name);
+	Com_DPrintf("execing %s\n", Cmd_Argv(1));
 
 #ifndef SERVERONLY
 	if (cbuf_current == &cbuf_svc) {
@@ -387,7 +371,6 @@ void Cmd_Exec_f (void)
 		Cbuf_InsertText ("\n");
 		Cbuf_InsertText (f);
 	}
-	Hunk_FreeToLowMark (mark);
 }
 
 
@@ -404,6 +387,7 @@ void Cmd_Echo_f (void)
 	
 	for (i=1 ; i<Cmd_Argc() ; i++)
 		Com_Printf ("%s ",Cmd_Argv(i));
+
 	Com_Printf ("\n");
 }
 
@@ -658,13 +642,13 @@ void Cmd_RemoveStuffedAliases (void)
 }
 
 
-void Cmd_WriteAliases (FILE *f)
+void Cmd_WriteAliases (qfile_t *f)
 {
 	cmd_alias_t	*a;
 
 	for (a = cmd_alias ; a ; a=a->next)
 		if (a->flags & ALIAS_ARCHIVE)
-			fprintf (f, "aliasa %s \"%s\"\n", a->name, a->value);
+			FS_Printf (f, "aliasa %s \"%s\"\n", a->name, a->value);
 }
 
 /*

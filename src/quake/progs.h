@@ -113,17 +113,17 @@ void PR_Profile_f (void);
 edict_t *ED_Alloc (void);
 void ED_Free (edict_t *ed);
 
-char	*ED_NewString (char *string);
+char *ED_NewString (const char *string);
 // returns a copy of the string allocated from the server's string heap
 
 void ED_Print (edict_t *ed);
-void ED_Write (FILE *f, edict_t *ed);
-char *ED_ParseEdict (char *data, edict_t *ent);
+void ED_Write (qfile_t *f, edict_t *ed);
+const char *ED_ParseEdict (const char *data, edict_t *ent);
 
-void ED_WriteGlobals (FILE *f);
-void ED_ParseGlobals (char *data);
+void ED_WriteGlobals (qfile_t *f);
+void ED_ParseGlobals (const char *data);
 
-void ED_LoadFromFile (char *data);
+void ED_LoadFromFile (const char *data);
 
 //define EDICT_NUM(n) ((edict_t *)((byte *)sv.edicts + (n)*pr_edict_size))
 //define NUM_FOR_EDICT(e) (((byte *)(e) - (byte *)sv.edicts)/pr_edict_size)
@@ -194,8 +194,8 @@ void ED_PrintNum (int ent);
 //
 // PR strings stuff
 //
-#define MAX_PRSTR 1024		// max static strings
-#define MAX_DYN_PRSTR 1024	// max dynamic strings
+#define MAX_PRSTR		8192		// max static strings
+#define MAX_DYN_PRSTR	8192		// max dynamic strings
 
 extern char *pr_strtbl[MAX_PRSTR + MAX_DYN_PRSTR];
 extern int num_prstr;

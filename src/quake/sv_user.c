@@ -659,7 +659,7 @@ static void Cmd_NextDL_f (void)
 	r = sv_client->downloadsize - sv_client->downloadcount;
 	if (r > 768)
 		r = 768;
-	r = fread (buffer, 1, r, sv_client->download);
+	FS_Read (sv_client->download, buffer, r);
 	ClientReliableWrite_Begin (sv_client, svc_download);
 	ClientReliableWrite_Short (r);
 
@@ -675,7 +675,7 @@ static void Cmd_NextDL_f (void)
 	if (sv_client->downloadcount != sv_client->downloadsize)
 		return;
 
-	fclose (sv_client->download);
+	FS_Close (sv_client->download);
 	sv_client->download = NULL;
 
 }
@@ -700,80 +700,6 @@ static void OutofBandPrintf (netadr_t where, char *fmt, ...)
 	va_end (argptr);
 
 	NET_SendPacket (NS_SERVER, strlen(send)+1, send, where);
-}
-
-/*
-==================
-SV_NextUpload
-==================
-*/
-static void SV_NextUpload (void)
-{
-	int		percent;
-	int		size;
-//	byte	buffer[1024];
-//	int		r;
-//	client_t *client;
-
-	if (!*sv_client->uploadfn) {
-		SV_ClientPrintf(sv_client, PRINT_HIGH, "Upload denied\n");
-		ClientReliableWrite_Begin (sv_client, svc_stufftext);
-		ClientReliableWrite_String ("stopul\n");
-		ClientReliableWrite_End ();
-
-		// suck out rest of packet
-		size = MSG_ReadShort ();	MSG_ReadByte ();
-		msg_readcount += size;
-		return;
-	}
-
-	size = MSG_ReadShort ();
-	percent = MSG_ReadByte ();
-
-	if (!sv_client->upload)
-	{
-		sv_client->upload = fopen(sv_client->uploadfn, "wb");
-		if (!sv_client->upload) {
-			Sys_Printf("Can't create %s\n", sv_client->uploadfn);
-			ClientReliableWrite_Begin (sv_client, svc_stufftext);
-			ClientReliableWrite_String ("stopul\n");
-			ClientReliableWrite_End ();
-			*sv_client->uploadfn = 0;
-			// FIXME, add msg_readcount += size?
-			return;
-		}
-		Sys_Printf("Receiving %s from %d...\n", sv_client->uploadfn, sv_client->userid);
-		if (sv_client->remote_snap)
-			OutofBandPrintf(sv_client->snap_from, "Server receiving %s from %d...\n", sv_client->uploadfn, sv_client->userid);
-	}
-
-	fwrite (net_message.data + msg_readcount, 1, size, sv_client->upload);
-	msg_readcount += size;
-
-Com_DPrintf ("UPLOAD: %d received\n", size);
-
-	if (percent != 100) {
-		ClientReliableWrite_Begin (sv_client, svc_stufftext);
-		ClientReliableWrite_String ("nextul\n");
-		ClientReliableWrite_End ();
-	} else {
-		fclose (sv_client->upload);
-		sv_client->upload = NULL;
-
-		Sys_Printf("%s upload completed.\n", sv_client->uploadfn);
-
-		if (sv_client->remote_snap) {
-			char *p;
-
-			if ((p = strchr(sv_client->uploadfn, '/')) != NULL)
-				p++;
-			else
-				p = sv_client->uploadfn;
-			OutofBandPrintf(sv_client->snap_from, "%s upload completed.\nTo download, enter:\ndownload %s\n", 
-				sv_client->uploadfn, p);
-		}
-	}
-
 }
 
 /*
@@ -828,7 +754,7 @@ static void Cmd_Download_f (void)
 
 	// cancel current download, if any
 	if (sv_client->download) {
-		fclose (sv_client->download);
+		FS_Close (sv_client->download);
 		sv_client->download = NULL;
 	}
 
@@ -837,7 +763,8 @@ static void Cmd_Download_f (void)
 	for (p = name; *p; p++)
 		*p = (char)tolower(*p);
 
-	sv_client->downloadsize = FS_FOpenFile (name, &sv_client->download);
+	sv_client->download = FS_Open (name, "rb", false, false);
+	sv_client->downloadsize = FS_FileSize (sv_client->download);
 	sv_client->downloadcount = 0;
 
 	if (!sv_client->download) {
@@ -846,8 +773,8 @@ static void Cmd_Download_f (void)
 	}
 
 	// special check for maps that came from a pak file
-	if (!Q_stricmp(dirname, "maps") && file_from_pak && !allow_download_pakmaps.value) {
-		fclose (sv_client->download);
+	if (!Q_stricmp(dirname, "maps") && !allow_download_pakmaps.value) {
+		FS_Close (sv_client->download);
 		sv_client->download = NULL;
 		goto deny_download;
 	}
@@ -1285,24 +1212,6 @@ static void Cmd_Serverinfo_f (void)
 	SV_EndRedirect ();
 }
 
-
-/*
-==================
-Cmd_Snap_f
-
-We receive this command if the client doesn't support remote
-screenshots or has them disabled
-==================
-*/
-static void Cmd_Snap_f (void)
-{
-	if (*sv_client->uploadfn) {
-		*sv_client->uploadfn = 0;
-		SV_BroadcastPrintf (PRINT_HIGH, "%s refused remote screenshot\n", sv_client->name);
-	}
-}
-
-
 void SetUpClientEdict (client_t *cl, edict_t *ent)
 {
 	memset (&ent->v, 0, progs->entityfields * 4);
@@ -1635,8 +1544,8 @@ static ucmd_t ucmds[] =
 
 	{"download", Cmd_Download_f},
 	{"nextdl", Cmd_NextDL_f},
+
 	{"pings", Cmd_Pings_f},
-	{"snap", Cmd_Snap_f},
 	{"setinfo", Cmd_SetInfo_f},
 
 // this will be made progs-overridable when we provide a way for
@@ -2322,13 +2231,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 				SV_LinkEdict(sv_player, false);
 			}
 			break;
-
-		case clc_upload:
-			SV_NextUpload();
-			break;
-
 		}
 	}
 }
 
-/* vi: set noet ts=4 sts=4 ai sw=4: */

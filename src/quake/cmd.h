@@ -164,7 +164,7 @@ qbool Cmd_DeleteAlias (char *name);	// return true if successful
 void Cmd_RemoveStuffedAliases (void);
 cmd_alias_t *Cmd_FindAlias (char *name); // returns NULL on failure
 char *Cmd_AliasString (char *name); // returns NULL on failure
-void Cmd_WriteAliases (FILE *f);
+void Cmd_WriteAliases (qfile_t *f);
 cmd_alias_t *Alias_Next (cmd_alias_t *alias);	// use to enumerate all aliases
 
 #endif /* _CMD_H_ */

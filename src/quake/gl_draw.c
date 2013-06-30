@@ -197,7 +197,7 @@ qpic_t *R_CachePic (char *path)
 	strcpy (pic->name, path);
 
 	// load the pic from disk
-	dat = (qpic_t *)FS_LoadTempFile (path);
+	dat = (qpic_t *)FS_LoadFile (path, false, NULL);
 	if (!dat)
 		Sys_Error ("R_CachePic: failed to load %s", path);
 	SwapPic (dat);

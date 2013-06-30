@@ -251,7 +251,7 @@ static void CL_LerpMove (float msgtime)
 }
 
 
-static void CL_LerpMovePhys (double msgtime, float f)
+static void CL_LerpMovePhys (double msgtime)
 {	
 	static int		lastsequence = 0;
 	static vec3_t	lerp_origin[3];
@@ -435,7 +435,7 @@ static void CL_PredictLocalPlayer (void)
 	if (cls.demoplayback)
 		CL_LerpMove (to->senttime);
 	else if (cl_independentPhysics.value)
-		CL_LerpMovePhys (cls.realtime, to->senttime);
+		CL_LerpMovePhys (cls.realtime);
 
 out:
 	CL_CalcCrouch ();

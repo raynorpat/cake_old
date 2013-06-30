@@ -34,7 +34,7 @@ void SList_Shutdown(void) {
 	if (!slist_initialised)
 		return;	
 
-	if (!(f = fopen(va("%s/servers.txt", com_gamedir), "w"))) {
+	if (!(f = fopen(va("%s/servers.txt", fs_gamedir), "w"))) {
 		Com_DPrintf ("Couldn't open servers.txt.\n");
 		return;
 	}
@@ -104,7 +104,7 @@ void SList_Load (void) {
 	char line[128], *desc, *addr;
 	FILE *f;
 
-	if (!(f = fopen (va("%s/servers.txt", com_gamedir), "r")))
+	if (!(f = fopen (va("%s/servers.txt", fs_gamedir), "r")))
 		return;
 
 	count = len = 0;

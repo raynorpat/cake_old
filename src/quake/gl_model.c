@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rc_wad.h"
 #include "crc.h"
 
+fs_offset_t mod_filesize;
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
@@ -268,7 +269,6 @@ Loads a model into the cache
 model_t *Mod_LoadModel (model_t *mod, qbool crash)
 {
 	unsigned *buf;
-	byte	stackbuf[1024];		// avoid dirtying the cache heap
 
 	if (!mod->needload)
 	{
@@ -287,7 +287,7 @@ model_t *Mod_LoadModel (model_t *mod, qbool crash)
 
 // because the world is so huge, load it one piece at a time
 // load the file
-	buf = (unsigned *)FS_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
+	buf = (unsigned *)FS_LoadFile (mod->name, false, &mod_filesize);
 	if (!buf)
 	{
 		if (crash)
@@ -297,7 +297,8 @@ model_t *Mod_LoadModel (model_t *mod, qbool crash)
 	}
 
 // allocate a new model
-	COM_FileBase (mod->name, loadname);
+	strcpy(loadname, mod->name);
+//	COM_FileBase (mod->name, loadname);
 
 	loadmodel = mod;
 
@@ -411,7 +412,7 @@ void Mod_LoadBSPTexture (texture_t *tx, miptex_t *mt, byte *srcdata)
 		if (tx->name[0] == '*') tx->name[0] = '#';
 
 		// external textures -- first look in "textures/mapname/" then look in "textures/"
-		COM_StripExtension (loadmodel->name + 5, mapname);
+		FS_StripExtension (loadmodel->name + 5, mapname, sizeof(mapname));
 		sprintf (filename, "textures/%s/%s", mapname, tx->name);
 		data = Image_LoadImage (filename, &fwidth, &fheight);
 
@@ -666,18 +667,19 @@ void Mod_LoadLighting (lump_t *l)
 	byte *in, *out, *data;
 	byte d;
 	char litfilename[1024];
+	fs_offset_t filesize;
 	int hunkmark = Hunk_LowMark ();
 
 	loadmodel->lightdata = NULL;
 	
 	// LordHavoc: check for a .lit file
 	strcpy (litfilename, loadmodel->name);
-	COM_StripExtension (litfilename, litfilename);
+	FS_StripExtension (litfilename, litfilename, sizeof(litfilename));
 	strcat (litfilename, ".lit");
-	data = (byte *) FS_LoadHunkFile (litfilename);
+	data = (byte *) FS_LoadFile (litfilename, false, &filesize);
 
 	// mh - lit file fix
-	if (data && fs_filesize == (l->filelen * 3) + 8)
+	if (data && filesize == (l->filelen * 3) + 8)
 	{
 		if (data[0] == 'Q' && data[1] == 'L' && data[2] == 'I' && data[3] == 'T')
 		{
@@ -1900,7 +1902,7 @@ void Mod_LoadAliasModel (model_t *mod, void *buffer)
 		mod->modhint = MOD_NORMAL;
 
 	if (mod->modhint == MOD_PLAYER || mod->modhint == MOD_EYES)
-		mod->crc = CRC_Block (buffer, fs_filesize);
+		mod->crc = CRC_Block (buffer, mod_filesize);
 	
 	start = Hunk_LowMark ();
 

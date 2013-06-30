@@ -18,48 +18,13 @@ extern int CL_IntermissionRunning (void);
 
 /*
 ===============
-SV_SavegameComment
-
-Writes a SAVEGAME_COMMENT_LENGTH character comment
-
-FIXME: What is the right place for this function?
-If it stays in server, then the CL_Stat_Monsters is architecturally ugly
-Move it to client?
-On the other hand, if we make it fully client-independent, "save" and "load" could
-be made to work even on dedicated servers.  Not sure though how useful that would be.
-===============
-*/
-void SV_SavegameComment (char *text)
-{
-	int		i;
-	char	kills[20];
-	char	*levelname;
-
-	for (i = 0; i < SAVEGAME_COMMENT_LENGTH; i++)
-		text[i] = ' ';
-	levelname = PR_GetString(sv.edicts->v.message);
-	memcpy (text, levelname, min(strlen(levelname), 21));
-	sprintf (kills, "kills:%3i/%-3i", CL_Stat_Monsters(), CL_Stat_TotalMonsters());
-	memcpy (text+22, kills, strlen(kills));
-
-// convert space to _ to make stdio happy
-	for (i = 0; i < SAVEGAME_COMMENT_LENGTH; i++)
-		if (text[i] == ' ')
-			text[i] = '_';
-
-	text[SAVEGAME_COMMENT_LENGTH] = '\0';
-}
-
-
-/*
-===============
 SV_SaveGame_f
 ===============
 */
 void SV_SaveGame_f (void)
 {
 	char	name[256];
-	FILE	*f;
+	qfile_t	*f;
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 
@@ -101,44 +66,48 @@ void SV_SaveGame_f (void)
 		return;
 	}
 
-	sprintf (name, "%s/save/%s", com_gamedir, Cmd_Argv(1));
-	COM_DefaultExtension (name, ".sav");
+	strlcpy (name, Cmd_Argv(1), sizeof (name));
+	FS_DefaultExtension (name, ".sav", sizeof(name));
 	
 	Com_Printf ("Saving game to %s...\n", name);
-	COM_CreatePath (name);
-	f = fopen (name, "w");
+	f = FS_Open (name, "wb", false, false);
 	if (!f)
-	{
-		Com_Printf ("ERROR: couldn't open.\n");
 		return;
-	}
 	
-	fprintf (f, "%i\n", SAVEGAME_VERSION);
-	SV_SavegameComment (comment);
-	fprintf (f, "%s\n", comment);
-	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		fprintf (f, "%f\n", svs.clients->spawn_parms[i]);
-	fprintf (f, "%d\n", current_skill);
-	fprintf (f, "%s\n", sv.mapname);
-	fprintf (f, "%f\n",sv.time);
+	FS_Printf (f, "%i\n", SAVEGAME_VERSION);
+	
+	memset(comment, 0, sizeof(comment));
+	sprintf(comment, "%-21.21s kills:%3i/%3i", PR_GetString(sv.edicts->v.message), CL_Stat_Monsters(), CL_Stat_TotalMonsters());
+	// convert space to _ to make stdio happy
+	// convert control characters to _ as well
+	for (i=0 ; i<SAVEGAME_COMMENT_LENGTH ; i++)
+		if (comment[i] <= ' ')
+			comment[i] = '_';
+	comment[SAVEGAME_COMMENT_LENGTH] = '\0';
 
-// write the light styles
+	FS_Printf (f, "%s\n", comment);
+	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		FS_Printf (f, "%f\n", svs.clients->spawn_parms[i]);
+	FS_Printf (f, "%d\n", current_skill);
+	FS_Printf (f, "%s\n", sv.mapname);
+	FS_Printf (f, "%f\n", sv.time);
+
+	// write the light styles
 	for (i = 0; i < MAX_LIGHTSTYLES; i++)
 	{
 		if (sv.lightstyles[i])
-			fprintf (f, "%s\n", sv.lightstyles[i]);
+			FS_Printf (f, "%s\n", sv.lightstyles[i]);
 		else
-			fprintf (f,"m\n");
+			FS_Printf (f,"m\n");
 	}
-
 
 	ED_WriteGlobals (f);
 	for (i=0 ; i<sv.num_edicts ; i++)
 	{
 		ED_Write (f, EDICT_NUM(i));
-		fflush (f);
 	}
-	fclose (f);
+
+	FS_Close (f);
 	Com_Printf ("done.\n");
 }
 
@@ -151,12 +120,13 @@ SV_LoadGame_f
 void SV_LoadGame_f (void)
 {
 	char	name[MAX_OSPATH];
-	FILE	*f;
 	char	mapname[MAX_QPATH];
-	float	time, tfloat;
-	char	str[32768], *start;
-	int		i, r;
+	float	time;
+	const char *start;
+	const char *t;
+	char	*text;
 	edict_t	*ent;
+	int		i;
 	int		entnum;
 	int		version;
 	float	spawn_parms[NUM_SPAWN_PARMS];
@@ -166,98 +136,111 @@ void SV_LoadGame_f (void)
 		return;
 	}
 
-	sprintf (name, "%s/save/%s", com_gamedir, Cmd_Argv(1));
-	COM_DefaultExtension (name, ".sav");
+	strlcpy (name, Cmd_Argv(1), sizeof(name));
+	FS_DefaultExtension (name, ".sav", sizeof(name));
 	
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
 
 	Com_Printf ("Loading game from %s...\n", name);
-	f = fopen (name, "r");
-	if (!f)
+	t = text = FS_LoadFile (name, false, NULL);
+	if (!text)
 	{
-		Com_Printf ("ERROR: couldn't open.\n");
+		Com_Printf("ERROR: couldn't open.\n");
 		return;
 	}
 
-	fscanf (f, "%i\n", &version);
+	// version
+	COM_ParseTokenConsole(&t);
+	version = atoi(com_token);
 	if (version != SAVEGAME_VERSION)
 	{
-		fclose (f);
+		free(text);
 		Com_Printf ("Savegame is version %i, not %i\n", version, SAVEGAME_VERSION);
 		return;
 	}
-	fscanf (f, "%s\n", str);
+
+	// description
+	// this is a little hard to parse, as : is a separator in COM_ParseToken,
+	// so use the console parser instead
+	COM_ParseTokenConsole(&t);
+
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		fscanf (f, "%f\n", &spawn_parms[i]);
-// this silliness is so we can load 1.06 save files, which have float skill values
-	fscanf (f, "%f\n", &tfloat);
-	current_skill = (int)(tfloat + 0.1);
+	{
+		COM_ParseTokenConsole(&t);
+		spawn_parms[i] = atof(com_token);
+	}
+
+	// skill
+	COM_ParseTokenConsole(&t);
+	// this silliness is so we can load 1.06 save files, which have float skill values
+	current_skill = (int)(atof(com_token) + 0.5);
 	Cvar_Set (&skill, va("%i", current_skill));
+
+	// mapname
+	COM_ParseTokenConsole(&t);
+	strcpy (mapname, com_token);
+
+	// time
+	COM_ParseTokenConsole(&t);
+	time = atof(com_token);
+
+	Host_EndGame ();
 
 	Cvar_SetValue (&deathmatch, 0);
 	Cvar_SetValue (&coop, 0);
 	Cvar_SetValue (&teamplay, 0);
 	Cvar_SetValue (&maxclients, 1);
 
-	fscanf (f, "%s\n",mapname);
-	fscanf (f, "%f\n",&time);
-
-	Host_EndGame ();
-
 	CL_BeginLocalConnection ();
 
 	SV_SpawnServer (mapname, false);
 	if (sv.state != ss_game)
 	{
+		free(text);
 		Com_Printf ("Couldn't load map\n");
 		return;
 	}
 	Cvar_ForceSet (&sv_paused, "1");	// pause until all clients connect
 	sv.loadgame = true;
 
-// load the light styles
-
+	// load the light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		fscanf (f, "%s\n", str);
-		sv.lightstyles[i] = Hunk_Alloc (strlen(str)+1);
-		strcpy (sv.lightstyles[i], str);
+		COM_ParseTokenConsole(&t);
+		sv.lightstyles[i] = Hunk_Alloc (strlen(com_token) + 1);
+		strcpy (sv.lightstyles[i], com_token);
 	}
 
-// load the edicts out of the savegame file
+	// load the edicts out of the savegame file
 	entnum = -1;		// -1 is the globals
-	while (!feof(f))
+	for (;;)
 	{
-		for (i=0 ; i<sizeof(str)-1 ; i++)
+		start = t;
+		while (COM_ParseTokenConsole(&t))
+			if (!strcmp(com_token, "}"))
+				break;
+
+		if (!COM_ParseTokenConsole(&start))
 		{
-			r = fgetc (f);
-			if (r == EOF || !r)
-				break;
-			str[i] = r;
-			if (r == '}')
-			{
-				i++;
-				break;
-			}
+			// end of file
+			break;
 		}
-		if (i == sizeof(str)-1)
-			Host_Error ("Loadgame buffer overflow");
-		str[i] = 0;
-		start = str;
-		start = COM_Parse(str);
-		if (!com_token[0])
-			break;		// end of file
-		if (strcmp(com_token,"{"))
+		if (strcmp(com_token, "{"))
+		{
+			free(text);
 			Host_Error ("First token isn't a brace");
+		}
 			
 		if (entnum == -1)
-		{	// parse the global vars
+		{
+			// parse the global vars
 			ED_ParseGlobals (start);
 		}
 		else
-		{	// parse an edict
+		{
+			// parse an edict
 			ent = EDICT_NUM(entnum);
 			memset (&ent->v, 0, progs->entityfields * 4);
 			ent->inuse = true;
@@ -274,7 +257,7 @@ void SV_LoadGame_f (void)
 	sv.num_edicts = entnum;
 	sv.time = time;
 
-	fclose (f);
+//	FS_Close (f);
 
 	// FIXME: this assumes the player is using client slot #0
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)

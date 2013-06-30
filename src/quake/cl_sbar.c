@@ -25,8 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qbool		sb_drawinventory;
 qbool		sb_drawmain;
 
-qbool		sb_hipnotic;
-
 #define STAT_MINUS		10	// num frame for '-' stats digit
 static qpic_t	*sb_nums[2][11];
 static qpic_t	*sb_colon, *sb_slash;
@@ -47,7 +45,7 @@ static qpic_t	*sb_face_invis_invuln;
 
 static qpic_t	*sb_disc;			// invulnerability
 
-//hipnotic defines
+// hipnotic defines
 #define HIT_PROXIMITY_GUN_BIT 16
 #define HIT_MJOLNIR_BIT       7
 #define HIT_LASER_CANNON_BIT  23
@@ -125,12 +123,9 @@ static void Sbar_DontShowScores (void)
 
 static void Sbar_RegisterHipnoticPics (void)
 {
-	int i, j;
+	int i;
 
 	hsb_weapons[0][0] = R_CacheWadPic ("inv_laser");
-	// quick check to see if it's the hipnotic wad
-	if (!hsb_weapons[0][0])
-		return;
 	hsb_weapons[0][1] = R_CacheWadPic ("inv_mjolnir");
 	hsb_weapons[0][2] = R_CacheWadPic ("inv_gren_prox");
 	hsb_weapons[0][3] = R_CacheWadPic ("inv_prox_gren");
@@ -151,20 +146,8 @@ static void Sbar_RegisterHipnoticPics (void)
 		hsb_weapons[2+i][4] = R_CacheWadPic (va("inva%i_prox",i+1));
 	}
 
-	for (i = 0; i < 7; i++) {
-		for (j = 0; j < 5; j++)
-			if (!hsb_weapons[i][j])
-				return;
-	}
-
 	hsb_items[0] = R_CacheWadPic ("sb_wsuit");
 	hsb_items[1] = R_CacheWadPic ("sb_eshld");
-
-	if (!hsb_items[0] || !hsb_items[1])
-		return;
-
-	// all ok
-	sb_hipnotic = true;
 }
 
 static void sbar_start (void)
@@ -251,8 +234,7 @@ static void sbar_start (void)
 
 	sb_scorebar = R_CacheWadPic ("scorebar");
 
-	sb_hipnotic = false;
-	if (!strcmp(com_gamedirfile, "hipnotic"))
+	if (gamemode == GAME_HIPNOTIC)
 		Sbar_RegisterHipnoticPics ();
 }
 
@@ -584,7 +566,7 @@ static void Sbar_DrawInventory (void)
 	}
 
 	// hipnotic weapons
-    if (sb_hipnotic) {
+    if (gamemode == GAME_HIPNOTIC) {
 		int grenadeflashing = 0;
 		for (i = 0; i < 4; i++) {
 			if (cl.stats[STAT_ITEMS] & (1<<hipweapons[i]) ) {
@@ -644,14 +626,14 @@ static void Sbar_DrawInventory (void)
 		if (cl.stats[STAT_ITEMS] & (1<<(17+i))) {
 			time = cl.item_gettime[17+i];
 			if (!(time &&	time > cl.time - 2 && flashon))	{
-				if ( !(sb_hipnotic && i < 2) )
+				if ( !(gamemode == GAME_HIPNOTIC && i < 2) )
 					Sbar_DrawPic (192 + i*16, -16, sb_items[i]);		
 			}
 		}
 	}
 
 	// hipnotic items
-	if (sb_hipnotic)
+	if (gamemode == GAME_HIPNOTIC)
 	{
 		for (i=0 ; i<2 ; i++)
 			if (cl.stats[STAT_ITEMS] & (1<<(24+i)))
@@ -757,7 +739,7 @@ static void Sbar_DrawNormal (void)
 	Sbar_DrawNum (248, 0, cl.stats[STAT_AMMO], 3, cl.stats[STAT_AMMO] <= 10);
 
 // keys (hipnotic only)
-	if (sb_hipnotic)
+	if (gamemode == GAME_HIPNOTIC)
 	{
 		if (cl.stats[STAT_ITEMS] & IT_KEY1)
             Sbar_DrawPic (209, 3, sb_items[0]);

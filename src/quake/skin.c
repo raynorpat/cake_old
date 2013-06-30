@@ -91,7 +91,7 @@ byte *Skin_Cache (skin_t *skin)
 //
 // load the pic from disk
 //
-	Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
+	Q_snprintf (name, sizeof(name), "skins/%s", skin->name);
 	pic = Image_LoadImage (name, &width, &height);
 	if (!pic || width > 320 || height > 200)
 	{

@@ -218,9 +218,8 @@ Con_ConDump_f
 */
 void Con_ConDump_f (void)
 {
-	char	name[MAX_OSPATH];
 	char	buffer[1024];
-	FILE	*f;
+	qfile_t	*f;
 	int		i, x, linewidth;
 	char	*line;
 
@@ -232,14 +231,9 @@ void Con_ConDump_f (void)
 	if (strstr(Cmd_Argv(1), ".."))
 		return;
 
-	Q_snprintfz (name, sizeof(name), "%s/%s", cls.gamedir, Cmd_Argv(1));
-	COM_ForceExtension (name, ".txt");
-
-	f = fopen (name, "wb");
-	if (!f) {
-		Com_Printf ("Couldn't open %s\n", name);
+	f = FS_Open (Cmd_Argv(1), "wb", true, false);
+	if (!f)
 		return;
-	}
 
 	linewidth = min (con_linewidth, sizeof(buffer)-1);
 	buffer[linewidth] = 0;
@@ -259,11 +253,11 @@ void Con_ConDump_f (void)
 			if ((unsigned char)buffer[x] >= 128 + 32)
 				buffer[x] &= 0x7f;	// strip high bit off ASCII chars
 
-		fprintf (f, "%s\n", buffer);
+		FS_Printf (f, "%s\n", buffer);
 	}
 
-	fclose (f);
-	Com_Printf ("Dumped console text to %s.\n", name);
+	FS_Close (f);
+	Com_Printf ("Dumped console text to %s.\n", Cmd_Argv(1));
 }
 
 

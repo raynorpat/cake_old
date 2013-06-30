@@ -63,7 +63,7 @@ void CL_StopPlayback (void)
 		return;
 
 	if (cls.demofile)
-		fclose (cls.demofile);
+		FS_Close (cls.demofile);
 	cls.demofile = NULL;
 	cls.demoplayback = false;
 	cls.nqprotocol = false;
@@ -97,10 +97,10 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 //Com_Printf ("write: %ld bytes, %4.4f\n", msg->cursize, cls.realtime);
 
 	fl = LittleFloat((float)cls.realtime);
-	fwrite (&fl, sizeof(fl), 1, cls.demofile);
+	FS_Write (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_cmd;
-	fwrite (&c, sizeof(c), 1, cls.demofile);
+	FS_Write (cls.demofile, &c, sizeof(c));
 
 	// correct for byte order, bytes don't matter
 	cmd = *pcmd;
@@ -111,14 +111,12 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	cmd.sidemove    = LittleShort(cmd.sidemove);
 	cmd.upmove      = LittleShort(cmd.upmove);
 
-	fwrite(&cmd, sizeof(cmd), 1, cls.demofile);
+	FS_Write(cls.demofile, &cmd, sizeof(cmd));
 
 	t[0] = LittleFloat (cl.viewangles[0]);
 	t[1] = LittleFloat (cl.viewangles[1]);
 	t[2] = LittleFloat (cl.viewangles[2]);
-	fwrite (t, 12, 1, cls.demofile);
-
-	fflush (cls.demofile);
+	FS_Write (cls.demofile, t, 12);
 }
 
 /*
@@ -140,23 +138,21 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 		return;
 
 	fl = LittleFloat((float)cls.realtime);
-	fwrite (&fl, sizeof(fl), 1, cls.demofile);
+	FS_Write (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_read;
-	fwrite (&c, sizeof(c), 1, cls.demofile);
+	FS_Write (cls.demofile, &c, sizeof(c));
 
 	len = LittleLong (msg->cursize);
-	fwrite (&len, 4, 1, cls.demofile);
-	fwrite (msg->data, msg->cursize, 1, cls.demofile);
-
-	fflush (cls.demofile);
+	FS_Write (cls.demofile, &len, 4);
+	FS_Write (cls.demofile, msg->data, msg->cursize);
 }
 
 /*
 ====================
 CL_GetDemoMessage
 
-  FIXME...
+FIXME...
 ====================
 */
 qbool CL_GetDemoMessage (void)
@@ -179,13 +175,13 @@ readnext:
 	// read the time from the packet
 #ifdef MVDPLAY
 	if (cls.mvdplayback) {
-		fread(&msec, sizeof(msec), 1, cls.demofile);
+		FS_Read(cls.demofile, &msec, sizeof(msec));
 		demotime = cls.mvd_newtime + msec * 0.001;
 	}
 	else
 #endif
 	{
-		fread(&demotime, sizeof(demotime), 1, cls.demofile);
+		FS_Read(cls.demofile, &demotime, sizeof(demotime));
 		demotime = LittleFloat(demotime);
     }
 
@@ -198,12 +194,10 @@ readnext:
 			// rewind back to time
 #ifdef MVDPLAY
 			if (cls.mvdplayback) {
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msec),
-					SEEK_SET);
+				FS_Seek(cls.demofile, FS_Tell(cls.demofile) - sizeof(msec), SEEK_SET);
 			} else 
 #endif
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
-					SEEK_SET);
+				FS_Seek(cls.demofile, FS_Tell(cls.demofile) - sizeof(demotime), SEEK_SET);
 			return false;	// already read this frame's message
 		}
 		if (!cls.td_starttime && cls.state == ca_active) {
@@ -216,8 +210,7 @@ readnext:
 		if (cls.mvdplayback)
 		{
 			if (msec/* a hack! */ && cls.demotime < cls.mvd_newtime) {
-				fseek(cls.demofile, ftell(cls.demofile) - sizeof(msec),
-					SEEK_SET);
+				FS_Seek(cls.demofile, FS_Tell(cls.demofile) - sizeof(msec), SEEK_SET);
 				return false;
 			}
 		}
@@ -227,8 +220,7 @@ readnext:
             if (cls.demotime + 1.0 < demotime)
                 cls.demotime = demotime - 1.0; // too far back
 			// rewind back to time
-			fseek(cls.demofile, ftell(cls.demofile) - sizeof(demotime),
-					SEEK_SET);
+			FS_Seek(cls.demofile, FS_Tell(cls.demofile) - sizeof(demotime), SEEK_SET);
 			return false;		// don't need another message yet
 		}
 	} else
@@ -240,7 +232,7 @@ readnext:
 	{
 		if (msec)
 		{
-			void CL_ParseClientdata ();
+			extern void CL_ParseClientdata ();
 
 			cls.mvd_oldtime = cls.mvd_newtime;
 			cls.mvd_newtime = demotime;
@@ -256,8 +248,8 @@ readnext:
 		Host_Error ("CL_GetDemoMessage: cls.state < ca_demostart");
 	
 	// get the msg type
-	r = fread (&c, sizeof(c), 1, cls.demofile);
-	if (r != 1)
+	r = FS_Read (cls.demofile, &c, sizeof(c));
+	if (r == 0)
 		Host_Error ("Unexpected end of demo");
 	
 #ifdef MVDPLAY
@@ -269,8 +261,8 @@ readnext:
 		// user sent input
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 		pcmd = &cl.frames[i].cmd;
-		r = fread (pcmd, sizeof(*pcmd), 1, cls.demofile);
-		if (r != 1)
+		r = FS_Read (cls.demofile, pcmd, sizeof(*pcmd));
+		if (r == 0)
 			Host_Error ("Unexpected end of demo");
 		// byte order stuff
 		for (j = 0; j < 3; j++)
@@ -282,7 +274,7 @@ readnext:
 		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 		cls.netchan.outgoing_sequence++;
 
-		fread (cl.viewangles, 12, 1, cls.demofile);
+		FS_Read (cls.demofile, cl.viewangles, 12);
 		for (i = 0; i < 3; i++)
 			cl.viewangles[i] = LittleFloat (cl.viewangles[i]);
 		if (cl.spectator)
@@ -294,12 +286,12 @@ readnext:
 readit:
 #endif
 		// get the next message
-		fread (&net_message.cursize, 4, 1, cls.demofile);
+		FS_Read (cls.demofile, &net_message.cursize, 4);
 		net_message.cursize = LittleLong (net_message.cursize);
 		if (net_message.cursize > MAX_BIG_MSGLEN)
 			Host_Error ("Demo message > MAX_BIG_MSGLEN");
-		r = fread (net_message.data, net_message.cursize, 1, cls.demofile);
-		if (r != 1)
+		r = FS_Read (cls.demofile, net_message.data, net_message.cursize);
+		if (r == 0)
 			Host_Error ("Unexpected end of demo");
 
 #ifdef MVDPLAY
@@ -320,9 +312,9 @@ readit:
 		return true;
 
 	case dem_set:
-		fread (&i, 4, 1, cls.demofile);
+		FS_Read (cls.demofile, &i, 4);
 		cls.netchan.outgoing_sequence = LittleLong(i);
-		fread (&i, 4, 1, cls.demofile);
+		FS_Read (cls.demofile, &i, 4);
 		cls.netchan.incoming_sequence = LittleLong(i);
 #ifdef MVDPLAY
 		if (cls.mvdplayback)
@@ -332,8 +324,8 @@ readit:
 
 #ifdef MVDPLAY
 	case dem_multiple:
-		r = fread (&i, 4, 1, cls.demofile);
-		if (r != 1)
+		r = FS_Read (cls.demofile, &i, 4);
+		if (r == 0)
 			Host_Error ("Unexpected end of demo");
 		cls.mvd_lastto = LittleLong(i);
 		cls.mvd_lasttype = dem_multiple;
@@ -384,7 +376,7 @@ void CL_Stop_f (void)
 	CL_WriteDemoMessage (&net_message);
 
 // finish up
-	fclose (cls.demofile);
+	FS_Close (cls.demofile);
 	cls.demofile = NULL;
 	cls.demorecording = false;
 	Com_Printf ("Completed demo\n");
@@ -409,21 +401,19 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 		return;
 
 	fl = LittleFloat((float)cls.realtime);
-	fwrite (&fl, sizeof(fl), 1, cls.demofile);
+	FS_Write (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_read;
-	fwrite (&c, sizeof(c), 1, cls.demofile);
+	FS_Write (cls.demofile, &c, sizeof(c));
 
 	len = LittleLong (msg->cursize + 8);
-	fwrite (&len, 4, 1, cls.demofile);
+	FS_Write (cls.demofile, &len, 4);
 
 	i = LittleLong(seq);
-	fwrite (&i, 4, 1, cls.demofile);
-	fwrite (&i, 4, 1, cls.demofile);
+	FS_Write (cls.demofile, &i, 4);
+	FS_Write (cls.demofile, &i, 4);
 
-	fwrite (msg->data, msg->cursize, 1, cls.demofile);
-
-	fflush (cls.demofile);
+	FS_Write (cls.demofile, msg->data, msg->cursize);
 }
 
 
@@ -439,17 +429,15 @@ void CL_WriteSetDemoMessage (void)
 		return;
 
 	fl = LittleFloat((float)cls.realtime);
-	fwrite (&fl, sizeof(fl), 1, cls.demofile);
+	FS_Write (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_set;
-	fwrite (&c, sizeof(c), 1, cls.demofile);
+	FS_Write (cls.demofile, &c, sizeof(c));
 
 	len = LittleLong(cls.netchan.outgoing_sequence);
-	fwrite (&len, 4, 1, cls.demofile);
+	FS_Write (cls.demofile, &len, 4);
 	len = LittleLong(cls.netchan.incoming_sequence);
-	fwrite (&len, 4, 1, cls.demofile);
-
-	fflush (cls.demofile);
+	FS_Write (cls.demofile, &len, 4);
 }
 
 
@@ -466,8 +454,7 @@ static char *TrimModelName (char *full)
 		strlcpy (shortn, full, sizeof(shortn));
 
 	len = strlen(shortn);
-	if (len > 4 && !strcmp(shortn + len - 4, ".mdl")
-		&& strchr(shortn, '.') == shortn + len - 4)
+	if (len > 4 && !strcmp(shortn + len - 4, ".mdl") && strchr(shortn, '.') == shortn + len - 4)
 	{	// strip .mdl
 		shortn[len - 4] = '\0';
 	}
@@ -513,7 +500,8 @@ static void CL_Record (void)
 	MSG_WriteByte (&buf, svc_serverdata);
 	MSG_WriteLong (&buf, PROTOCOL_VERSION);
 	MSG_WriteLong (&buf, cl.servercount);
-	MSG_WriteString (&buf, cls.gamedirfile);
+
+	MSG_WriteString (&buf, cls.gamedir);
 
 	if (cl.spectator)
 		MSG_WriteByte (&buf, cl.playernum | 128);
@@ -801,14 +789,11 @@ void CL_Record_f (void)
 	if (cls.demorecording)
 		CL_Stop_f();
   
-	snprintf (name, sizeof(name), "%s/%s", cls.gamedir, Cmd_Argv(1));
+	// open the demo file
+	strlcpy (name, Cmd_Argv(1), sizeof (name));
+	FS_DefaultExtension (name, ".qwd", sizeof (name));
 
-//
-// open the demo file
-//
-	COM_ForceExtension (name, ".qwd");
-
-	cls.demofile = fopen (name, "wb");
+	cls.demofile = FS_Open (name, "wb", false, false);
 	if (!cls.demofile)
 	{
 		Com_Printf ("ERROR: couldn't open.\n");
@@ -857,7 +842,7 @@ void CheckQizmoCompletion (void)
 	
 	qwz_unpacking = false;
 	
-	cls.demofile = fopen (tempqwd_name, "rb");
+	cls.demofile = FS_Open (tempqwd_name, "rb", false, false);
 	if (!cls.demofile) {
 		Com_Printf ("Couldn't open %s\n", tempqwd_name);
 		qwz_playback = false;
@@ -901,7 +886,7 @@ void PlayQWZDemo (void)
 	name = Cmd_Argv(1);
 
 	if (!strncmp(name, "../", 3) || !strncmp(name, "..\\", 3))
-		strlcpy (qwz_name, va("%s/%s", com_basedir, name+3), sizeof(qwz_name));
+		strlcpy (qwz_name, va("%s/%s", fs_basedir, name+3), sizeof(qwz_name));
 	else
 		if (name[0] == '/' || name[0] == '\\')
 			strlcpy (qwz_name, va("%s/%s", cls.gamedir, name+1), sizeof(qwz_name));
@@ -913,13 +898,13 @@ void PlayQWZDemo (void)
 	qwz_name[sizeof(qwz_name)-1] = 0;
 
 	// check if the file exists
-	cls.demofile = fopen (qwz_name, "rb");
+	cls.demofile = FS_Open (qwz_name, "rb", false, false);
 	if (!cls.demofile)
 	{
 		Com_Printf ("Couldn't open %s\n", name);
 		return;
 	}
-	fclose (cls.demofile);
+	FS_Close (cls.demofile);
 	
 	strlcpy (tempqwd_name, qwz_name, sizeof(tempqwd_name)-4);
 #if 0
@@ -935,7 +920,7 @@ void PlayQWZDemo (void)
 	strcpy (p, ".qwd");
 #endif
 
-	cls.demofile = fopen (tempqwd_name, "rb");
+	cls.demofile = FS_Open (tempqwd_name, "rb", false, false);
 	if (cls.demofile) {
 		// .qwd already exists, so just play it
 		cls.demoplayback = true;
@@ -945,7 +930,7 @@ void PlayQWZDemo (void)
 		return;
 	}
 	
-	Com_Printf ("Unpacking %s...\n", COM_SkipPath(name));
+	Com_Printf ("Unpacking %s...\n", name);
 	
 	// start Qizmo to unpack the demo
 	memset (&si, 0, sizeof(si));
@@ -953,15 +938,15 @@ void PlayQWZDemo (void)
 	si.wShowWindow = SW_HIDE;
 	si.dwFlags = STARTF_USESHOWWINDOW;
 	
-	strlcpy (cmdline, va("%s/%s/qizmo.exe -q -u -D \"%s\"", com_basedir,
+	strlcpy (cmdline, va("%s/%s/qizmo.exe -q -u -D \"%s\"", fs_basedir,
 		qizmo_dir.string, qwz_name), sizeof(cmdline));
 	
 	if (!CreateProcess (NULL, cmdline, NULL, NULL,
 		FALSE, 0/* | HIGH_PRIORITY_CLASS*/,
-		NULL, va("%s/%s", com_basedir, qizmo_dir.string), &si, &pi))
+		NULL, va("%s/%s", fs_basedir, qizmo_dir.string), &si, &pi))
 	{
 		Com_Printf ("Couldn't execute %s/%s/qizmo.exe\n",
-			com_basedir, qizmo_dir.string);
+			fs_basedir, qizmo_dir.string);
 		return;
 	}
 	
@@ -1015,8 +1000,8 @@ void CL_PlayDemo_f (void)
 	}
 #endif
 
-	if (COM_FileExtension(name)[0] == 0) {
-		COM_DefaultExtension (name, ".qwd");
+	if (FS_FileExtension(name)[0] == 0) {
+		FS_DefaultExtension (name, ".qwd", sizeof(name));
 		try_dem = true;		// if we can't open the .qwd, try .dem also
 	}
 	else
@@ -1024,12 +1009,12 @@ void CL_PlayDemo_f (void)
 
 try_again:
 	if (!strncmp(name, "../", 3) || !strncmp(name, "..\\", 3))
-		cls.demofile = fopen (va("%s/%s", com_basedir, name+3), "rb");
+		cls.demofile = FS_Open (va("%s/%s", fs_basedir, name+3), "rb", false, false);
 	else
-		FS_FOpenFile (name, &cls.demofile);
+		cls.demofile = FS_Open (name, "rb", false, false);
 
 	if (!cls.demofile && try_dem) {
-		COM_StripExtension (name, name);
+		FS_StripExtension (name, name, sizeof(name));
 		strcat (name, ".dem");
 		try_dem = false;
 		goto try_again;
@@ -1041,15 +1026,15 @@ try_again:
 		return;
 	}
 
-	Com_Printf ("Playing demo from %s.\n", COM_SkipPath(name));
+	Com_Printf ("Playing demo from %s.\n", name);
 
-	cls.nqprotocol = !Q_stricmp(COM_FileExtension(name), "dem");
+	cls.nqprotocol = !Q_stricmp(FS_FileExtension(name), "dem");
 	if (cls.nqprotocol) {
 		NQD_StartPlayback ();
 	}
 
 #ifdef MVDPLAY
-	cls.mvdplayback = !Q_stricmp(COM_FileExtension(name), "mvd");
+	cls.mvdplayback = !Q_stricmp(FS_FileExtension(name), "mvd");
 #endif
 
 	cls.demoplayback = true;

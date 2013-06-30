@@ -56,7 +56,7 @@ static void SCR_StopCinematic (void)
 	}
 	if (cl.cin.cinematic_file)
 	{
-		fclose (cl.cin.cinematic_file);
+		FS_Close (cl.cin.cinematic_file);
 		cl.cin.cinematic_file = NULL;
 	}
 	if (cl.cin.hnodes1)
@@ -137,7 +137,7 @@ static void Huff1TableInit (void)
 		memset (cl.cin.h_used,0,sizeof(cl.cin.h_used));
 
 		// read a row of counts
-		fread (counts, 1, sizeof(counts), cl.cin.cinematic_file);
+		FS_Read (cl.cin.cinematic_file, counts, sizeof(counts));
 		for (j=0 ; j<256 ; j++)
 			cl.cin.h_count[j] = counts[j];
 
@@ -311,11 +311,11 @@ static byte *SCR_ReadNextFrame (void)
 	int		start, end, count;
 
 	// read the next frame
-	r = fread (&command, 4, 1, cl.cin.cinematic_file);
+	r = FS_Read (cl.cin.cinematic_file, &command, 4);
 	if (r == 0)	// we'll give it one more chance
-		r = fread (&command, 4, 1, cl.cin.cinematic_file);
+		r = FS_Read (cl.cin.cinematic_file, &command, 4);
 
-	if (r != 1)
+	if (r == 0)
 		return NULL;
 	command = LittleLong(command);
 	if (command == 2)
@@ -324,23 +324,23 @@ static byte *SCR_ReadNextFrame (void)
 	if (command == 1)
 	{
 		// read palette
-		fread (cl.cin.cinematicpalette, 1, sizeof(cl.cin.cinematicpalette), cl.cin.cinematic_file);
+		FS_Read (cl.cin.cinematic_file, cl.cin.cinematicpalette, sizeof(cl.cin.cinematicpalette));
 		cl.cin.cinematicpalette_active = false;	// dubious....  exposes an edge case
 	}
 
 	// decompress the next frame
-	fread (&size, 1, 4, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, &size, 4);
 	size = LittleLong(size);
 	if (size > sizeof(compressed) || size < 1)
 		Host_Error ("Bad compressed frame size");
-	fread (compressed, 1, size, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, compressed, size);
 
 	// read sound
 	start = cl.cin.cinematicframe*cl.cin.s_rate/14;
 	end = (cl.cin.cinematicframe+1)*cl.cin.s_rate/14;
 	count = end - start;
 
-	fread (samples, 1, count*cl.cin.s_width*cl.cin.s_channels, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, samples, count*cl.cin.s_width*cl.cin.s_channels);
 
 	S_RawSamples (count, cl.cin.s_rate, cl.cin.s_width, cl.cin.s_channels, samples);
 
@@ -393,7 +393,7 @@ void SCR_RunCinematic (void)
 
 		if (frame > cl.cin.cinematicframe + 1)
 		{
-			Com_Printf ("Dropped frame: %i > %i\n", frame, cl.cin.cinematicframe + 1);
+			Com_DPrintf ("Dropped frame: %i > %i\n", frame, cl.cin.cinematicframe + 1);
 			cl.cin.cinematictime = cls.realtime * 1000 - cl.cin.cinematicframe * 1000 / 14;
 		}
 
@@ -444,7 +444,7 @@ static void SCR_PlayCinematic (char *name)
 
 	cl.cin.cinematicframe = 0;
 
-	FS_FOpenFile (name, &cl.cin.cinematic_file);
+	cl.cin.cinematic_file = FS_Open (name, "rb", false, false);
 	if (!cl.cin.cinematic_file)
 	{
 //		Host_Error ("Cinematic %s not found.\n", name);
@@ -454,16 +454,16 @@ static void SCR_PlayCinematic (char *name)
 
 	SCR_EndLoadingPlaque ();
 
-	fread (&width, 1, 4, cl.cin.cinematic_file);
-	fread (&height, 1, 4, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, &width, 4);
+	FS_Read (cl.cin.cinematic_file, &height, 4);
 	cl.cin.width = LittleLong(width);
 	cl.cin.height = LittleLong(height);
 
-	fread (&cl.cin.s_rate, 1, 4, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, &cl.cin.s_rate, 4);
 	cl.cin.s_rate = LittleLong(cl.cin.s_rate);
-	fread (&cl.cin.s_width, 1, 4, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, &cl.cin.s_width, 4);
 	cl.cin.s_width = LittleLong(cl.cin.s_width);
-	fread (&cl.cin.s_channels, 1, 4, cl.cin.cinematic_file);
+	FS_Read (cl.cin.cinematic_file, &cl.cin.s_channels, 4);
 	cl.cin.s_channels = LittleLong(cl.cin.s_channels);
 
 	Huff1TableInit ();

@@ -220,7 +220,7 @@ void Cvar_SetValue (cvar_t *var, float value)
 	char	val[128];
 	int	i;
 	
-	Q_snprintfz (val, sizeof(val), "%f", value);
+	Q_snprintf (val, sizeof(val), "%f", value);
 
 	for (i=strlen(val)-1 ; i>0 && val[i]=='0' ; i--)
 		val[i] = 0;
@@ -337,19 +337,19 @@ Writes lines containing "set variable value" for all variables
 with the archive flag set to true.
 ============
 */
-void Cvar_WriteVariables (FILE *f)
+void Cvar_WriteVariables (qfile_t *f)
 {
 	cvar_t	*var;
 
 	// write builtin cvars in a QW compatible way
 	for (var = cvar_vars ; var ; var = var->next)
 		if (var->flags & CVAR_ARCHIVE)
-			fprintf (f, "%s \"%s\"\n", var->name, var->string);
+			FS_Printf (f, "%s \"%s\"\n", var->name, var->string);
 
 	// write everything else
 	for (var = cvar_vars ; var ; var = var->next)
 		if (var->flags & CVAR_USER_ARCHIVE)
-			fprintf (f, "seta %s \"%s\"\n", var->name, var->string);
+			FS_Printf (f, "seta %s \"%s\"\n", var->name, var->string);
 }
 
 

@@ -31,7 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4201 4244 4127 4201 4214 4514 4305 4115 4018 4996 )
-#define strcasecmp _stricmp 
+#define strcasecmp _stricmp
+#define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #endif
 
@@ -39,9 +40,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define inline __inline
 #define HAVE_INLINE
 #endif
-
-#include "sys.h"
-#include "mathlib.h"
 
 #undef gamma	// math.h defines this
 
@@ -80,6 +78,9 @@ typedef enum {false, true} qbool;
 #define bound(a,b,c) ((a) >= (c) ? (a) : \
 					(b) < (a) ? (a) : (b) > (c) ? (c) : (b))
 
+#include "sys.h"
+#include "mathlib.h"
+
 //============================================================================
 
 #define	MAX_QPATH			64			// max length of a quake game pathname
@@ -110,25 +111,63 @@ void SZ_Print (sizebuf_t *buf, const char *data);	// strcats onto the sizebuf
 
 //============================================================================
 
-short	ShortSwap (short l);
-int		LongSwap (int l);
-float	FloatSwap (float f);
+// We use BSD-style defines: BYTE_ORDER is defined to either BIG_ENDIAN or LITTLE_ENDIAN
 
-#ifdef BIGENDIAN
-#define BigShort(x) (x)
-#define BigLong(x) (x)
-#define BigFloat(x) (x)
-#define LittleShort(x) ShortSwap (x)
-#define LittleLong(x) LongSwap(x)
-#define LittleFloat(x) FloatSwap(x)
-#else
-#define BigShort(x) ShortSwap (x)
-#define BigLong(x) LongSwap(x)
-#define BigFloat(x) FloatSwap(x)
-#define LittleShort(x) (x)
-#define LittleLong(x) (x)
-#define LittleFloat(x) (x)
+// Initializations
+#if !defined(BYTE_ORDER) || !defined(LITTLE_ENDIAN) || !defined(BIG_ENDIAN) || (BYTE_ORDER != LITTLE_ENDIAN && BYTE_ORDER != BIG_ENDIAN)
+# undef BYTE_ORDER
+# undef LITTLE_ENDIAN
+# undef BIG_ENDIAN
+# define LITTLE_ENDIAN 1234
+# define BIG_ENDIAN 4321
 #endif
+
+// If we still don't know the CPU endianess at this point, we try to guess
+// normally including sys/types.h includes endian.h for the platform, which defines BYTE_ORDER, LITTLE_ENDIAN, and BIG_ENDIAN, however endian.h is a BSD-ism, and may not be present on all platforms (particularly windows)
+#ifndef BYTE_ORDER
+# if defined(WIN32) || defined (__i386) || defined(__amd64)
+#  define BYTE_ORDER LITTLE_ENDIAN
+# else
+#  if defined(SUNOS)
+#   if defined(__i386) || defined(__amd64)
+#    define BYTE_ORDER LITTLE_ENDIAN
+#   else
+#    define BYTE_ORDER BIG_ENDIAN
+#   endif
+#  else
+#   warning "Unable to determine the CPU endianess. Defaulting to little endian"
+#   define BYTE_ORDER LITTLE_ENDIAN
+#  endif
+# endif
+#endif
+
+
+short ShortSwap (short l);
+int LongSwap (int l);
+float FloatSwap (float f);
+
+#if BYTE_ORDER == LITTLE_ENDIAN
+// little endian
+#define BigShort(l) ShortSwap(l)
+#define LittleShort(l) (l)
+#define BigLong(l) LongSwap(l)
+#define LittleLong(l) (l)
+#define BigFloat(l) FloatSwap(l)
+#define LittleFloat(l) (l)
+#else
+// big endian
+#define BigShort(l) (l)
+#define LittleShort(l) ShortSwap(l)
+#define BigLong(l) (l)
+#define LittleLong(l) LongSwap(l)
+#define BigFloat(l) (l)
+#define LittleFloat(l) FloatSwap(l)
+#endif
+
+unsigned int BuffBigLong (const unsigned char *buffer);
+unsigned short BuffBigShort (const unsigned char *buffer);
+unsigned int BuffLittleLong (const unsigned char *buffer);
+unsigned short BuffLittleShort (const unsigned char *buffer);
 
 //============================================================================
 
@@ -154,8 +193,9 @@ char *Q_ftos (float value);		// removes trailing zero chars
 
 size_t strlcpy (char *dst, const char *src, size_t size);
 size_t strlcat (char *dst, const char *src, size_t size);
-int snprintf(char *buffer, size_t count, char const *format, ...);
-#define Q_snprintfz snprintf 	// nuke this one day
+
+int Q_snprintf (char *buffer, size_t buffersize, const char *format, ...);
+int Q_vsnprintf (char *buffer, size_t buffersize, const char *format, va_list args);
 
 qbool Q_glob_match (const char *pattern, const char *text);
 

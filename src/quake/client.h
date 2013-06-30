@@ -34,7 +34,7 @@ typedef struct
 
 typedef struct
 {
-	FILE		*cinematic_file;
+	qfile_t		*cinematic_file;
 	int			cinematictime;		// cls.realtime for first cinematic frame
 	int			cinematicframe;
 	byte		cinematicpalette[768];
@@ -240,11 +240,10 @@ typedef struct
 // private userinfo for sending to masterless servers
 	char		userinfo[MAX_INFO_STRING];
 
-// on a local server these may differ from com_gamedirfile and com_gamedir
-	char		gamedirfile[MAX_QPATH];
+// on a local server this may differ from fs_gamedir
 	char		gamedir[MAX_OSPATH];
 
-	FILE		*download;		// file transfer from server
+	qfile_t		*download;		// file transfer from server
 	char		downloadtempname[MAX_OSPATH];
 	char		downloadname[MAX_OSPATH];
 	int			downloadnumber;
@@ -271,7 +270,7 @@ typedef struct
 	float		mvd_newtime;
 	float		mvd_oldtime;
 #endif
-	FILE		*demofile;
+	qfile_t		*demofile;
 	byte		demomessage_data[MAX_MSGLEN * 2 /* FIXME */];
 	sizebuf_t	demomessage;
 	qbool		demomessage_skipwrite;
@@ -306,7 +305,6 @@ typedef struct
 	int			deathmatch;
 	int			teamplay;
 	int			gametype;		// GAME_COOP or GAME_DEATHMATCH
-	qbool		teamfortress;	// true if gamedir is "fortress"
 	int			fpd;			// FAQ proxy flags
 	int			z_ext;			// ZQuake protocol extensions flags
 #ifdef VWEP_TEST
@@ -531,10 +529,6 @@ void CL_ParseServerMessage (void);
 void CL_NewTranslation (int slot);
 void CL_UpdateSkins(void);
 qbool CL_CheckOrDownloadFile (char *filename);
-qbool CL_IsUploading (void);
-void CL_NextUpload (void);
-void CL_StartUpload (byte *data, int size);
-void CL_StopUpload (void);
 void CL_ParseParticleEffect (void);
 
 
@@ -559,7 +553,6 @@ void R_ColorLightningLight (cdlight_t *dl);
 
 void CL_ClearParticles (void);
 void CL_LinkParticles (void);
-void CL_ReadPointFile_f (void);
 
 void CL_BlobExplosion (vec3_t org);
 void CL_ParticleExplosion (vec3_t org);

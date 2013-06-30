@@ -747,7 +747,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 	if (glt->source_file[0] && glt->source_offset)
 	{
 		// lump inside file
-		data = FS_LoadHunkFile (glt->source_file);
+		data = FS_LoadFile (glt->source_file, true, NULL);
 
 		if (!data)
 			goto invalid;
@@ -857,16 +857,16 @@ static void TexMgr_LoadPalette (void)
 {
 	byte *pal, *src, *dst;
 	int i, mark;
-	FILE *f;
+	qfile_t *f;
 
-	FS_FOpenFile ("gfx/palette.lmp", &f);
+	f = FS_Open ("gfx/palette.lmp", "rb", false, false);
 	if (!f)
 		Sys_Error ("Couldn't load gfx/palette.lmp");
 
 	mark = Hunk_LowMark ();
 	pal = Hunk_Alloc (768);
-	fread (pal, 1, 768, f);
-	fclose(f);
+	FS_Read (f, pal, 768);
+	FS_Close(f);
 
 	// standard palette, 255 is transparent
 	dst = (byte *) d_8to24table;

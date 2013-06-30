@@ -149,7 +149,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	clc_stringcmd	4		// [string] message
 #define	clc_delta		5		// [byte] sequence number, requests delta compression of message
 #define clc_tmove		6		// teleport request, spectator only
-#define clc_upload		7		// teleport request, spectator only
+//#define clc_upload		7
 
 
 //==============================================

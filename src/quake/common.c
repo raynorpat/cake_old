@@ -38,152 +38,73 @@ void OnChange_logfile_var (cvar_t *var, char *string, qbool *cancel);
 cvar_t	logfile_var = {"logfile", "0", 0, OnChange_logfile_var};
 FILE	*logfile;
 
-void COM_Path_f (void);
+gamemode_t gamemode;
+const char *gamename;
+const char *gamedirname1;
+const char *gamedirname2;
+const char *gamescreenshotname;
+const char *gameuserdirname;
+char com_modname[MAX_OSPATH] = "";
 
-char	com_gamedirfile[MAX_QPATH];
+//===========================================================================
 
-//============================================================================
+// Game mods
 
-
-/*
-============
-COM_SkipPath
-============
-*/
-char *COM_SkipPath (char *pathname)
+typedef struct gamemode_info_s
 {
-	char	*last;
-	
-	last = pathname;
-	while (*pathname)
-	{
-		if (*pathname=='/')
-			last = pathname+1;
-		pathname++;
-	}
-	return last;
-}
+	const char* prog_name;
+	const char* cmdline;
+	const char* gamename;
+	const char* gamedirname1;
+	const char* gamedirname2;
+	const char* gamescreenshotname;
+	const char* gameuserdirname;
+} gamemode_info_t;
 
-/*
-============
-COM_StripExtension
-============
-*/
-void COM_StripExtension (char *in, char *out)
+static const gamemode_info_t gamemode_info [] =
+{// prog_name		cmdline			gamename		gamedirname		gamedirname2	gamescreenshotname	gameuserdirname
+
+// GAME_NORMAL
+// COMMANDLINEOPTION: Game: -quake runs the game Quake (default)
+{ "",				"-quake",		"Quake",		"id1",		NULL,			"q",			"cake" },
+// GAME_HIPNOTIC
+// COMMANDLINEOPTION: Game: -hipnotic runs Quake mission pack 1: The Scourge of Armagon
+{ "hipnotic",		"-hipnotic",	"Hipnotic",		"id1",		"hipnotic",		"q",			"cake" },
+// GAME_ROGUE
+// COMMANDLINEOPTION: Game: -rogue runs Quake mission pack 2: The Dissolution of Eternity
+{ "rogue",			"-rogue",		"Rogue",		"id1",		"rogue",		"q",			"cake" },
+};
+
+void COM_InitGameType (void)
 {
-	char *p, *dot = NULL;
-	for (p = in; *p; p++) {
-		if (*p == '.' && !dot)
-			dot = p;
-		else if (*p == '/')
-			dot = NULL;
-	}
-	while (*in && in != dot)
-		*out++ = *in++;
-	*out = 0;
-}
+	char name [MAX_OSPATH];
+	unsigned int i;
 
-/*
-============
-COM_FileExtension
-============
-*/
-char *COM_FileExtension (char *in)
-{
-	static char exten[8];
-	int		i;
+	FS_StripExtension (com_argv[0], name, sizeof (name));
+	COM_ToLowerString (name, name, sizeof (name));
 
-	in = strrchr(in, '.');
-	if (!in || strchr(in, '/'))
-		return "";
-	in++;
-	for (i=0 ; i<7 && *in ; i++,in++)
-		exten[i] = *in;
-	exten[i] = 0;
-	return exten;
-}
-
-/*
-============
-COM_FileBase
-
-Extract file name without extension, to be used for hunk tags
-(up to 32 characters, including trailing zero)
-============
-*/
-void COM_FileBase (char *in, char *out)
-{
-	char *p, *start, *end;
-	int	length;
-
-	end = in + strlen(in);
-	start = in;
-
-	for (p = end-1 ; p > in ; p--)
-	{
-		if (*p == '.')
-			end = p;
-		else if (*p == '/')
+	// Check the binary name; default to GAME_NORMAL (0)
+	gamemode = GAME_NORMAL;
+	for (i = 1; i < sizeof (gamemode_info) / sizeof (gamemode_info[0]); i++)
+		if (strstr (name, gamemode_info[i].prog_name))
 		{
-			start = p + 1;
+			gamemode = (gamemode_t)i;
 			break;
 		}
-	}
-	
-	length = end - start;
-	if (length <= 0)
-		strcpy (out, "?empty filename?");
-	else
-	{
-		if (length > 31)
-			length = 31;
-		memcpy (out, start, length);
-		out[length] = 0;
-	}
-}
 
-/*
-==================
-COM_DefaultExtension
+	// Look for a command-line option
+	for (i = 0; i < sizeof (gamemode_info) / sizeof (gamemode_info[0]); i++)
+		if (COM_CheckParm ((char *)gamemode_info[i].cmdline))
+		{
+			gamemode = (gamemode_t)i;
+			break;
+		}
 
-If path doesn't have a .EXT, append extension
-(extension should include the .)
-==================
-*/
-void COM_DefaultExtension (char *path, char *extension)
-{
-	char    *src;
-
-	src = path + strlen(path) - 1;
-
-	while (*src != '/' && src != path)
-	{
-		if (*src == '.')
-			return;                 // it has an extension
-		src--;
-	}
-
-	strlcat (path, extension, MAX_OSPATH);
-}
-
-/*
-==================
-COM_ForceExtension
-
-If path doesn't have an extension or has a different extension,
-append(!) specified extension
-Extension should include the .
-==================
-*/
-void COM_ForceExtension (char *path, char *extension)
-{
-	char    *src;
-
-	src = path + strlen(path) - strlen(extension);
-	if (src >= path && !strcmp(src, extension))
-		return;
-
-	strlcat (path, extension, MAX_OSPATH);
+	gamename = gamemode_info[gamemode].gamename;
+	gamedirname1 = gamemode_info[gamemode].gamedirname1;
+	gamedirname2 = gamemode_info[gamemode].gamedirname2;
+	gamescreenshotname = gamemode_info[gamemode].gamescreenshotname;
+	gameuserdirname = gamemode_info[gamemode].gameuserdirname;
 }
 
 //============================================================================
@@ -267,26 +188,212 @@ skipwhite:
 	return data;
 }
 
-
 /*
-================
-COM_CheckRegistered
+==============
+COM_ParseToken
 
-Checks the existence of gfx/pop.lmp file.
-Sets the "registered" cvar.
-================
+Parse a token out of a string
+==============
 */
-void COM_CheckRegistered (void)
+int COM_ParseToken(const char **datapointer, int returnnewline)
 {
-	FILE		*h;
+	int len;
+	const char *data = *datapointer;
 
-	FS_FOpenFile ("gfx/pop.lmp", &h);
+	len = 0;
+	com_token[0] = 0;
 
-	if (h) {
-		Cvar_Set (&registered, "1");
-		fclose (h);
+	if (!data)
+	{
+		*datapointer = NULL;
+		return false;
+	}
+
+// skip whitespace
+skipwhite:
+	// line endings:
+	// UNIX: \n
+	// Mac: \r
+	// Windows: \r\n
+	for (;*data <= ' ' && ((*data != '\n' && *data != '\r') || !returnnewline);data++)
+	{
+		if (*data == 0)
+		{
+			// end of file
+			*datapointer = NULL;
+			return false;
+		}
+	}
+
+	// handle Windows line ending
+	if (data[0] == '\r' && data[1] == '\n')
+		data++;
+
+	if (data[0] == '/' && data[1] == '/')
+	{
+		// comment
+		while (*data && *data != '\n' && *data != '\r')
+			data++;
+		goto skipwhite;
+	}
+	else if (data[0] == '/' && data[1] == '*')
+	{
+		// comment
+		data++;
+		while (*data && (data[0] != '*' || data[1] != '/'))
+			data++;
+		data += 2;
+		goto skipwhite;
+	}
+	else if (*data == '\"')
+	{
+		// quoted string
+		for (data++;*data != '\"';data++)
+		{
+			if (*data == '\\' && data[1] == '"' )
+				data++;
+			if (!*data || len >= (int)sizeof(com_token) - 1)
+			{
+				com_token[0] = 0;
+				*datapointer = NULL;
+				return false;
+			}
+			com_token[len++] = *data;
+		}
+		com_token[len] = 0;
+		*datapointer = data+1;
+		return true;
+	}
+	else if (*data == '\'')
+	{
+		// quoted string
+		for (data++;*data != '\'';data++)
+		{
+			if (*data == '\\' && data[1] == '\'' )
+				data++;
+			if (!*data || len >= (int)sizeof(com_token) - 1)
+			{
+				com_token[0] = 0;
+				*datapointer = NULL;
+				return false;
+			}
+			com_token[len++] = *data;
+		}
+		com_token[len] = 0;
+		*datapointer = data+1;
+		return true;
+	}
+	else if (*data == '\r')
+	{
+		// translate Mac line ending to UNIX
+		com_token[len++] = '\n';
+		com_token[len] = 0;
+		*datapointer = data;
+		return true;
+	}
+	else if (*data == '\n' || *data == '{' || *data == '}' || *data == ')' || *data == '(' || *data == ']' || *data == '[' || *data == '\'' || *data == ':' || *data == ',' || *data == ';')
+	{
+		// single character
+		com_token[len++] = *data++;
+		com_token[len] = 0;
+		*datapointer = data;
+		return true;
+	}
+	else
+	{
+		// regular word
+		for (;*data > ' ' && *data != '{' && *data != '}' && *data != ')' && *data != '(' && *data != ']' && *data != '[' && *data != '\'' && *data != ':' && *data != ',' && *data != ';' && *data != '\'' && *data != '"';data++)
+		{
+			if (len >= (int)sizeof(com_token) - 1)
+			{
+				com_token[0] = 0;
+				*datapointer = NULL;
+				return false;
+			}
+			com_token[len++] = *data;
+		}
+		com_token[len] = 0;
+		*datapointer = data;
+		return true;
 	}
 }
+
+/*
+==============
+COM_ParseTokenConsole
+
+Parse a token out of a string, behaving like the qwcl console
+==============
+*/
+int COM_ParseTokenConsole(const char **datapointer)
+{
+	int len;
+	const char *data = *datapointer;
+
+	len = 0;
+	com_token[0] = 0;
+
+	if (!data)
+	{
+		*datapointer = NULL;
+		return false;
+	}
+
+// skip whitespace
+skipwhite:
+	for (;*data <= ' ';data++)
+	{
+		if (*data == 0)
+		{
+			// end of file
+			*datapointer = NULL;
+			return false;
+		}
+	}
+
+	if (*data == '/' && data[1] == '/')
+	{
+		// comment
+		while (*data && *data != '\n' && *data != '\r')
+			data++;
+		goto skipwhite;
+	}
+	else if (*data == '\"')
+	{
+		// quoted string
+		for (data++;*data != '\"';data++)
+		{
+			if (!*data || len >= (int)sizeof(com_token) - 1)
+			{
+				com_token[0] = 0;
+				*datapointer = NULL;
+				return false;
+			}
+			com_token[len++] = *data;
+		}
+		com_token[len] = 0;
+		*datapointer = data+1;
+		return true;
+	}
+	else
+	{
+		// regular word
+		for (;*data > ' ';data++)
+		{
+			if (len >= (int)sizeof(com_token) - 1)
+			{
+				com_token[0] = 0;
+				*datapointer = NULL;
+				return false;
+			}
+			com_token[len++] = *data;
+		}
+		com_token[len] = 0;
+		*datapointer = data;
+		return true;
+	}
+}
+
 
 
 /*
@@ -378,8 +485,6 @@ void COM_Init (void)
 
 	if (COM_CheckParm("-condebug") || COM_CheckParm("-conlog"))
 		Cvar_SetValue (&logfile_var, 2);	// flush every write
-
-	Cmd_AddCommand ("path", COM_Path_f);
 }
 
 
@@ -394,6 +499,7 @@ void COM_Shutdown (void)
 		Cvar_SetValue (&logfile_var, 0);	// close log file
 }
 
+//======================================
 
 /*
 ============
@@ -423,653 +529,76 @@ char *va (char *format, ...)
 	return string[idx];
 }
 
+// snprintf and vsnprintf are NOT portable. Use their quake counterparts instead
 
-/*
-=============================================================================
+#undef snprintf
+#undef vsnprintf
 
-QUAKE FILESYSTEM
+#ifdef _WIN32
+# define snprintf _snprintf
+# define vsnprintf _vsnprintf
+#endif
 
-=============================================================================
-*/
-
-/*
-
-
-All of Quake's data access is through a hierarchic file system, but the contents of the file system can be transparently merged from several sources.
-
-The "base directory" is the path to the directory holding the quake.exe and all game directories.  The sys_* files pass this to host_init in quakeparms_t->basedir.  This can be overridden with the "-basedir" command line parm to allow code debugging in a different directory.  The base directory is
-only used during filesystem initialization.
-
-The "game directory" is the first tree on the search path and directory that all generated files (savegames, screenshots, demos, config files) will be saved to.  This can be overridden with the "-game" command line parameter.  The game directory can never be changed while quake is executing.  This is a precacution against having a malicious server instruct clients to write files over areas they shouldn't.
-	
-*/
-
-int	fs_filesize;
-
-
-//
-// in memory
-//
-
-typedef struct
+int Q_snprintf (char *buffer, size_t buffersize, const char *format, ...)
 {
-	char	name[MAX_QPATH];
-	int		filepos, filelen;
-} packfile_t;
+	va_list args;
+	int result;
 
-typedef struct pack_s
-{
-	char	filename[MAX_OSPATH];
-	FILE	*handle;
-	int		numfiles;
-	packfile_t	*files;
-} pack_t;
+	va_start (args, format);
+	result = vsnprintf (buffer, buffersize, format, args);
+	va_end (args);
 
-//
-// on disk
-//
-typedef struct
-{
-	char	name[56];
-	int		filepos, filelen;
-} dpackfile_t;
-
-typedef struct
-{
-	char	id[4];
-	int		dirofs;
-	int		dirlen;
-} dpackheader_t;
-
-#define	MAX_FILES_IN_PACK	2048
-
-char	com_gamedir[MAX_OSPATH];
-char	com_basedir[MAX_OSPATH];
-
-typedef struct searchpath_s
-{
-	char	filename[MAX_OSPATH];
-	pack_t	*pack;		// only one of filename / pack will be used
-	struct searchpath_s *next;
-} searchpath_t;
-
-searchpath_t	*com_searchpaths;
-searchpath_t	*com_base_searchpaths;	// without gamedirs
-
-/*
-================
-COM_filelength
-================
-*/
-int COM_filelength (FILE *f)
-{
-	int		pos;
-	int		end;
-
-	pos = ftell (f);
-	fseek (f, 0, SEEK_END);
-	end = ftell (f);
-	fseek (f, pos, SEEK_SET);
-
-	return end;
+	return result;
 }
 
-int COM_FileOpenRead (char *path, FILE **hndl)
-{
-	FILE	*f;
 
-	f = fopen(path, "rb");
-	if (!f)
+int Q_vsnprintf (char *buffer, size_t buffersize, const char *format, va_list args)
+{
+	int result;
+
+	result = vsnprintf (buffer, buffersize, format, args);
+	if (result < 0 || (size_t)result >= buffersize)
 	{
-		*hndl = NULL;
+		buffer[buffersize - 1] = '\0';
 		return -1;
 	}
-	*hndl = f;
-	
-	return COM_filelength(f);
+
+	return result;
 }
 
-/*
-============
-COM_Path_f
+//======================================
 
-============
-*/
-void COM_Path_f (void)
+void COM_ToLowerString (const char *in, char *out, size_t size_out)
 {
-	searchpath_t	*s;
-	
-	Com_Printf ("Current search path:\n");
-	for (s=com_searchpaths ; s ; s=s->next)
-	{
-		if (s == com_base_searchpaths)
-			Com_Printf ("----------\n");
-		if (s->pack)
-			Com_Printf ("%s (%i files)\n", s->pack->filename, s->pack->numfiles);
-		else
-			Com_Printf ("%s\n", s->filename);
-	}
-}
-
-/*
-============
-COM_WriteFile
-
-The filename will be prefixed by com_basedir
-============
-*/
-void COM_WriteFile (char *filename, void *data, int len)
-{
-	FILE	*f;
-	char	name[MAX_OSPATH];
-	
-	snprintf (name, sizeof(name), "%s/%s", com_basedir, filename);
-	
-	f = fopen (name, "wb");
-	if (!f) {
-		COM_CreatePath (name);
-		f = fopen (name, "wb");
-		if (!f)
-			Sys_Error ("Error opening %s", filename);
-	}
-	
-	Sys_Printf ("COM_WriteFile: %s\n", name);
-	fwrite (data, 1, len, f);
-	fclose (f);
-}
-
-
-/*
-============
-COM_CreatePath
-
-Only used for CopyFile and download
-============
-*/
-void COM_CreatePath (char *path)
-{
-	char	*ofs;
-	
-	for (ofs = path+1 ; *ofs ; ofs++)
-	{
-		if (*ofs == '/')
-		{	// create the directory
-			*ofs = 0;
-			Sys_mkdir (path);
-			*ofs = '/';
-		}
-	}
-}
-
-
-/*
-===========
-COM_CopyFile
-
-Copies a file over from the net to the local cache, creating any directories
-needed.  This is for the convenience of developers using ISDN from home.
-===========
-*/
-void COM_CopyFile (char *netpath, char *cachepath)
-{
-	FILE	*in, *out;
-	int		remaining, count;
-	char	buf[4096];
-	
-	remaining = COM_FileOpenRead (netpath, &in);		
-	COM_CreatePath (cachepath);	// create directories up to the cache file
-	out = fopen(cachepath, "wb");
-	if (!out)
-		Sys_Error ("Error opening %s", cachepath);
-	
-	while (remaining)
-	{
-		if (remaining < sizeof(buf))
-			count = remaining;
-		else
-			count = sizeof(buf);
-		fread (buf, 1, count, in);
-		fwrite (buf, 1, count, out);
-		remaining -= count;
-	}
-
-	fclose (in);
-	fclose (out);
-}
-
-/*
-===========
-FS_FOpenFile
-
-Finds the file in the search path.
-Sets fs_filesize and one of handle or file
-===========
-*/
-qbool	file_from_pak;		// global indicating file came from a packfile
-qbool	file_from_gamedir;	// global indicating file came from a gamedir (and gamedir wasn't id1/qw)
-
-
-// we use this in progs loading
-qbool FS_FindFile (char *filename)
-{
-	searchpath_t	*search;
-	char		netpath[MAX_OSPATH];
-	pack_t		*pak;
-	int			i;
-	FILE		*f;
-
-	file_from_pak = false;
-	file_from_gamedir = true;
-		
-	for (search = com_searchpaths ; search ; search = search->next)
-	{
-		if (search == com_base_searchpaths)
-			file_from_gamedir = false;
-
-	// is the element a pak file?
-		if (search->pack)
-		{
-		// look through all the pak file elements
-			pak = search->pack;
-			for (i=0 ; i<pak->numfiles ; i++)
-				if (!strcmp (pak->files[i].name, filename))
-				{	// found it!
-					fs_filesize = pak->files[i].filelen;
-					file_from_pak = true;
-					return true;
-				}
-		}
-		else
-		{		
-			snprintf (netpath, sizeof(netpath), "%s/%s", search->filename, filename);
-
-			f = fopen (netpath, "rb");
-			if (!f)
-				continue;
-			
-			fs_filesize = COM_filelength (f);
-			fclose (f);
-			return true;
-		}
-		
-	}
-	
-	fs_filesize = -1;
-	return false;
-}
-
-
-
-
-
-
-
-int FS_FOpenFile (char *filename, FILE **file)
-{
-	searchpath_t	*search;
-	char		netpath[MAX_OSPATH];
-	pack_t		*pak;
-	int			i;
-
-	file_from_pak = false;
-	file_from_gamedir = true;
-		
-//
-// search through the path, one element at a time
-//
-	for (search = com_searchpaths ; search ; search = search->next)
-	{
-		if (search == com_base_searchpaths)
-			file_from_gamedir = false;
-
-	// is the element a pak file?
-		if (search->pack)
-		{
-		// look through all the pak file elements
-			pak = search->pack;
-			for (i=0 ; i<pak->numfiles ; i++)
-				if (!strcmp (pak->files[i].name, filename))
-				{	// found it!
-					if (developer.value)
-						Sys_Printf ("PackFile: %s : %s\n", pak->filename, filename);
-				// open a new file on the pakfile
-					*file = fopen (pak->filename, "rb");
-					if (!*file)
-						Sys_Error ("Couldn't reopen %s", pak->filename);	
-					fseek (*file, pak->files[i].filepos, SEEK_SET);
-					fs_filesize = pak->files[i].filelen;
-					file_from_pak = true;
-					return fs_filesize;
-				}
-		}
-		else
-		{		
-			snprintf (netpath, sizeof(netpath), "%s/%s", search->filename, filename);
-
-			*file = fopen (netpath, "rb");
-			if (!*file)
-				continue;
-			
-			Com_DPrintf ("FindFile: %s\n",netpath);
-
-			fs_filesize = COM_filelength (*file);
-			return fs_filesize;
-		}
-		
-	}
-	
-	if (developer.value)
-		Sys_Printf ("FindFile: can't find %s\n", filename);
-	
-	*file = NULL;
-	fs_filesize = -1;
-	return -1;
-}
-
-/*
-============
-FS_LoadFile
-
-Filename are relative to the quake directory.
-Always appends a 0 byte to the loaded data.
-============
-*/
-cache_user_t *loadcache;
-byte	*loadbuf;
-int		loadsize;
-byte *FS_LoadFile (char *path, int usehunk)
-{
-	FILE	*h;
-	byte	*buf;
-	char	base[32];
-	int		len;
-
-	buf = NULL;	// quiet compiler warning
-
-// look for it in the filesystem or pack files
-	len = fs_filesize = FS_FOpenFile (path, &h);
-	if (!h)
-		return NULL;
-	
-// extract the filename base name for hunk tag
-	COM_FileBase (path, base);
-	
-	if (usehunk == 1)
-		buf = Hunk_AllocName (len+1, base);
-	else if (usehunk == 2)
-		buf = Hunk_TempAlloc (len+1);
-	else if (usehunk == 3)
-		buf = Cache_Alloc (loadcache, len+1, base);
-	else if (usehunk == 4)
-	{
-		if (len+1 > loadsize)
-			buf = Hunk_TempAlloc (len+1);
-		else
-			buf = loadbuf;
-	}
-	else if (usehunk == 5)
-		buf = Q_malloc (len + 1);
-	else
-		Sys_Error ("FS_LoadFile: bad usehunk");
-
-	if (!buf)
-		Sys_Error ("FS_LoadFile: not enough space for %s", path);
-		
-	((byte *)buf)[len] = 0;
-	fread (buf, 1, len, h);
-	fclose (h);
-	return buf;
-}
-
-byte *FS_LoadHunkFile (char *path)
-{
-	return FS_LoadFile (path, 1);
-}
-
-byte *FS_LoadTempFile (char *path)
-{
-	return FS_LoadFile (path, 2);
-}
-
-void FS_LoadCacheFile (char *path, struct cache_user_s *cu)
-{
-	loadcache = cu;
-	FS_LoadFile (path, 3);
-}
-
-// uses temp hunk if larger than bufsize
-byte *FS_LoadStackFile (char *path, void *buffer, int bufsize)
-{
-	byte	*buf;
-	
-	loadbuf = (byte *)buffer;
-	loadsize = bufsize;
-	buf = FS_LoadFile (path, 4);
-	
-	return buf;
-}
-
-byte *FS_LoadHeapFile (char *path)
-{
-	return FS_LoadFile (path, 5);
-}
-
-/*
-=================
-FS_LoadPackFile
-
-Takes an explicit (not game tree related) path to a pak file.
-
-Loads the header and directory, adding the files at the beginning
-of the list so they override previous pack files.
-=================
-*/
-pack_t *FS_LoadPackFile (char *packfile)
-{
-	dpackheader_t	header;
-	int				i;
-	packfile_t		*newfiles;
-	int				numpackfiles;
-	pack_t			*pack;
-	FILE			*packhandle;
-	dpackfile_t		info[MAX_FILES_IN_PACK];
-
-	if (COM_FileOpenRead (packfile, &packhandle) == -1)
-		return NULL;
-
-	fread (&header, 1, sizeof(header), packhandle);
-	if (header.id[0] != 'P' || header.id[1] != 'A'
-	|| header.id[2] != 'C' || header.id[3] != 'K')
-		Sys_Error ("%s is not a packfile", packfile);
-	header.dirofs = LittleLong (header.dirofs);
-	header.dirlen = LittleLong (header.dirlen);
-
-	numpackfiles = header.dirlen / sizeof(dpackfile_t);
-
-	if (numpackfiles > MAX_FILES_IN_PACK)
-		Sys_Error ("%s has %i files", packfile, numpackfiles);
-
-	newfiles = Q_malloc (numpackfiles * sizeof(packfile_t));
-
-	fseek (packhandle, header.dirofs, SEEK_SET);
-	fread (&info, 1, header.dirlen, packhandle);
-
-// parse the directory
-	for (i=0 ; i<numpackfiles ; i++)
-	{
-		strcpy (newfiles[i].name, info[i].name);
-		newfiles[i].filepos = LittleLong(info[i].filepos);
-		newfiles[i].filelen = LittleLong(info[i].filelen);
-	}
-
-	pack = Q_malloc (sizeof (pack_t));
-	strcpy (pack->filename, packfile);
-	pack->handle = packhandle;
-	pack->numfiles = numpackfiles;
-	pack->files = newfiles;
-	
-	Com_Printf ("Added packfile %s (%i files)\n", packfile, numpackfiles);
-	return pack;
-}
-
-
-/*
-================
-FS_AddGameDirectory
-
-Sets com_gamedir, adds the directory to the head of the path,
-then loads and adds pak1.pak pak2.pak ... 
-================
-*/
-void FS_AddGameDirectory (char *dir)
-{
-	int				i;
-	searchpath_t	*search;
-	pack_t			*pak;
-	char			pakfile[MAX_OSPATH];
-	char			*p;
-
-	if ((p = strrchr(dir, '/')) != NULL)
-		strcpy(com_gamedirfile, ++p);
-	else
-		strcpy(com_gamedirfile, p);
-	strcpy (com_gamedir, dir);
-
-//
-// add the directory to the search path
-//
-	search = Hunk_Alloc (sizeof(searchpath_t));
-	strcpy (search->filename, dir);
-	search->pack = NULL;
-	search->next = com_searchpaths;
-	com_searchpaths = search;
-
-//
-// add any pak files in the format pak0.pak pak1.pak, ...
-//
-	for (i=0 ; ; i++)
-	{
-		sprintf (pakfile, "%s/pak%i.pak", dir, i);
-		pak = FS_LoadPackFile (pakfile);
-		if (!pak)
-			break;
-		search = Hunk_Alloc (sizeof(searchpath_t));
-		search->pack = pak;
-		search->next = com_searchpaths;
-		com_searchpaths = search;		
-	}
-
-}
-
-/*
-================
-FS_SetGamedir
-
-Sets the gamedir and path to a different directory.
-================
-*/
-void FS_SetGamedir (char *dir)
-{
-	searchpath_t	*search, *next;
-	int				i;
-	pack_t			*pak;
-	char			pakfile[MAX_OSPATH];
-
-	if (strstr(dir, "..") || strstr(dir, "/")
-		|| strstr(dir, "\\") || strstr(dir, ":") )
-	{
-		Com_Printf ("Gamedir should be a single filename, not a path\n");
+	if (size_out == 0)
 		return;
-	}
 
-	if (!strcmp(com_gamedirfile, dir))
-		return;		// still the same
-	strlcpy (com_gamedirfile, dir, sizeof(com_gamedirfile));
-
-	//
-	// free up any current game dir info
-	//
-	while (com_searchpaths != com_base_searchpaths)
+	while (*in && size_out > 1)
 	{
-		if (com_searchpaths->pack)
-		{
-			fclose (com_searchpaths->pack->handle);
-			Q_free (com_searchpaths->pack->files);
-			Q_free (com_searchpaths->pack);
-		}
-		next = com_searchpaths->next;
-		Q_free (com_searchpaths);
-		com_searchpaths = next;
+		if (*in >= 'A' && *in <= 'Z')
+			*out++ = *in++ + 'a' - 'A';
+		else
+			*out++ = *in++;
+		size_out--;
 	}
-
-	//
-	// flush all data, so it will be forced to reload
-	//
-	Cache_Flush ();
-
-	sprintf (com_gamedir, "%s/%s", com_basedir, dir);
-
-	//
-	// add the directory to the search path
-	//
-	search = Q_malloc (sizeof(searchpath_t));
-	strcpy (search->filename, com_gamedir);
-	search->pack = NULL;
-	search->next = com_searchpaths;
-	com_searchpaths = search;
-
-	//
-	// add any pak files in the format pak0.pak pak1.pak, ...
-	//
-	for (i=0 ; ; i++)
-	{
-		sprintf (pakfile, "%s/pak%i.pak", com_gamedir, i);
-		pak = FS_LoadPackFile (pakfile);
-		if (!pak)
-			break;
-		search = Q_malloc (sizeof(searchpath_t));
-		search->pack = pak;
-		search->next = com_searchpaths;
-		com_searchpaths = search;		
-	}
+	*out = '\0';
 }
 
-/*
-================
-FS_Init
-================
-*/
-void FS_Init (void)
+void COM_ToUpperString (const char *in, char *out, size_t size_out)
 {
-	int		i;
+	if (size_out == 0)
+		return;
 
-	// -basedir <path>
-	// Overrides the system supplied base directory (under id1)
-	i = COM_CheckParm ("-basedir");
-	if (i && i < com_argc-1)
-		strlcpy (com_basedir, com_argv[i+1], sizeof(com_basedir));
-	else
-		strcpy (com_basedir, ".");
-
-	i = strlen(com_basedir)-1;
-	if ((i >= 0) && (com_basedir[i]=='/' || com_basedir[i]=='\\'))
-		com_basedir[i] = '\0';
-
-	// start up with id1 by default
-	FS_AddGameDirectory (va("%s/id1", com_basedir) );
-	FS_AddGameDirectory (va("%s/qw", com_basedir) );
-
-	// any set gamedirs will be freed up to here
-	com_base_searchpaths = com_searchpaths;
-
-	// the user might want to override default game directory
-	i = COM_CheckParm ("-game");
-	if (!i)
-		i = COM_CheckParm ("+gamedir");
-	if (i && i < com_argc-1)
-		FS_SetGamedir (com_argv[i+1]);
+	while (*in && size_out > 1)
+	{
+		if (*in >= 'a' && *in <= 'z')
+			*out++ = *in++ + 'A' - 'a';
+		else
+			*out++ = *in++;
+		size_out--;
+	}
+	*out = '\0';
 }
-
 
 
 /*
@@ -1079,6 +608,7 @@ void FS_Init (void)
 
 =====================================================================
 */
+
 
 /*
 ===============
@@ -1335,6 +865,167 @@ void Info_Print (char *s)
 
 //============================================================================
 
+int matchpattern(const char *in, const char *pattern, int caseinsensitive)
+{
+	int c1, c2;
+	while (*pattern)
+	{
+		switch (*pattern)
+		{
+		case 0:
+			return 1; // end of pattern
+		case '?': // match any single character
+			if (*in == 0 || *in == '/' || *in == '\\' || *in == ':')
+				return 0; // no match
+			in++;
+			pattern++;
+			break;
+		case '*': // match anything until following string
+			if (!*in)
+				return 1; // match
+			pattern++;
+			while (*in)
+			{
+				if (*in == '/' || *in == '\\' || *in == ':')
+					break;
+				// see if pattern matches at this offset
+				if (matchpattern(in, pattern, caseinsensitive))
+					return 1;
+				// nope, advance to next offset
+				in++;
+			}
+			break;
+		default:
+			if (*in != *pattern)
+			{
+				if (!caseinsensitive)
+					return 0; // no match
+				c1 = *in;
+				if (c1 >= 'A' && c1 <= 'Z')
+					c1 += 'a' - 'A';
+				c2 = *pattern;
+				if (c2 >= 'A' && c2 <= 'Z')
+					c2 += 'a' - 'A';
+				if (c1 != c2)
+					return 0; // no match
+			}
+			in++;
+			pattern++;
+			break;
+		}
+	}
+	if (*in)
+		return 0; // reached end of pattern but not end of input
+	return 1; // success
+}
+
+// a little strings system
+void stringlistinit(stringlist_t *list)
+{
+	memset(list, 0, sizeof(*list));
+}
+
+void stringlistfreecontents(stringlist_t *list)
+{
+	int i;
+	for (i = 0;i < list->numstrings;i++)
+	{
+		if (list->strings[i])
+			free(list->strings[i]);
+		list->strings[i] = NULL;
+	}
+	list->numstrings = 0;
+	list->maxstrings = 0;
+	if (list->strings)
+		free(list->strings);
+}
+
+void stringlistappend(stringlist_t *list, char *text)
+{
+	size_t textlen;
+	char **oldstrings;
+
+	if (list->numstrings >= list->maxstrings)
+	{
+		oldstrings = list->strings;
+		list->maxstrings += 4096;
+		list->strings = malloc(list->maxstrings * sizeof(*list->strings));
+		if (list->numstrings)
+			memcpy(list->strings, oldstrings, list->numstrings * sizeof(*list->strings));
+		if (oldstrings)
+			free(oldstrings);
+	}
+	textlen = strlen(text) + 1;
+	list->strings[list->numstrings] = malloc(textlen);
+	memcpy(list->strings[list->numstrings], text, textlen);
+	list->numstrings++;
+}
+
+void stringlistsort(stringlist_t *list)
+{
+	int i, j;
+	char *temp;
+	// this is a selection sort (finds the best entry for each slot)
+	for (i = 0;i < list->numstrings - 1;i++)
+	{
+		for (j = i + 1;j < list->numstrings;j++)
+		{
+			if (strcmp(list->strings[i], list->strings[j]) > 0)
+			{
+				temp = list->strings[i];
+				list->strings[i] = list->strings[j];
+				list->strings[j] = temp;
+			}
+		}
+	}
+}
+
+// operating system specific code
+#ifdef WIN32
+#include <io.h>
+void listdirectory(stringlist_t *list, const char *path)
+{
+	int i;
+	char pattern[4096], *c;
+	struct _finddata_t n_file;
+	long hFile;
+	strlcpy (pattern, path, sizeof (pattern));
+	strlcat (pattern, "*", sizeof (pattern));
+	// ask for the directory listing handle
+	hFile = _findfirst(pattern, &n_file);
+	if(hFile == -1)
+		return;
+	// start a new chain with the the first name
+	stringlistappend(list, n_file.name);
+	// iterate through the directory
+	while (_findnext(hFile, &n_file) == 0)
+		stringlistappend(list, n_file.name);
+	_findclose(hFile);
+
+	// convert names to lowercase because windows does not care, but pattern matching code often does
+	for (i = 0;i < list->numstrings;i++)
+		for (c = list->strings[i];*c;c++)
+			if (*c >= 'A' && *c <= 'Z')
+				*c += 'a' - 'A';
+}
+#else
+#include <dirent.h>
+void listdirectory(stringlist_t *list, const char *path)
+{
+	DIR *dir;
+	struct dirent *ent;
+	dir = opendir(path);
+	if (!dir)
+		return;
+	while ((ent = readdir(dir)))
+		if (strcmp(ent->d_name, ".") && strcmp(ent->d_name, ".."))
+			stringlistappend(list, ent->d_name);
+	closedir(dir);
+}
+#endif
+
+//============================================================================
+
 static byte chktbl[1024] = {
 0x78,0xd2,0x94,0xe3,0x41,0xec,0xd6,0xd5,0xcb,0xfc,0xdb,0x8a,0x4b,0xcc,0x85,0x01,
 0x23,0xd2,0xe5,0xf2,0x29,0xa7,0x45,0x94,0x4a,0x62,0xe3,0xa5,0x6f,0x3f,0xe1,0x7a,
@@ -1407,7 +1098,6 @@ byte COM_BlockSequenceCRCByte (byte *base, int length, int sequence)
 
 	return crc;
 }
-
 
 //============================================================================
 
@@ -1495,7 +1185,7 @@ void Com_Printf (char *fmt, ...)
 	if (logfile_var.value)
 	{
 		if (!logfile)
-			logfile = fopen (va("%s/qconsole.log", com_gamedir), "w");
+			logfile = fopen (va("%s/qconsole.log", fs_gamedir), "w");
 		if (logfile)
 		{
 			fprintf (logfile, "%s", msg);

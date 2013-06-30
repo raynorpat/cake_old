@@ -161,7 +161,7 @@ to start a download from the server.
 */
 qbool CL_CheckOrDownloadFile (char *filename)
 {
-	FILE	*f;
+	qfile_t	*f;
 
 	if (strstr (filename, ".."))
 	{
@@ -169,18 +169,21 @@ qbool CL_CheckOrDownloadFile (char *filename)
 		return true;
 	}
 
-	FS_FOpenFile (filename, &f);
+	f = FS_Open (filename, "rb", false, false);
 	if (f)
-	{	// it exists, no need to download
-		fclose (f);
+	{
+		// it exists, no need to download
+		FS_Close (f);
 		return true;
 	}
 
 	//ZOID - can't download when recording
-	if (cls.demorecording) {
+	if (cls.demorecording)
+	{
 		Com_Printf ("Unable to download %s in record mode.\n", cls.downloadname);
 		return true;
 	}
+	
 	//ZOID - can't download when playback
 	if (cls.demoplayback)
 		return true;
@@ -191,7 +194,7 @@ qbool CL_CheckOrDownloadFile (char *filename)
 	// download to a temp name, and only rename
 	// to the real name when done, so if interrupted
 	// a runt file wont be left
-	COM_StripExtension (cls.downloadname, cls.downloadtempname);
+	FS_StripExtension (cls.downloadname, cls.downloadtempname, sizeof(cls.downloadtempname));
 	strcat (cls.downloadtempname, ".tmp");
 
 	MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
@@ -384,10 +387,8 @@ void Model_NextDownload (void)
 
 		if (!cl.model_precache[i])
 		{
-			Com_Printf ("\nThe required model file '%s' could not be found or downloaded.\n\n"
-				, cl.model_name[i]);
-			Com_Printf ("You may need to download or purchase a %s client "
-				"pack in order to play on this server.\n\n", cls.gamedirfile);
+			Com_Printf ("\nThe required model file '%s' could not be found or downloaded.\n\n", cl.model_name[i]);
+			Com_Printf ("You may need to download or purchase a %s client pack in order to play on this server.\n\n", cls.gamedir);
 			Host_EndGame ();
 			return;
 		}
@@ -582,7 +583,7 @@ void CL_ParseDownload (void)
 		if (cls.download)
 		{
 			Com_Printf ("cls.download shouldn't have been set\n");
-			fclose (cls.download);
+			FS_Close (cls.download);
 			cls.download = NULL;
 		}
 		CL_RequestNextDownload ();
@@ -593,13 +594,11 @@ void CL_ParseDownload (void)
 	if (!cls.download)
 	{
 		if (strncmp(cls.downloadtempname,"skins/",6))
-			snprintf (name, sizeof(name), "%s/%s", cls.gamedir, cls.downloadtempname);
+			Q_snprintf (name, sizeof(name), "%s/%s", cls.gamedir, cls.downloadtempname);
 		else
-			snprintf (name, sizeof(name), "qw/%s", cls.downloadtempname);
+			Q_snprintf (name, sizeof(name), "qw/%s", cls.downloadtempname);
 
-		COM_CreatePath (name);
-
-		cls.download = fopen (name, "wb");
+		cls.download = FS_Open (name, "wb", false, false);
 		if (!cls.download)
 		{
 			msg_readcount += size;
@@ -609,7 +608,7 @@ void CL_ParseDownload (void)
 		}
 	}
 
-	fwrite (net_message.data + msg_readcount, 1, size, cls.download);
+	FS_Write (cls.download, net_message.data + msg_readcount, size);
 	msg_readcount += size;
 
 	if (percent != 100)
@@ -638,7 +637,7 @@ void CL_ParseDownload (void)
 		Com_Printf ("100%%\n");
 #endif
 
-		fclose (cls.download);
+		FS_Close (cls.download);
 
 		// rename the temp file to its final name
 		if (strcmp(cls.downloadtempname, cls.downloadname)) {
@@ -658,83 +657,8 @@ void CL_ParseDownload (void)
 		cls.downloadpercent = 0;
 
 		// get another file if needed
-
 		CL_RequestNextDownload ();
 	}
-}
-
-static byte *upload_data;
-static int upload_pos;
-static int upload_size;
-
-void CL_NextUpload(void)
-{
-	byte	buffer[1024];
-	int		r;
-	int		percent;
-	int		size;
-
-	if (!upload_data)
-		return;
-
-	r = upload_size - upload_pos;
-	if (r > 768)
-		r = 768;
-	memcpy(buffer, upload_data + upload_pos, r);
-	MSG_WriteByte (&cls.netchan.message, clc_upload);
-	MSG_WriteShort (&cls.netchan.message, r);
-
-	upload_pos += r;
-	size = upload_size;
-	if (!size)
-		size = 1;
-	percent = upload_pos*100/size;
-	MSG_WriteByte (&cls.netchan.message, percent);
-	SZ_Write (&cls.netchan.message, buffer, r);
-
-	Com_DPrintf ("UPLOAD: %6d: %d written\n", upload_pos - r, r);
-
-	if (upload_pos != upload_size)
-		return;
-
-	Com_Printf ("Upload completed\n");
-
-	Q_free (upload_data);
-	upload_data = 0;
-	upload_pos = upload_size = 0;
-}
-
-void CL_StartUpload (byte *data, int size)
-{
-	if (cls.state < ca_onserver)
-		return; // gotta be connected
-
-	// override
-	if (upload_data)
-		Q_free (upload_data);
-
-	Com_DPrintf ("Upload starting of %d...\n", size);
-
-	upload_data = Q_malloc (size);
-	memcpy (upload_data, data, size);
-	upload_size = size;
-	upload_pos = 0;
-
-	CL_NextUpload();
-} 
-
-qbool CL_IsUploading(void)
-{
-	if (upload_data)
-		return true;
-	return false;
-}
-
-void CL_StopUpload(void)
-{
-	if (upload_data)
-		Q_free (upload_data);
-	upload_data = NULL;
 }
 
 /*
@@ -753,19 +677,15 @@ CL_ParseServerData
 void CL_ParseServerData (void)
 {
 	char	*str;
-	FILE	*f;
-	char	fn[MAX_OSPATH];
-	qbool	cflag = false;
 	int		protover;
 	
 	Com_DPrintf ("Serverdata packet received.\n");
-//
-// wipe the client_state_t struct
-//
+
+	// wipe the client_state_t struct
 	CL_ClearState ();
 
-// parse protocol version number
-// allow old demos to play
+	// parse protocol version number
+	// allow old demos to play
 	protover = MSG_ReadLong ();
 	if (protover != PROTOCOL_VERSION && !(cls.demoplayback && (protover >= 24 && protover <= 28))) {
 		Host_Error ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION);
@@ -776,45 +696,6 @@ void CL_ParseServerData (void)
 
 	// game directory
 	str = MSG_ReadString ();
-
-	cl.teamfortress = !Q_stricmp(str, "fortress");
-
-	if (Q_stricmp(cls.gamedirfile, str)) {
-		// save current config
-		CL_WriteConfiguration ();
-		strlcpy (cls.gamedirfile, str, sizeof(cls.gamedirfile));
-		snprintf (cls.gamedir, sizeof(cls.gamedir),
-			"%s/%s", com_basedir, cls.gamedirfile);
-		cflag = true;
-	}
-
-	if (!com_serveractive)
-		FS_SetGamedir (str);
-
-	// run config.cfg and frontend.cfg in the gamedir if they exist
-	if (cflag) {
-		int cl_warncmd_val = cl_warncmd.value;
-		snprintf (fn, sizeof(fn), "%s/%s", cls.gamedir, "config.cfg");
-		if ((f = fopen(fn, "r")) != NULL) {
-			fclose(f);
-			Cbuf_AddText ("cl_warncmd 0\n");
-			if (!strcmp(cls.gamedirfile, com_gamedirfile))
-				Cbuf_AddText ("exec config.cfg\n");
-			else
-				Cbuf_AddText (va("exec ../%s/config.cfg\n", cls.gamedirfile));
-		}
-		snprintf (fn, sizeof(fn), "%s/%s", cls.gamedir, "frontend.cfg");
-		if ((f = fopen(fn, "r")) != NULL) {
-			fclose(f);
-			Cbuf_AddText ("cl_warncmd 0\n");
-			if (!strcmp(cls.gamedirfile, com_gamedirfile))
-				Cbuf_AddText ("exec frontend.cfg\n");
-			else
-				Cbuf_AddText (va("exec ../%s/frontend.cfg\n", cls.gamedirfile));
-		}
-		snprintf (fn, sizeof(fn), "cl_warncmd %d\n", cl_warncmd_val);
-		Cbuf_AddText (fn);
-	}
 
 #ifdef MVDPLAY
 	if (cls.mvdplayback)
@@ -840,7 +721,8 @@ void CL_ParseServerData (void)
 
 	// get the movevars
 	if (cl.protocol >= 25)
-	{	// from QW 2.00 on
+	{
+		// from QW 2.00 on
 		cl.movevars.gravity			   = MSG_ReadFloat();
 		cl.movevars.stopspeed          = MSG_ReadFloat();
 		cl.movevars.maxspeed           = MSG_ReadFloat();
@@ -966,12 +848,11 @@ void CL_ParseModellist (void)
 		}
 	}
 
-
-{
-	char	mapname[MAX_QPATH];
-	COM_StripExtension (COM_SkipPath (cl.model_name[1]), mapname);
-	Cvar_ForceSet (&host_mapname, mapname);
-}
+	{
+		char mapname[MAX_QPATH];
+		FS_StripExtension (cl.model_name[1], mapname, sizeof(mapname));
+		Cvar_ForceSet (&host_mapname, mapname);
+	}
 
 	cls.downloadnumber = 0;
 	cls.downloadtype = dl_model;
@@ -1194,7 +1075,7 @@ void CL_NewTranslation (int slot)
 		strlcpy (skin, allskins.string, sizeof(skin));
 
 	// check team/enemy overrides
-	if ( !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_COLOR) ) {
+	if ( !(cl.fpd & FPD_NO_FORCE_COLOR) ) {
 		qbool teammate;
 
 		if (cl.spectator && cam_curtarget != CAM_NOTARGET)
@@ -1219,7 +1100,7 @@ void CL_NewTranslation (int slot)
 			strlcpy (skin, enemyskin.string, sizeof(skin));
 	}
 
-	COM_StripExtension(skin, skin);
+	FS_StripExtension(skin, skin, sizeof(skin));
 	strlcpy (player->skin, skin, sizeof(player->skin));
 }
 
@@ -1317,8 +1198,7 @@ void CL_SetInfo (void)
 	strlcpy (key, MSG_ReadString(), sizeof(key));
 	strlcpy (value, MSG_ReadString(), sizeof(value));
 
-	if (!cl.teamfortress)	// don't allow cheating in TF
-		Com_DPrintf ("SETINFO %s: %s=%s\n", player->name, key, value);
+	Com_DPrintf ("SETINFO %s: %s=%s\n", player->name, key, value);
 
 	Info_SetValueForStarKey (player->userinfo, key, value, MAX_INFO_STRING);
 
@@ -1379,10 +1259,9 @@ void CL_ProcessServerInfo (void)
 	cl.movevars.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
 	cl.movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
 	cl.movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
-	cl.movevars.pground = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_pground")) != 0)
-		&& (cl.z_ext & Z_EXT_PF_ONGROUND) /* pground doesn't make sense without this */;
+	cl.movevars.pground = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_pground")) != 0) && (cl.z_ext & Z_EXT_PF_ONGROUND) /* pground doesn't make sense without this */;
 	p = Info_ValueForKey(cl.serverinfo, "pm_ktjump");
-	cl.movevars.ktjump = *p ? Q_atof(p) : (cl.teamfortress ? 0 : 0.5); 
+	cl.movevars.ktjump = *p ? Q_atof(p) : 0;
 
 	// deathmatch and teamplay
 	cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));

@@ -924,7 +924,7 @@ void S_Play_f (void)
 	for (i=1; i < Cmd_Argc(); i++)
 	{
 		strcpy(name, Cmd_Argv(i));
-		COM_DefaultExtension (name, ".wav");
+		FS_DefaultExtension (name, ".wav", sizeof(name));
 		sfx = S_FindName(name);
 		S_StartSound(hash++, 0, sfx, listener_origin, 1.0, ATTN_NONE);
 	}
@@ -944,7 +944,7 @@ void S_PlayVol_f (void)
 	for (i=1; i < Cmd_Argc(); i+=2)
 	{
 		strcpy(name, Cmd_Argv(i));
-		COM_DefaultExtension (name, ".wav");
+		FS_DefaultExtension (name, ".wav", sizeof(name));
 		sfx = S_FindName(name);
 		vol = Q_atof(Cmd_Argv(i+1));
 		S_StartSound(hash++, 0, sfx, listener_origin, vol, ATTN_NONE);

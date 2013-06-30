@@ -109,7 +109,7 @@ void DestClose(mvddest_t *d, qbool destroyfiles)
 
 	if (destroyfiles)
 	{
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, d->path, d->name);
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, d->path, d->name);
 		Sys_remove(path);
 
 		Q_strncpyz(path + strlen(path) - 3, "txt", MAX_OSPATH - strlen(path) + 3);
@@ -1015,22 +1015,23 @@ static char *SV_PrintTeams(void)
 
 	if (numcl == 2) // duel
 	{
-		snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
+		Q_snprintf(buf, sizeof(buf), "team1 %s\nteam2 %s\n", clients[0]->name, clients[1]->name);
 	}
 	else if (!teamplay.value) // ffa
 	{
-		snprintf(buf, sizeof(buf), "players:\n");
+		Q_snprintf(buf, sizeof(buf), "players:\n");
 		for (i = 0; i < numcl; i++)
-			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
+			Q_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 	}
 	else
-	{ // teamplay
+	{
+		// teamplay
 		for (j = 0; j < numt; j++)
 		{
-			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
+			Q_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
 			for (i = 0; i < numcl; i++)
 				if (!strcmp(Info_ValueForKey(clients[i]->userinfo, "team"), teams[j]))
-					snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
+					Q_snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 		}
 	}
 
@@ -1104,7 +1105,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 
 			SV_TimeOfDay(&date);
 
-			snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.mapname, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
+			Q_snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.mapname, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
 			fwrite(buf, strlen(buf),1,f);
 			fflush(f);
 			fclose(f);
@@ -1681,7 +1682,7 @@ void SV_MVD_Record_f (void)
 		return;
 	}
 
-	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".*", false);
+	dir = Sys_listdir(va("%s/%s", fs_gamedir, sv_demoDir.string), ".*", false);
 	if (sv_demoMaxDirSize.value && dir.size > sv_demoMaxDirSize.value*1024)
 	{
 		Com_Printf("insufficient directory space, increase sv_demoMaxDirSize\n");
@@ -1691,11 +1692,11 @@ void SV_MVD_Record_f (void)
 	Q_strncpyz(newname, va("%s%s", sv_demoPrefix.string, SV_CleanName(Cmd_Argv(1))), sizeof(newname) - strlen(sv_demoSuffix.string) - 5);
 	Q_strncatz(newname, sv_demoSuffix.string, MAX_MVD_NAME);
 
-	_snprintf (name, MAX_OSPATH+MAX_MVD_NAME, "%s/%s/%s", com_gamedir, sv_demoDir.string, newname);
+	_snprintf (name, MAX_OSPATH+MAX_MVD_NAME, "%s/%s/%s", fs_gamedir, sv_demoDir.string, newname);
 
-	COM_StripExtension(name, name);
-	COM_DefaultExtension(name, ".mvd");
-	COM_CreatePath(name);
+	FS_StripExtension(name, name, sizeof(name));
+	FS_DefaultExtension(name, ".mvd", sizeof(name));
+//	FS_CreatePath(name);
 
 	//
 	// open the demo file and start recording
@@ -1840,7 +1841,7 @@ void SV_MVDEasyRecord_f (void)
 		return;
 	}
 
-	dir = Sys_listdir(va("%s/%s", com_gamedir,sv_demoDir.string), ".*", false);
+	dir = Sys_listdir(va("%s/%s", fs_gamedir,sv_demoDir.string), ".*", false);
 	if (sv_demoMaxDirSize.value && dir.size > sv_demoMaxDirSize.value*1024)
 	{
 		Com_Printf("insufficient directory space, increase sv_demoMaxDirSize\n");
@@ -1882,11 +1883,11 @@ void SV_MVDEasyRecord_f (void)
 	Q_strncpyz(name, va("%s%s", sv_demoPrefix.string, SV_CleanName(name)),
 			MAX_MVD_NAME - strlen(sv_demoSuffix.string) - 7);
 	Q_strncatz(name, sv_demoSuffix.string, sizeof(name));
-	Q_strncpyz(name, va("%s/%s/%s", com_gamedir, sv_demoDir.string, name), sizeof(name));
+	Q_strncpyz(name, va("%s/%s/%s", fs_gamedir, sv_demoDir.string, name), sizeof(name));
 // find a filename that doesn't exist yet
 	Q_strncpyz(name2, name, sizeof(name2));
-	Sys_mkdir(va("%s/%s", com_gamedir, sv_demoDir.string));
-//	COM_StripExtension(name2, name2);
+	Sys_mkdir(va("%s/%s", fs_gamedir, sv_demoDir.string));
+//	FS_StripExtension(name2, name2, sizeof(name2));
 	strcat (name2, ".mvd");
 	if ((f = fopen (name2, "rb")) == 0)
 		f = fopen(va("%s.gz", name2), "rb");
@@ -1897,7 +1898,7 @@ void SV_MVDEasyRecord_f (void)
 		do {
 			fclose (f);
 			_snprintf(name2, sizeof(name2), "%s_%02i", name, i);
-//			COM_StripExtension(name2, name2);
+//			FS_StripExtension(name2, name2, sizeof(name2));
 			strcat (name2, ".mvd");
 			if ((f = fopen (name2, "rb")) == 0)
 				f = fopen(va("%s.gz", name2), "rb");
@@ -2028,8 +2029,8 @@ void SV_MVDList_f (void)
 	float	f;
 	int		i,j,show;
 
-	Com_Printf("content of %s/%s/*.mvd\n", com_gamedir, sv_demoDir.string);
-	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", true);
+	Com_Printf("content of %s/%s/*.mvd\n", fs_gamedir, sv_demoDir.string);
+	dir = Sys_listdir(va("%s/%s", fs_gamedir, sv_demoDir.string), ".mvd", true);
 	list = dir.files;
 	if (!list->name[0])
 	{
@@ -2073,7 +2074,7 @@ char *SV_MVDNum(int num)
 	file_t	*list;
 	dir_t	dir;
 
-	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", true);
+	dir = Sys_listdir(va("%s/%s", fs_gamedir, sv_demoDir.string), ".mvd", true);
 	list = dir.files;
 
 	if (num <= 0)
@@ -2132,7 +2133,7 @@ void SV_MVDRemove_f (void)
 		// remove all demos with specified token
 		ptr++;
 
-		dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", true);
+		dir = Sys_listdir(va("%s/%s", fs_gamedir, sv_demoDir.string), ".mvd", true);
 		list = dir.files;
 		for (i = 0;list->name[0]; list++)
 		{
@@ -2142,7 +2143,7 @@ void SV_MVDRemove_f (void)
 					SV_MVDStop_f();
 
 				// stop recording first;
-				snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, list->name);
+				Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, sv_demoDir.string, list->name);
 				if (!Sys_remove(path))
 				{
 					Com_Printf("removing %s...\n", list->name);
@@ -2166,9 +2167,9 @@ void SV_MVDRemove_f (void)
 	}
 
 	Q_strncpyz(name, Cmd_Argv(1), MAX_MVD_NAME);
-	COM_DefaultExtension(name, ".mvd");
+	FS_DefaultExtension(name, ".mvd", sizeof(name));
 
-	snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+	Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, sv_demoDir.string, name);
 
 	if (sv.mvdrecording && !strcmp(name, demo.name))
 		SV_MVDStop_f();
@@ -2209,7 +2210,7 @@ void SV_MVDRemoveNum_f (void)
 		if (sv.mvdrecording && !strcmp(name, demo.name))
 			SV_MVDStop_f();
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, sv_demoDir.string, name);
 		if (!Sys_remove(path))
 		{
 			Com_Printf("demo %s succesfully removed\n", name);
@@ -2241,7 +2242,7 @@ void SV_MVDInfoAdd_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, demo.path, SV_MVDName2Txt(demo.name));
 	}
 	else
 	{
@@ -2253,7 +2254,7 @@ void SV_MVDInfoAdd_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, sv_demoDir.string, name);
 	}
 
 	if ((f = fopen(path, "a+t")) == NULL)
@@ -2291,7 +2292,7 @@ void SV_MVDInfoRemove_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, demo.path, SV_MVDName2Txt(demo.name));
 	}
 	else
 	{
@@ -2303,7 +2304,7 @@ void SV_MVDInfoRemove_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, sv_demoDir.string, name);
 	}
 
 	if (Sys_remove(path))
@@ -2331,7 +2332,7 @@ void SV_MVDInfo_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, demo.path, SV_MVDName2Txt(demo.name));
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, demo.path, SV_MVDName2Txt(demo.name));
 	}
 	else
 	{
@@ -2343,7 +2344,7 @@ void SV_MVDInfo_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s/%s", com_gamedir, sv_demoDir.string, name);
+		Q_snprintf(path, MAX_OSPATH, "%s/%s/%s", fs_gamedir, sv_demoDir.string, name);
 	}
 
 	if ((f = fopen(path, "rt")) == NULL)

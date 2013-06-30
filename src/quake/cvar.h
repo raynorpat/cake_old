@@ -76,7 +76,7 @@ qbool Cvar_Command (void);
 
 // Writes lines containing "set variable value" for all variables
 // with the archive flag set to true.
-void Cvar_WriteVariables (FILE *f);
+void Cvar_WriteVariables (qfile_t *f);
 
 cvar_t *Cvar_FindVar (char *name);
 qbool Cvar_Delete (char *name);

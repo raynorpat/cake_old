@@ -217,15 +217,9 @@ void SV_DropClient (client_t *drop)
 
 	if (drop->download)
 	{
-		fclose (drop->download);
+		FS_Close (drop->download);
 		drop->download = NULL;
 	}
-	if (drop->upload)
-	{
-		fclose (drop->upload);
-		drop->upload = NULL;
-	}
-	*drop->uploadfn = 0;
 
 	drop->state = cs_zombie;		// become free in a few seconds
 	drop->connection_started = svs.realtime;	// for zombie timeout
@@ -1012,7 +1006,7 @@ void SV_WriteIP_f (void)
 	byte	b[4];
 	int		i;
 
-	sprintf (name, "%s/listip.cfg", com_gamedir);
+	sprintf (name, "%s/listip.cfg", fs_gamedir);
 
 	Com_Printf ("Writing %s.\n", name);
 
@@ -1374,9 +1368,10 @@ static void PausedTic (void)
 /*
 ==================
 SV_Frame
-
 ==================
 */
+extern void SV_MVDStream_Poll(void);
+
 void SV_Frame (double time)
 {
 	static double	start, end;
@@ -1402,15 +1397,12 @@ void SV_Frame (double time)
 // toggle the log buffer if full
 	SV_CheckLog ();
 
-	{
-		void SV_MVDStream_Poll(void);
-		SV_MVDStream_Poll();
-	}
+	SV_MVDStream_Poll();
 
 // move autonomous things around if enough time has passed
-	if (!sv_paused.value)
+	if (!sv_paused.value) {
 		SV_Physics ();
-	else {
+	} else {
 		PausedTic ();
 		SV_RunBots ();	// just update network stuff, but don't run physics
 	}
@@ -1571,8 +1563,8 @@ void SV_InitLocal (void)
 	Info_SetValueForStarKey (svs.info, "*vwtest", "1", MAX_SERVERINFO_STRING);
 #endif
 
-	if (strcmp(com_gamedirfile, "qw"))
-		Info_SetValueForStarKey (svs.info, "*gamedir", com_gamedirfile, MAX_SERVERINFO_STRING);
+	if (strcmp(fs_gamedir, "qw"))
+		Info_SetValueForStarKey (svs.info, "*gamedir", fs_gamedir, MAX_SERVERINFO_STRING);
 
 	// init fraglog stuff
 	svs.logsequence = 1;

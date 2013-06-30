@@ -196,19 +196,27 @@ void Host_Init (int argc, char **argv)
 		dedicated = true;
 #endif
 	
+	// initialize console command/cvar/alias/command execution systems
 	Cbuf_Init ();
 	Cmd_Init ();
 	Cvar_Init ();
 	COM_Init ();
 	Key_Init ();
 
-	FS_Init ();
-	COM_CheckRegistered ();
+	// initialize various cvars/cmds that could not be initialized earlier
+	FS_Init_Commands();
 
+	// detect gamemode from commandline options or executable name
+	COM_InitGameType();
+
+	// initialize console and logging and its cvars/commands
 	Con_Init ();
 
 	Cbuf_AddEarlyCommands ();
 	Cbuf_Execute ();
+
+	// initialize filesystem (including fs_basedir, fs_gamedir, -game, scr_screenshot_name)
+	FS_Init();
 
 	NET_Init ();
 	Netchan_Init ();
@@ -272,6 +280,7 @@ void Host_Shutdown (void)
 	CL_Shutdown ();
 	NET_Shutdown ();
 	COM_Shutdown ();
+	FS_Shutdown ();
 }
 
 /*

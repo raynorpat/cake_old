@@ -226,7 +226,7 @@ typedef struct client_s
 
 	client_frame_t	frames[UPDATE_BACKUP];	// updates can be deltad from here
 
-	FILE			*download;			// file being downloaded
+	qfile_t			*download;			// file being downloaded
 	int				downloadsize;		// total bytes
 	int				downloadcount;		// bytes sent
 
@@ -235,11 +235,6 @@ typedef struct client_s
 	double			whensaid[10];		// For floodprots
  	int				whensaidhead;		// Head value for floodprots
  	double			lockedtill;
-
-	FILE			*upload;
-	char			uploadfn[MAX_QPATH];
-	netadr_t		snap_from;
-	qbool			remote_snap;
 
 	double			delay;
 	packet_t		*packets, *last_packet;

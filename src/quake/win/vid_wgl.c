@@ -1903,19 +1903,16 @@ static void IN_LoadKeys_f (void)
 	}
 
 	strlcpy (filename, Cmd_Argv(1), sizeof(filename) - 5);
-	COM_DefaultExtension (filename, ".kmap");
+	FS_DefaultExtension (filename, ".kmap", sizeof(filename));
 
 	// check if the given file can be found in subdirectory "keymaps":
-	data = FS_LoadTempFile (va("keymaps/%s", filename));
+	data = (char *)FS_LoadFile (va("keymaps/%s", filename), false, NULL);
 
 	// if not found, recheck in main directory:
 	if (!data)
-	  data = FS_LoadTempFile (filename);
+	  data = (char *)FS_LoadFile (filename, false, NULL);
 	if (!data)
-	{
-		Com_Printf ("Couldn't load %s\n", filename);
 		return;
-	}
 
 	keymap_active = false;
 
