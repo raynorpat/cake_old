@@ -77,7 +77,8 @@ void SV_Fraglogfile_f (void)
 		Q_snprintf (name, sizeof(name), "%s/frag_%i.log", fs_gamedir, i);
 		sv_fraglogfile = fopen (name, "r");
 		if (!sv_fraglogfile)
-		{	// can't read it, so create this one
+		{
+			// can't read it, so create this one
 			sv_fraglogfile = fopen (name, "w");
 			if (!sv_fraglogfile)
 				i=MAX_LOGFILES;	// give error

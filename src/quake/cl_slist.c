@@ -29,17 +29,15 @@ void SList_Init(void) {
 }
 
 void SList_Shutdown(void) {  
-	FILE *f;
+	qfile_t *f;
 
 	if (!slist_initialised)
 		return;	
 
-	if (!(f = fopen(va("%s/servers.txt", fs_gamedir), "w"))) {
-		Com_DPrintf ("Couldn't open servers.txt.\n");
+	if (!(f = FS_Open("servers.txt", "w", false, false)))
 		return;
-	}
 	SList_Save(f);
-	fclose(f);
+	FS_Close(f);
 }
 
 void SList_Set (int i, char *addr, char *desc) {
@@ -102,16 +100,16 @@ void SList_Load (void) {
 	unsigned int len;
 	int c, argc, count;
 	char line[128], *desc, *addr;
-	FILE *f;
+	qfile_t *f;
 
-	if (!(f = fopen (va("%s/servers.txt", fs_gamedir), "r")))
+	if (!(f = FS_Open ("servers.txt", "r", false, false)))
 		return;
 
 	count = len = 0;
-	while ((c = getc(f))) {
+	while ((c = FS_Getc(f))) {
 		if (c == '\n' || c == '\r' || c == EOF) {
-			if (c == '\r' && (c = getc(f)) != '\n' && c != EOF)
-				ungetc(c, f);
+			if (c == '\r' && (c = FS_Getc(f)) != '\n' && c != EOF)
+				FS_UnGetc(f, c);
 
 			line[len] = 0;
 			len = 0;
@@ -132,7 +130,7 @@ void SList_Load (void) {
 		}
 	}
 
-	fclose (f);
+	FS_Close (f);
 
 	slist_initialised = true;
 }
@@ -148,7 +146,7 @@ static char *CreateSpaces(int amount) {
 	return spaces;
 }
 
-void SList_Save (FILE *f) {
+void SList_Save (qfile_t *f) {
 	int i;
 	char *spaces;
 
@@ -156,6 +154,6 @@ void SList_Save (FILE *f) {
 		if (!slist[i].server)
 			break;
 		spaces = CreateSpaces(32 - strlen(slist[i].server));
-		fprintf(f, "%s%s%s\n", slist[i].server, spaces, slist[i].description);
+		FS_Printf(f, "%s%s%s\n", slist[i].server, spaces, slist[i].description);
 	}
 }

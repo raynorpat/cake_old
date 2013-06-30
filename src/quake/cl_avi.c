@@ -665,7 +665,7 @@ void CL_Video_f(void)
 	if(Cmd_Argc() == 2)
 	{
 		// explicit filename
-		Q_snprintf(filename, MAX_OSPATH, "%s/videos/%s.avi", cls.gamedir, Cmd_Argv(1));
+		Q_snprintf(filename, MAX_OSPATH, "videos/%s.avi", Cmd_Argv(1));
 	}
 	else
 	{
@@ -685,7 +685,7 @@ void CL_Video_f(void)
 			last -= c * 10;
 			d = last;
 
-			Q_snprintf(filename, MAX_OSPATH, "%s/videos/video%d%d%d%d.avi", cls.gamedir, a, b, c, d);
+			Q_snprintf(filename, MAX_OSPATH, "videos/video%d%d%d%d.avi", a, b, c, d);
 
 			f = FS_Open (filename, "rb", false, false);
 			if (!f)

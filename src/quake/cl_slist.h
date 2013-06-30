@@ -34,4 +34,4 @@ void SList_Reset(int i);
 void SList_Switch(int a,int b);
 int SList_Len(void);
 void SList_Load(void);
-void SList_Save(FILE *f);
+void SList_Save(qfile_t *f);
