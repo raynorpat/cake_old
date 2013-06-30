@@ -37,6 +37,7 @@ typedef struct cvar_s
 	int		flags;
 	void	(*OnChange)(struct cvar_s *var, char *value, qbool *cancel);
 	float	value;
+	int		integer;
 	struct cvar_s *hash_next;
 	struct cvar_s *next;
 } cvar_t;

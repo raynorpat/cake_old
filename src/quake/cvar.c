@@ -280,6 +280,7 @@ void Cvar_Register (cvar_t *var)
 	}
 	
 	var->value = Q_atof (var->string);
+	var->integer = Q_atoi (var->string);
 
 	// link the variable in
 	key = Com_HashKey (var->name);

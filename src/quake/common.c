@@ -1043,10 +1043,8 @@ void FS_Init (void)
 {
 	int		i;
 
-//
-// -basedir <path>
-// Overrides the system supplied base directory (under id1)
-//
+	// -basedir <path>
+	// Overrides the system supplied base directory (under id1)
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)
 		strlcpy (com_basedir, com_argv[i+1], sizeof(com_basedir));
@@ -1057,16 +1055,14 @@ void FS_Init (void)
 	if ((i >= 0) && (com_basedir[i]=='/' || com_basedir[i]=='\\'))
 		com_basedir[i] = '\0';
 
-//
-// start up with id1 by default
-//
+	// start up with id1 by default
 	FS_AddGameDirectory (va("%s/id1", com_basedir) );
 	FS_AddGameDirectory (va("%s/qw", com_basedir) );
 
 	// any set gamedirs will be freed up to here
 	com_base_searchpaths = com_searchpaths;
 
-// the user might want to override default game directory
+	// the user might want to override default game directory
 	i = COM_CheckParm ("-game");
 	if (!i)
 		i = COM_CheckParm ("+gamedir");
