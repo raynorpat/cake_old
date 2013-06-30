@@ -38,11 +38,10 @@ typedef struct
 {
 	const char *name;
 	void **funcvariable;
-}
-dllfunction_t;
+} dllfunction_t;
 
-dllhandle_t Sys_LoadLibrary (const char* name);
-void Sys_UnloadLibrary (dllhandle_t handle);
+qbool Sys_LoadLibrary (const char** dllnames, dllhandle_t* handle, const dllfunction_t *fcts);
+void Sys_UnloadLibrary (dllhandle_t* handle);
 void* Sys_GetProcAddress (dllhandle_t handle, const char* name);
 
 //
