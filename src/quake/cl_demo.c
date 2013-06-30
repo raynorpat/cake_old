@@ -155,6 +155,9 @@ CL_GetDemoMessage
 FIXME...
 ====================
 */
+#ifdef MVDPLAY
+extern void CL_ParseClientdata ();
+#endif
 qbool CL_GetDemoMessage (void)
 {
 	int		r, i, j;
@@ -162,7 +165,7 @@ qbool CL_GetDemoMessage (void)
 	byte	c;
 	usercmd_t *pcmd;
 #ifdef MVDPLAY
-	byte	msec;
+	byte	msec = 0;
 #endif
 
 	if (qwz_unpacking)
@@ -232,8 +235,6 @@ readnext:
 	{
 		if (msec)
 		{
-			extern void CL_ParseClientdata ();
-
 			cls.mvd_oldtime = cls.mvd_newtime;
 			cls.mvd_newtime = demotime;
 			cls.netchan.incoming_sequence++;
