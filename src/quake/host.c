@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 #include "pmove.h"
 #include "version.h"
+#include "thread.h"
 #include <setjmp.h>
 
 
@@ -202,6 +203,7 @@ void Host_Init (int argc, char **argv)
 	Cvar_Init ();
 	COM_Init ();
 	Key_Init ();
+	Thread_Init ();
 
 	// initialize various cvars/cmds that could not be initialized earlier
 	FS_Init_Commands();
@@ -281,6 +283,7 @@ void Host_Shutdown (void)
 	NET_Shutdown ();
 	COM_Shutdown ();
 	FS_Shutdown ();
+	Thread_Shutdown ();
 }
 
 /*
