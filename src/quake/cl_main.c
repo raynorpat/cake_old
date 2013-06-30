@@ -938,8 +938,6 @@ void CL_Init (void)
 
 	CL_CheckGfxWad ();
 
-	Sys_mkdir(va("%s/%s", fs_basedir, "qw"));
-
 	V_Init ();
 
 	R_Modules_Init();
