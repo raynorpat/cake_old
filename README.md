@@ -24,6 +24,7 @@ To have a working game, you must install the game data. All that is required is 
 ## Support, Copyright, & Permissions
 
 Copyright (C) 1996-2001 Id Software, Inc.
+
 Copyright (C) 2009-2013 Pat 'raynorpat' Raynor and others
 
 This program is free software; you can redistribute it and/or modify it under 
