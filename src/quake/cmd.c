@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cmd.c -- Quake script command processing module
 
 #include "common.h"
+#include "thread.h"
 
 #ifndef SERVERONLY
 qbool CL_CheckServerCommand (void);
@@ -34,6 +35,20 @@ cbuf_t	cbuf_svc;
 #endif
 
 cbuf_t	*cbuf_current = NULL;
+
+void	*cmd_text_mutex = NULL;
+
+static void Cbuf_LockThreadMutex(void)
+{
+	if (cmd_text_mutex)
+		Thread_LockMutex(cmd_text_mutex);
+}
+
+static void Cbuf_UnlockThreadMutex(void)
+{
+	if (cmd_text_mutex)
+		Thread_UnlockMutex(cmd_text_mutex);
+}
 
 //=============================================================================
 
@@ -97,10 +112,13 @@ void Cbuf_AddTextEx (cbuf_t *cbuf, char *text)
 	
 	len = strlen (text);
 
+	Cbuf_LockThreadMutex();
+
 	if (cbuf->text_end + len <= MAXCMDBUF)
 	{
 		memcpy (cbuf->text_buf + cbuf->text_end, text, len);
 		cbuf->text_end += len;
+		Cbuf_UnlockThreadMutex();
 		return;
 	}
 
@@ -108,6 +126,7 @@ void Cbuf_AddTextEx (cbuf_t *cbuf, char *text)
 	if (new_bufsize > MAXCMDBUF)
 	{
 		Com_Printf ("Cbuf_AddText: overflow\n");
+		Cbuf_UnlockThreadMutex();
 		return;
 	}
 
@@ -118,6 +137,8 @@ void Cbuf_AddTextEx (cbuf_t *cbuf, char *text)
 	memcpy (cbuf->text_buf + new_start + cbuf->text_end-cbuf->text_start, text, len);
 	cbuf->text_start = new_start;
 	cbuf->text_end = cbuf->text_start + new_bufsize;
+
+	Cbuf_UnlockThreadMutex();
 }
 
 
@@ -136,10 +157,13 @@ void Cbuf_InsertTextEx (cbuf_t *cbuf, char *text)
 
 	len = strlen(text);
 
+	Cbuf_LockThreadMutex();
+
 	if (len <= cbuf->text_start)
 	{
 		memcpy (cbuf->text_buf + (cbuf->text_start - len), text, len);
 		cbuf->text_start -= len;
+		Cbuf_UnlockThreadMutex();
 		return;
 	}
 
@@ -147,17 +171,19 @@ void Cbuf_InsertTextEx (cbuf_t *cbuf, char *text)
 	if (new_bufsize > MAXCMDBUF)
 	{
 		Com_Printf ("Cbuf_InsertText: overflow\n");
+		Cbuf_UnlockThreadMutex();
 		return;
 	}
 
 	// Calculate optimal position of text in buffer
 	new_start = (MAXCMDBUF - new_bufsize) / 2;
 
-	memmove (cbuf->text_buf + (new_start + len), cbuf->text_buf + cbuf->text_start,
-		cbuf->text_end - cbuf->text_start);
+	memmove (cbuf->text_buf + (new_start + len), cbuf->text_buf + cbuf->text_start,	cbuf->text_end - cbuf->text_start);
 	memcpy (cbuf->text_buf + new_start, text, len);
 	cbuf->text_start = new_start;
 	cbuf->text_end = cbuf->text_start + new_bufsize;
+
+	Cbuf_UnlockThreadMutex();
 }
 
 /*
@@ -171,6 +197,9 @@ void Cbuf_ExecuteEx (cbuf_t *cbuf)
 	char	*text;
 	char	line[1024], *src, *dest;
 	qbool	comment, quotes;
+
+	Cbuf_LockThreadMutex();
+	SV_LockThreadMutex();
 
 	cbuf_current = cbuf;
 
@@ -228,7 +257,7 @@ void Cbuf_ExecuteEx (cbuf_t *cbuf)
 		}
 
 // execute the command line
-		Cmd_ExecuteString (line);
+		Cmd_ExecuteString (line, false);
 		
 		if (cbuf->wait)
 		{	// skip out while text still remains in buffer, leaving it
@@ -239,6 +268,9 @@ void Cbuf_ExecuteEx (cbuf_t *cbuf)
 	}
 
 	cbuf_current = NULL;
+
+	SV_UnlockThreadMutex();
+	Cbuf_UnlockThreadMutex();
 }
 
 /*
@@ -722,7 +754,7 @@ static qbool Cmd_LegacyCommand (void)
 
 	assert (!recursive);
 	recursive = true;
-	Cmd_ExecuteString (text);
+	Cmd_ExecuteString (text, true);
 	recursive = false;
 
 	return true;
@@ -1195,7 +1227,7 @@ A complete command line has been parsed, so try to execute it
 FIXME: this function is getting really messy...
 ============
 */
-void Cmd_ExecuteString (char *text)
+void Cmd_ExecuteString (char *text, qbool lockmutex)
 {	
 	cmd_function_t	*cmd;
 	cmd_alias_t		*a;
@@ -1206,12 +1238,15 @@ void Cmd_ExecuteString (char *text)
 	char			**s;
 #endif
 
+	if (lockmutex)
+		Cbuf_LockThreadMutex();
+
 	Cmd_ExpandString (text, buf);
 	Cmd_TokenizeString (buf);
 
 // execute the command line
 	if (!Cmd_Argc())
-		return;		// no tokens
+		goto done; // no tokens
 
 	inserttarget = &cbuf_main;
 
@@ -1221,7 +1256,7 @@ void Cmd_ExecuteString (char *text)
 
 	if (cbuf_current == &cbuf_svc) {
 		if (CL_CheckServerCommand())
-			return;
+			goto done;
 	}
 #endif
 
@@ -1242,7 +1277,7 @@ void Cmd_ExecuteString (char *text)
 				if (!*s) {
 					if (cl_warncmd.value || developer.value)
 						Com_Printf ("\"%s\" cannot be used in message triggers\n", cmd_argv[0]);
-					return;
+					goto done;
 				}
 			}
 #endif
@@ -1250,7 +1285,7 @@ void Cmd_ExecuteString (char *text)
 				cmd->function ();
 			else
 				Cmd_ForwardToServer ();
-			return;
+			goto done;
 		}
 	}
 
@@ -1260,7 +1295,7 @@ void Cmd_ExecuteString (char *text)
 
 // check cvars
 	if (Cvar_Command())
-		return;
+		goto done;
 
 // check alias
 checkaliases:
@@ -1290,16 +1325,16 @@ checkaliases:
 
 				Cbuf_InsertTextEx (inserttarget, a->value);
 			}
-			return;
+			goto done;
 		}
 	}
 
 	if (Cmd_LegacyCommand())
-		return;
+		goto done;
 
 	if (!host_initialized && Cmd_Argc() > 1) {
 		if (Cvar_CreateTempVar())
-			return;
+			goto done;
 	}
 
 #ifndef SERVERONLY
@@ -1307,6 +1342,10 @@ checkaliases:
 #endif
 		if (cl_warncmd.value || developer.value)
 			Com_Printf ("Unknown command \"%s\"\n", Cmd_Argv(0));
+
+done:
+	if (lockmutex)
+		Cbuf_UnlockThreadMutex();
 }
 
 
@@ -1431,9 +1470,7 @@ Cmd_Init
 */
 void Cmd_Init (void)
 {
-//
-// register our commands
-//
+	// register our commands
 	Cmd_AddCommand ("exec", Cmd_Exec_f);
 	Cmd_AddCommand ("echo", Cmd_Echo_f);
 	Cmd_AddCommand ("aliaslist", Cmd_AliasList_f);
@@ -1446,6 +1483,19 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cmdlist", Cmd_CmdList_f);
 	Cmd_AddCommand ("if", Cmd_If_f);
 	Cmd_AddCommand ("_z_cmd", Cmd_Z_Cmd_f);	// ZQuake
+
+	if (Thread_HasThreads())
+		cmd_text_mutex = Thread_CreateMutex();
 }
 
-/* vi: set noet ts=4 sts=4 ai sw=4: */
+/*
+============
+Cmd_Shutdown
+============
+*/
+void Cmd_Shutdown (void)
+{
+	if (cmd_text_mutex)
+		Thread_DestroyMutex(cmd_text_mutex);
+	cmd_text_mutex = NULL;
+}

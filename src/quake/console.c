@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console.c
 
 #include "quakedef.h"
+#include "thread.h"
 #include "keys.h"
 
 #define		CON_TEXTSIZE	65536
@@ -34,6 +35,9 @@ typedef struct
 
 static console_t	con;
 
+void		*con_mutex = NULL;
+
+qbool		con_initialized = false;
 int			con_x;			// offset in current line for next print
 int			con_ormask;
 int 		con_linewidth;	// characters across screen
@@ -44,9 +48,7 @@ cvar_t		_con_notifylines = {"con_notifylines","4"};
 cvar_t		con_notifytime = {"con_notifytime","3"};		//seconds
 
 #define	NUM_CON_TIMES 16
-float		con_times[NUM_CON_TIMES];	// cls.realtime time the line was generated
-								// for transparent notify lines
-
+float		con_times[NUM_CON_TIMES];	// cls.realtime time the line was generated for transparent notify lines
 int			con_vislines;
 int			con_notifylines;		// scan lines to clear for notify lines
 
@@ -55,11 +57,7 @@ extern	char	key_lines[32][MAXCMDLINE];
 extern	int		edit_line;
 extern	int		key_linepos;
 
-
-qbool		con_initialized = false;
-
-
-void Key_ClearTyping (void)
+static void Key_ClearTyping (void)
 {
 	key_lines[edit_line][1] = 0;	// clear any typing
 	key_linepos = 1;
@@ -74,16 +72,14 @@ void Con_ToggleConsole_f (void)
 {
 	Key_ClearTyping ();
 
-	if (key_dest == key_console)
-	{
-		if (cls.state == ca_active || cl.intermission)
-		{
+	if (key_dest == key_console) {
+		if (cls.state == ca_active || cl.intermission) {
 			key_dest = key_game;
 			con.backscroll = 0;
 		}
-	}
-	else
+	} else {
 		key_dest = key_console;
+	}
 
 	SCR_EndLoadingPlaque ();
 	Con_ClearNotify ();
@@ -96,10 +92,16 @@ Con_Clear_f
 */
 void Con_Clear_f (void)
 {
+	if (con_mutex)
+		Thread_LockMutex(con_mutex);
+
 	con.numlines = 0;
 	memset (con.text, ' ', CON_TEXTSIZE);
 	con.display = con.current;
 	con.backscroll = 0;
+
+	if (con_mutex)
+		Thread_UnlockMutex(con_mutex);
 }
 
 
@@ -238,6 +240,9 @@ void Con_ConDump_f (void)
 	linewidth = min (con_linewidth, sizeof(buffer)-1);
 	buffer[linewidth] = 0;
 
+	if (con_mutex)
+		Thread_LockMutex(con_mutex);
+
 	for (i = con.numlines - 1; i >= 0 ; i--)
 	{
 		line = con.text + ((con.current - i + con_totallines) % con_totallines)*con_linewidth;
@@ -256,6 +261,9 @@ void Con_ConDump_f (void)
 		FS_Printf (f, "%s\n", buffer);
 	}
 
+	if (con_mutex)
+		Thread_UnlockMutex(con_mutex);
+
 	FS_Close (f);
 	Com_Printf ("Dumped console text to %s.\n", Cmd_Argv(1));
 }
@@ -271,14 +279,15 @@ void Con_Init (void)
 	if (dedicated)
 		return;
 
+	if (Thread_HasThreads())
+		con_mutex = Thread_CreateMutex();
+
 	con_linewidth = -1;
 	Con_CheckResize ();
 
 	Com_Printf ("Console initialized.\n");
 
-//
-// register our commands
-//
+	// register our commands
 	Cvar_Register (&_con_notifylines);
 	Cvar_Register (&con_notifytime);
 
@@ -289,6 +298,20 @@ void Con_Init (void)
 	Cmd_AddCommand ("clear", Con_Clear_f);
 	con_initialized = true;
 }
+
+
+/*
+================
+Con_Shutdown
+================
+*/
+void Con_Shutdown (void)
+{
+	if (con_mutex)
+		Thread_DestroyMutex(con_mutex);
+	con_mutex = NULL;
+}
+
 
 
 /*
@@ -325,6 +348,8 @@ void Con_Print (char *txt)
 	if (!con_initialized)
 		return;
 
+	if (con_mutex)
+		Thread_LockMutex(con_mutex);
 
 	if (txt[0] == 1 || txt[0] == 2)
 	{
@@ -333,7 +358,6 @@ void Con_Print (char *txt)
 	}
 	else
 		mask = 0;
-
 
 	while ( (c = *txt) != 0 )
 	{
@@ -353,7 +377,6 @@ void Con_Print (char *txt)
 			con.current--;
 			cr = false;
 		}
-
 
 		if (!con_x)
 		{
@@ -382,8 +405,10 @@ void Con_Print (char *txt)
 				con_x = 0;
 			break;
 		}
-
 	}
+
+	if (con_mutex)
+		Thread_UnlockMutex(con_mutex);
 }
 
 // scroll the (visible area of the) console up or down
@@ -484,6 +509,9 @@ void Con_DrawNotify (void)
 	int		skip;
 	int		maxlines;
 
+	if (con_mutex)
+		Thread_LockMutex(con_mutex);
+
 	maxlines = _con_notifylines.value;
 	if (maxlines > NUM_CON_TIMES)
 		maxlines = NUM_CON_TIMES;
@@ -554,6 +582,9 @@ void Con_DrawNotify (void)
 
 	if (v > con_notifylines)
 		con_notifylines = v;
+
+	if (con_mutex)
+		Thread_UnlockMutex(con_mutex);
 }
 
 /*
@@ -571,6 +602,9 @@ void Con_DrawConsole (int lines)
 
 	if (lines <= 0)
 		return;
+
+	if (con_mutex)
+		Thread_LockMutex(con_mutex);
 
 	con_vislines = lines;
 
@@ -641,6 +675,9 @@ void Con_DrawConsole (int lines)
 		R_DrawString (8, y, dlbar);
 	}
 
-// draw the input prompt, user text, and cursor if desired
+	// draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();
+
+	if (con_mutex)
+		Thread_UnlockMutex(con_mutex);
 }

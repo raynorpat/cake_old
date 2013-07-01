@@ -316,18 +316,26 @@ void Host_Quit (void);
 
 void CL_Init (void);
 void CL_Shutdown (void);
-void CL_Frame (double time);
+void CL_Frame (double time, qbool threaded_server);
 void CL_Disconnect (void);
 void CL_HandleHostError (void);
 void CL_BeginLocalConnection (void);
+
 void Con_Init (void);
+void Con_Shutdown (void);
 void Con_Print (char *txt);
+
 void Key_Init (void);
 void SCR_EndLoadingPlaque (void);
 
 void SV_Init (void);
 void SV_Shutdown (char *finalmsg);
 void SV_Frame (double time);
+qbool SV_IsThreaded(void);
+void SV_StartThread(void);
+void SV_StopThread(void);
+void SV_LockThreadMutex(void);
+void SV_UnlockThreadMutex(void);
 
 #endif /* _COMMON_H_ */
 

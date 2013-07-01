@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "server.h"
 #include "version.h"
+#include "thread.h"
 
 client_t	*sv_client;					// current client
 
@@ -47,6 +48,8 @@ cvar_t	sv_pausable = {"sv_pausable", "1"};
 cvar_t	sv_paused = {"sv_paused", "0", CVAR_ROM};
 cvar_t	sv_maxrate = {"sv_maxrate", "0"};
 cvar_t	sv_fastconnect = {"sv_fastconnect", "0"};
+
+cvar_t	sv_threaded = {"sv_threaded", "0"};
 
 //
 // game rules mirrored in svs.info
@@ -764,7 +767,7 @@ void SVC_RemoteCommand (void)
 		Com_Printf ("Rcon from %s:\n%s\n", NET_AdrToString (net_from), net_message.data+4);
 
 		SV_BeginRedirect (RD_PACKET);
-		Cmd_ExecuteString (Cmd_MakeArgs(2));
+		Cmd_ExecuteString (Cmd_MakeArgs(2), true);
 	}
 
 	SV_EndRedirect ();
@@ -1380,10 +1383,10 @@ void SV_Frame (double time)
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	
-// keep the random time dependent
+	// keep the random time dependent
 	rand ();
 
-// decide the simulation time
+	// decide the simulation time
 	if (!sv_paused.value)
 	{
 		// FIXME, would it be better to advance svs.realtime even when paused?
@@ -1391,15 +1394,15 @@ void SV_Frame (double time)
 		sv.time += time;
 	}
 
-// check timeouts
+	// check timeouts
 	SV_CheckTimeouts ();
 
-// toggle the log buffer if full
+	// toggle the log buffer if full
 	SV_CheckLog ();
 
 	SV_MVDStream_Poll();
 
-// move autonomous things around if enough time has passed
+	// move autonomous things around if enough time has passed
 	if (!sv_paused.value) {
 		SV_Physics ();
 	} else {
@@ -1407,21 +1410,21 @@ void SV_Frame (double time)
 		SV_RunBots ();	// just update network stuff, but don't run physics
 	}
 
-// get packets
+	// get packets
 	SV_ReadPackets ();
 
 	if (dedicated)
 	{
-	// check for commands typed to the host
+		// check for commands typed to the host
 		SV_GetConsoleCommands ();
 		
-	// process console commands
+		// process console commands
 		Cbuf_Execute ();
 	}
 
 	SV_CheckVars ();
 
-// send messages back to the clients that had packets read this frame
+	// send messages back to the clients that had packets read this frame
 	SV_SendClientMessages ();
 
 	demo_start = Sys_DoubleTime ();
@@ -1429,10 +1432,10 @@ void SV_Frame (double time)
 	demo_end = Sys_DoubleTime ();
 	svs.stats.demo += demo_end - demo_start;
 
-// send a heartbeat to the master if needed
+	// send a heartbeat to the master if needed
 	Master_Heartbeat ();
 
-// collect timing statistics
+	// collect timing statistics
 	end = Sys_DoubleTime ();
 	svs.stats.active += end-start;
 	if (++svs.stats.count == STATFRAMES)
@@ -1508,6 +1511,7 @@ void SV_InitLocal (void)
 		Cvar_Register (&sv_minping);
 	Cvar_Register (&sv_maxpitch);
 	Cvar_Register (&sv_minpitch);
+	Cvar_Register (&sv_threaded);
 
 	Cvar_Register (&deathmatch);
 	Cvar_Register (&teamplay);
@@ -1698,6 +1702,111 @@ void SV_ExtractFromUserinfo (client_t *cl)
 
 }
 
+//============================================================================
+
+int SV_ThreadFunc(void *voiddata)
+{
+	double sv_realtime, oldtime, newtime;;
+
+	oldtime = Sys_DoubleTime ();
+
+	while (!svs.threadstop) {
+		newtime = Sys_DoubleTime ();
+		sv_realtime = newtime - oldtime;
+
+		// decide the simulation time
+		if (!sv_paused.value) {
+			// FIXME, would it be better to advance svs.realtime even when paused?
+			svs.realtime += sv_realtime;
+			sv.time += sv_realtime;
+		}
+
+		// at this point we start doing real server work, and must block on any client activity pertaining to the server (such as executing SV_SpawnServer)
+		SV_LockThreadMutex ();
+
+		// check timeouts
+		SV_CheckTimeouts ();
+
+		// toggle the log buffer if full
+		SV_CheckLog ();
+
+		SV_MVDStream_Poll();
+
+		// move autonomous things around if enough time has passed
+		if (!sv_paused.value) {
+			SV_Physics ();
+		} else {
+			PausedTic ();
+			SV_RunBots ();	// just update network stuff, but don't run physics
+		}
+
+		// get packets
+		SV_ReadPackets ();
+
+		if (dedicated) {
+			// check for commands typed to the host
+			SV_GetConsoleCommands ();
+		
+			// process console commands
+			Cbuf_Execute ();
+		}
+
+		SV_CheckVars ();
+
+		// send messages back to the clients that had packets read this frame
+		SV_SendClientMessages ();
+		SV_SendMVDMessage ();
+
+		// send a heartbeat to the master if needed
+		Master_Heartbeat ();
+
+		// unlock server mutex
+		SV_UnlockThreadMutex ();
+
+		oldtime = newtime;
+	}
+
+	return 0;
+}
+
+qbool SV_IsThreaded(void)
+{
+	if (!sv_threaded.integer || !Thread_HasThreads())
+		return false;
+	return svs.threaded;
+}
+
+void SV_StartThread(void)
+{
+	if (!sv_threaded.integer || !Thread_HasThreads())
+		return;
+	svs.threaded = true;
+	svs.threadstop = false;
+	svs.threadmutex = Thread_CreateMutex();
+	svs.thread = Thread_CreateThread(SV_ThreadFunc, NULL);
+}
+
+void SV_StopThread(void)
+{
+	if (!svs.threaded)
+		return;
+	svs.threadstop = true;
+	Thread_WaitThread(svs.thread, 0);
+	Thread_DestroyMutex(svs.threadmutex);
+	svs.threaded = false;
+}
+
+void SV_LockThreadMutex(void)
+{
+	if (svs.threaded)
+		Thread_LockMutex(svs.threadmutex);
+}
+
+void SV_UnlockThreadMutex(void)
+{
+	if (svs.threaded)
+		Thread_UnlockMutex(svs.threadmutex);
+}
 
 //============================================================================
 

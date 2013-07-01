@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define _FILE_OFFSET_BITS 64
 
 #include "quakedef.h"
+#include "thread.h"
 #include "sound.h"
 #include "crc.h"
 
@@ -261,6 +262,7 @@ VARIABLES
 
 =============================================================================
 */
+void *fs_mutex = NULL;
 
 searchpath_t *fs_searchpaths = NULL;
 
@@ -1382,6 +1384,9 @@ void FS_Init (void)
 
 	// generate the searchpath
 	FS_Rescan();
+
+	if (Thread_HasThreads())
+		fs_mutex = Thread_CreateMutex();
 }
 
 void FS_Init_Commands(void)
@@ -1407,6 +1412,9 @@ void FS_Shutdown (void)
 	// (hopefully there aren't any other open files, but they'll be cleaned up
 	//  by the OS anyway)
 	FS_ClearSearchPath();
+
+	if (fs_mutex)
+		Thread_DestroyMutex(fs_mutex);
 }
 
 /*
@@ -1782,11 +1790,16 @@ Open a file. The syntax is the same as fopen
 */
 qfile_t* FS_Open (const char* filepath, const char* mode, qbool quiet, qbool nonblocking)
 {
+	qfile_t *result = NULL;
+
 	if (FS_CheckNastyPath(filepath, false))
 	{
 		Com_Printf("FS_Open(\"%s\", \"%s\", %s): nasty filename rejected\n", filepath, mode, quiet ? "true" : "false");
 		return NULL;
 	}
+
+	if (fs_mutex)
+		Thread_LockMutex(fs_mutex);
 
 	// If the file is opened in "write", "append", or "read/write" mode
 	if (mode[0] == 'w' || mode[0] == 'a' || strchr (mode, '+'))
@@ -1799,11 +1812,18 @@ qfile_t* FS_Open (const char* filepath, const char* mode, qbool quiet, qbool non
 		// Create directories up to the file
 		FS_CreatePath (real_path);
 
-		return FS_SysOpen (real_path, mode, nonblocking);
+		result = FS_SysOpen (real_path, mode, nonblocking);
 	}
-	// Else, we look at the various search paths and open the file in read-only mode
 	else
-		return FS_OpenReadFile (filepath, quiet, nonblocking);
+	{
+		// Else, we look at the various search paths and open the file in read-only mode
+		result = FS_OpenReadFile (filepath, quiet, nonblocking);
+	}
+
+	if (fs_mutex)
+		Thread_UnlockMutex(fs_mutex);
+
+	return result;
 }
 
 

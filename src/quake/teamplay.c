@@ -135,7 +135,7 @@ void TP_ExecTrigger (char *s)
 			}
 		}
 		// a single line, so execute it right away
-		Cmd_ExecuteString (astr);
+		Cmd_ExecuteString (astr, false);
 		return;
 	}
 }

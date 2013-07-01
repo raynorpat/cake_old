@@ -204,7 +204,7 @@ void SV_Kick_f (void)
 #ifndef SERVERONLY
 		// some mods use a "kick" alias for their own needs, sigh
 		if (CL_ClientState() && Cmd_FindAlias("kick")) {
-			Cmd_ExecuteString (Cmd_AliasString("kick"));
+			Cmd_ExecuteString (Cmd_AliasString("kick"), false);
 			return;
 		}
 #endif
@@ -263,7 +263,7 @@ void SV_Status_f (void)
 	// some mods use a "status" alias for their own needs, sigh
 	if (!sv_redirected && !Q_stricmp(Cmd_Argv(0), "status")
 		&& CL_ClientState() && Cmd_FindAlias("status")) {
-		Cmd_ExecuteString (Cmd_AliasString("status"));
+		Cmd_ExecuteString (Cmd_AliasString("status"), false);
 		return;
 	}
 #endif

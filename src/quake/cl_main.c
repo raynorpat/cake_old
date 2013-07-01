@@ -1079,7 +1079,7 @@ static double MinPhysFrameTime ()
 CL_Frame
 ==================
 */
-void CL_Frame (double time)
+void CL_Frame (double time, qbool threaded_server)
 {
 	double			time1 = 0.0, time2 = 0.0;
 	static double	time3 = 0.0;
@@ -1158,7 +1158,7 @@ void CL_Frame (double time)
 		Cbuf_Execute ();
 		CL_CheckAutoPause ();
 
-		if (com_serveractive)
+		if (com_serveractive && !threaded_server)
 			SV_Frame (cls.physframetime);
 
 		// fetch results from server

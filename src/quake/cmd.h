@@ -92,6 +92,7 @@ typedef struct cmd_function_s
 } cmd_function_t;
 
 void Cmd_Init (void);
+void Cmd_Shutdown (void);
 
 void Cmd_AddCommand (char *cmd_name, xcommand_t function);
 // called by the init functions of other parts of the program to
@@ -129,7 +130,7 @@ void Cmd_TokenizeString (char *text);
 // Takes a null terminated string.  Does not need to be /n terminated.
 // breaks the string up into arg tokens.
 
-void Cmd_ExecuteString (char *text);
+void Cmd_ExecuteString (char *text, qbool lockmutex);
 // Parses a single line of text into arguments and tries to execute it
 // as if it was typed at the console
 

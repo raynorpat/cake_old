@@ -138,6 +138,7 @@ typedef struct
 	qbool		intermission_origin_valid;
 	vec3_t		intermission_origin;
 
+	// are we recording to a mvd
 	qbool		mvdrecording;
 } server_t;
 
@@ -252,9 +253,6 @@ typedef struct client_s
 // getting kicked off by the server operator
 // a program error, like an overflowed reliable buffer
 
-
-
-
 //=============================================================================
 
 //mvd stuff
@@ -344,9 +342,7 @@ typedef struct
 	struct mvddest_s *dest;
 } demo_t;
 
-
 //=============================================================================
-
 
 #define	STATFRAMES	100
 typedef struct
@@ -401,9 +397,11 @@ typedef struct
 
 	packet_t	*free_packets;
 
-	qbool 		demoplayback;
-	qbool 		demorecording;
-	qbool 		msgfromdemo;
+	// independent server thread (when running client)
+	qbool threaded; // true if server is running on separate thread
+	qbool volatile threadstop;
+	void *threadmutex;
+	void *thread;
 } serverPersistent_t;
 
 //=============================================================================
@@ -646,8 +644,6 @@ void SV_SetMaster_f (void);
 void SV_Heartbeat_f (void);
 void Master_Shutdown (void);
 void Master_Heartbeat (void);
-
-
 
 typedef struct
 {

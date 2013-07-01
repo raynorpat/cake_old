@@ -180,7 +180,7 @@ void Host_Frame (double time)
 	if (dedicated)
 		SV_Frame (time);
 	else
-		CL_Frame (time);	// will also call SV_Frame
+		CL_Frame (time, SV_IsThreaded());	// will also call SV_Frame
 }
 
 /*
@@ -245,7 +245,7 @@ void Host_Init (int argc, char **argv)
 
 		// if a map wasn't specified on the command line, spawn start map
 		if (!com_serveractive)
-			Cmd_ExecuteString ("map start");
+			Cmd_ExecuteString ("map start", false);
 		if (!com_serveractive)
 			Host_Error ("Couldn't spawn a server");
 	}
@@ -256,6 +256,9 @@ void Host_Init (int argc, char **argv)
 	}
 
 	Com_DPrintf ("\n========= " PROGRAM " Initialized =========\n");
+
+	if (!dedicated)
+		SV_StartThread ();
 }
 
 
@@ -282,7 +285,10 @@ void Host_Shutdown (void)
 	CL_Shutdown ();
 	NET_Shutdown ();
 	COM_Shutdown ();
+	Cmd_Shutdown ();
+	Con_Shutdown ();
 	FS_Shutdown ();
+	SV_StopThread ();
 	Thread_Shutdown ();
 }
 

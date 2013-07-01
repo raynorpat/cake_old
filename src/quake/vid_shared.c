@@ -865,7 +865,7 @@ static void VID_CloseSystems(void)
 
 void VID_Restart_f(void)
 {
-	Cmd_ExecuteString("disconnect");
+	Cmd_ExecuteString("disconnect", false);
 
 	Com_Printf("VID_Restart: changing from %s %dx%d, to %s %dx%d.\n",
 		vid.fullscreen ? "fullscreen" : "window", vid.width, vid.height, 

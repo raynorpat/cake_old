@@ -1969,7 +1969,7 @@ bad_message:
 			break;
 			
 		case svc_sellscreen:
-			Cmd_ExecuteString ("help");
+			Cmd_ExecuteString ("help", true);
 			break;
 
 		case svc_smallkick:

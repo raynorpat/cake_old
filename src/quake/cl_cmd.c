@@ -722,9 +722,9 @@ void CL_Join_f (void)
 		// a server name was given, connect directly or through Qizmo
 		Cvar_Set(&spectator, "");
 		if (cl_useproxy.value && CL_ConnectedToQizmo())
-			Cmd_ExecuteString (va("say ,con %s", Cmd_Argv(1)));
+			Cmd_ExecuteString (va("say ,con %s", Cmd_Argv(1)), false);
 		else
-			Cmd_ExecuteString (va("connect %s", Cmd_Argv(1)));
+			Cmd_ExecuteString (va("connect %s", Cmd_Argv(1)), false);
 		return;
 	}
 
@@ -740,14 +740,14 @@ void CL_Join_f (void)
 
 	if (cl.z_ext & Z_EXT_JOIN_OBSERVE) {
 		// server supports the 'join' command, good
-		Cmd_ExecuteString("cmd join");
+		Cmd_ExecuteString("cmd join", false);
 		return;
 	}
 
 	if (CL_ConnectedToQizmo())
-		Cmd_ExecuteString("say ,reconnect");
+		Cmd_ExecuteString("say ,reconnect", false);
 	else
-		Cmd_ExecuteString("reconnect");
+		Cmd_ExecuteString("reconnect", false);
 }
 
 
@@ -768,9 +768,9 @@ void CL_Observe_f (void)
 		// a server name was given, connect directly or through Qizmo
 		Cvar_Set(&spectator, "1");
 		if (cl_useproxy.value && CL_ConnectedToQizmo())
-			Cmd_ExecuteString (va("say ,con %s", Cmd_Argv(1)));
+			Cmd_ExecuteString (va("say ,con %s", Cmd_Argv(1)), false);
 		else
-			Cmd_ExecuteString (va("connect %s", Cmd_Argv(1)));
+			Cmd_ExecuteString (va("connect %s", Cmd_Argv(1)), false);
 		return;
 	}
 
@@ -786,14 +786,14 @@ void CL_Observe_f (void)
 
 	if (cl.z_ext & Z_EXT_JOIN_OBSERVE) {
 		// server supports the 'join' command, good
-		Cmd_ExecuteString("cmd observe");
+		Cmd_ExecuteString("cmd observe", false);
 		return;
 	}
 
 	if (CL_ConnectedToQizmo())
-		Cmd_ExecuteString("say ,reconnect");
+		Cmd_ExecuteString("say ,reconnect", false);
 	else
-		Cmd_ExecuteString("reconnect");
+		Cmd_ExecuteString("reconnect", false);
 }
 
 void CL_SND_Restart_f (void)
