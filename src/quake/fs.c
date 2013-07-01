@@ -596,7 +596,7 @@ pack_t *FS_LoadPackPK3 (const char *packfile)
 		return NULL;
 	}
 
-	Com_Printf("Added packfile %s (%i files)\n", packfile, real_nb_files);
+	Com_DPrintf("Added packfile %s (%i files)\n", packfile, real_nb_files);
 	return pack;
 }
 
@@ -818,7 +818,7 @@ pack_t *FS_LoadPackPAK (const char *packfile)
 
 	free(info);
 
-	Com_Printf("Added packfile %s (%i files)\n", packfile, numpackfiles);
+	Com_DPrintf("Added packfile %s (%i files)\n", packfile, numpackfiles);
 	return pack;
 }
 
