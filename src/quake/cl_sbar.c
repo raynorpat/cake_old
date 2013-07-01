@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sbar.c -- status bar code
 
 #include "quakedef.h"
+#include "keys.h"
 #include "cl_sbar.h"
 
 qbool		sb_drawinventory;
@@ -792,7 +793,8 @@ void Sbar_Draw (void)
 
 	if (scr_con_current == vid.height)
 		return;		// console is full screen
-
+	if (key_dest == key_menu)
+		return;		// menu is up
 	if (!sb_drawmain && !sb_drawinventory)
 		return;		// nothing to do
 
@@ -800,7 +802,7 @@ void Sbar_Draw (void)
 
 	RB_SetCanvas (CANVAS_SBAR);
 	
-// inventory
+	// inventory
 	if (sb_drawinventory) {
 		if (!cl.spectator || cam_track) {
 			Sbar_DrawInventory ();
@@ -808,7 +810,7 @@ void Sbar_Draw (void)
 		}
 	}	
 
-// main area
+	// main area
 	if (sb_drawmain) {
 		if (cl.spectator)
 			Sbar_SpectatorScoreboard ();
@@ -818,7 +820,7 @@ void Sbar_Draw (void)
 			Sbar_DrawNormal ();
 	}
 
-// main screen deathmatch rankings
+	// main screen deathmatch rankings
 	if (cl.stats[STAT_HEALTH] <= 0 && !cl.spectator) {
 		// if we're dead show team scores in team games
 		if (cl.teamplay && !sb_showscores)

@@ -80,7 +80,7 @@ void *Hunk_TypeAlloc (hunk_type_t *ht, int size, char *name)
 #ifdef _WIN32
 		ht->hunkbuffer = VirtualAlloc (NULL, ht->maxmb, MEM_RESERVE, PAGE_NOACCESS);
 #else
-		ht->hunkbuffer = mmap(NULL, ht->maxmb, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+		ht->hunkbuffer = mmap(NULL, ht->maxmb, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 #endif
 		ht->lowmark = 0;
 		ht->used = 0;

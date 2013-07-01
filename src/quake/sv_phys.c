@@ -991,4 +991,3 @@ void SV_SetMoveVars(void)
 //	sv.movevars.ktjump 			= pm_ktjump.value;
 }
 
-/* vi: set noet ts=4 sts=4 ai sw=4: */
