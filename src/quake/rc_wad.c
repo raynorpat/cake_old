@@ -168,6 +168,8 @@ void *W_GetLumpName (char *name, qbool crash)
 	lumpinfo_t	*lump;
 	
 	lump = W_GetLumpinfo (name, crash);
+	if (!lump)
+		return NULL;
 
 	if ( lump->type == TYP_QPIC &&
 			((qpic_t *)(wad_base + lump->filepos))->width *

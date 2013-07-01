@@ -245,8 +245,8 @@ void M_Main_ButtonList (char *buttons[], int cursor_location, int in_main)
 
 void M_Main_Layout (int f_cursor, int f_inmenu)
 {
-	// the layout
-	char	*names[] =
+	qpic_t *p;
+	char	*names[] = 	// the layout
 	{
 		"Single",
 		"Multiplayer",
@@ -263,10 +263,20 @@ void M_Main_Layout (int f_cursor, int f_inmenu)
 	R_DrawFilledRect (0, vid.height / 16, vid.width, 1, LAYOUT_RED, 1);
 	
 	// bottom
-	R_DrawFilledRect (0,vid.height - 24, vid.width, vid.height, 0, 1);
+	R_DrawFilledRect (0, vid.height - 24, vid.width, vid.height, 0, 1);
 
-	// bottom fade
+	// bottom fade up
+	// TODO?
 
+	// bottom id tech logo	
+	p = R_CachePic ("gfx/idtech.tga");
+	R_DrawAlphaPic (vid.width - 64, vid.height - 64, p, 0.6f);
+
+	// game logo
+//	p = R_CachePic ("gfx/logo.tga");
+//	R_DrawAlphaPic ((vid.width - GetPicWidth(p)) / 2, vid.height / 8, p, 0.6f);
+
+	// button list
 	M_Main_ButtonList (names, f_cursor, f_inmenu);
 
 	// HACK: In submenu, so do the background

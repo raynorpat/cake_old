@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 #include "rc_wad.h"
+#include "rc_image.h"
 
 byte		*draw_chars;				// 8*8 graphic characters
 
@@ -138,6 +139,64 @@ int			menu_numcachepics;
 
 extern byte	*wad_base;
 
+static char *Draw_PicNoPath (char *name)
+{
+	int i;
+
+	for (i = strlen (name); i; i--) {
+		if (name[i] == '/' || name[i] == '\\')
+			return &name[i + 1];
+	}
+
+	return name;
+}
+
+static qbool Draw_LoadExternalPic (char *name, glpic_t *gl, int *out_w, int *out_h)
+{
+	int i;
+	byte *data = NULL;
+	char picname[256];
+	int w, h;
+	char *paths[] =
+	{
+		"gfx/",
+		"wad/",
+		"textures/gfx/",
+		"textures/wad/",
+		"textures/",
+		NULL
+	};
+	int hunkmark = Hunk_LowMark ();
+
+	for (i = 0; ; i++)
+	{
+		if (!paths[i])
+			break;
+
+		sprintf (picname, "%s%s", paths[i], Draw_PicNoPath(name));
+		FS_StripExtension (picname, picname, sizeof(picname));
+
+		if ((data = Image_LoadImage (picname, &w, &h)) != NULL)
+		{
+			gl->gltexture = TexMgr_LoadImage (NULL, picname, w, h, SRC_RGBA, data, picname, 0, TEXPREF_NOPICMIP);
+
+			if (out_w)
+				*out_w = w;
+			if (out_h)
+				*out_h = h;
+
+			gl->sl = gl->tl = 0;
+			gl->sh = gl->th = 1;
+
+			Hunk_FreeToLowMark (hunkmark);
+			return true;
+		}
+	}
+
+	Hunk_FreeToLowMark (hunkmark);
+	return false;
+}
+
 /*
 ================
 R_CacheWadPic
@@ -146,24 +205,35 @@ R_CacheWadPic
 qpic_t *R_CacheWadPic (char *name)
 {
 	qpic_t	*p;
-	glpic_t	*gl;
+	glpic_t	gl;
 	char texturename[64];
+	int w, h;
 	unsigned offset;
 
-	p = W_GetLumpName (name, false);
-	if (!p)
-		return pic_nul;
-	gl = (glpic_t *)p->data;
+	if (!Draw_LoadExternalPic (name, &gl, &w, &h))
+	{
+		p = W_GetLumpName (name, false);
+		if (!p)
+			return pic_nul;
 
-	sprintf (texturename, "gfx:%s", name);
+		sprintf (texturename, "gfx:%s", name);
 
-	offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
+		offset = (unsigned)p - (unsigned)wad_base + sizeof(int)*2;
 
-	gl->gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx", offset, TEXPREF_NOPICMIP);
-	gl->sl = 0;
-	gl->sh = 1;
-	gl->tl = 0;
-	gl->th = 1;
+		gl.gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, "gfx", offset, TEXPREF_NOPICMIP);
+		gl.sl = 0;
+		gl.sh = 1;
+		gl.tl = 0;
+		gl.th = 1;
+	}
+	else
+	{
+		p = (qpic_t *) Hunk_Alloc (sizeof (qpic_t) - 4 + sizeof (glpic_t));
+		p->width = w;
+		p->height = h;
+	}
+
+	memcpy (p->data, &gl, sizeof (glpic_t));
 
 	return p;
 }
@@ -180,7 +250,8 @@ qpic_t *R_CachePic (char *path)
 	cachepic_t	*pic;
 	int			i;
 	qpic_t		*dat;
-	glpic_t		*gl;
+	glpic_t		gl;
+	int			w, h;
 
 	Draw_InvalidateState ();
 
@@ -195,22 +266,32 @@ qpic_t *R_CachePic (char *path)
 
 	menu_numcachepics++;
 	strcpy (pic->name, path);
+	//FS_DefaultExtension(path, ".lmp", sizeof(path));
 
 	// load the pic from disk
-	dat = (qpic_t *)FS_LoadFile (path, false, NULL);
-	if (!dat)
-		Sys_Error ("R_CachePic: failed to load %s", path);
-	SwapPic (dat);
+	if (!Draw_LoadExternalPic (path, &gl, &w, &h))
+	{
+		dat = (qpic_t *)FS_LoadFile (path, false, NULL);
+		if (!dat)
+			Sys_Error ("R_CachePic: failed to load %s", path);
+		SwapPic (dat);
 
-	pic->pic.width = dat->width;
-	pic->pic.height = dat->height;
+		pic->pic.width = dat->width;
+		pic->pic.height = dat->height;
 
-	gl = (glpic_t *)pic->pic.data;
-	gl->gltexture = TexMgr_LoadImage (NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path, sizeof(int)*2, TEXPREF_NOPICMIP);
-	gl->sl = 0;
-	gl->sh = 1;
-	gl->tl = 0;
-	gl->th = 1;
+		gl.gltexture = TexMgr_LoadImage (NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path, sizeof(int)*2, TEXPREF_NOPICMIP);
+		gl.sl = 0;
+		gl.sh = 1;
+		gl.tl = 0;
+		gl.th = 1;
+	}
+	else
+	{
+		pic->pic.width = w;
+		pic->pic.height = h;
+	}
+
+	memcpy (pic->pic.data, &gl, sizeof (glpic_t));
 
 	return &pic->pic;
 }
@@ -224,18 +305,18 @@ Draw_MakePic
 qpic_t *Draw_MakePic (char *name, int width, int height, byte *data)
 {
 	qpic_t		*pic;
-	glpic_t		*gl;
+	glpic_t		gl;
 
 	pic = Hunk_Alloc (sizeof(qpic_t) - 4 + sizeof (glpic_t));
 	pic->width = width;
 	pic->height = height;
 
-	gl = (glpic_t *)pic->data;
-	gl->gltexture = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, data, "", (unsigned) data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
-	gl->sl = 0;
-	gl->sh = 1;
-	gl->tl = 0;
-	gl->th = 1;
+	gl.gltexture = TexMgr_LoadImage (NULL, name, width, height, SRC_INDEXED, data, "", (unsigned) data, TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+	gl.sl = 0;
+	gl.sh = 1;
+	gl.tl = 0;
+	gl.th = 1;
+	memcpy (pic->data, &gl, sizeof (glpic_t));
 
 	return pic;
 }
@@ -337,6 +418,8 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/ttl_main.lmp");
 	R_CachePic ("gfx/ttl_sgl.lmp");
 	R_CachePic ("gfx/vidmodes.lmp");
+	R_CachePic ("gfx/idtech.tga");
+//	R_CachePic ("gfx/logo.tga");
 }
 
 static void gl_draw_shutdown(void)
@@ -601,9 +684,30 @@ void Draw_ColoredPic (int x, int y, qpic_t *pic, byte *color)
 }
 
 
+/*
+================
+R_DrawPic
+================
+*/
 void R_DrawPic (int x, int y, qpic_t *pic)
 {
 	Draw_ColoredPic (x, y, pic, NULL);
+}
+
+/*
+================
+R_DrawAlphaPic
+================
+*/
+void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha)
+{
+	if (alpha > 0.0)
+	{
+		byte color[4] = {255, 255, 255, 255};
+		color[3] = BYTE_CLAMPF (alpha);
+
+		Draw_ColoredPic (x, y, pic, color);
+	}
 }
 
 

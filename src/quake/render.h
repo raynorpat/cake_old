@@ -217,6 +217,7 @@ void R_DrawChar (int x, int y, int num);
 void R_DrawColoredChar (int x, int y, int num, unsigned int color);
 void R_DrawString (int x, int y, const char *str);
 void R_DrawPic (int x, int y, qpic_t *pic);
+void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha);
 void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom);
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha);
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);
