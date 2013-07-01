@@ -259,14 +259,11 @@ void M_Main_Layout (int f_cursor, int f_inmenu)
 	RB_SetCanvas (CANVAS_NONE);
 
 	// top
-	R_DrawFilledRect (0, 0, vid.width, vid.height / 8, 0, 1);
+	R_DrawFilledRect (0, 0, vid.width, vid.height / 8, 0, 0.7);
 	R_DrawFilledRect (0, vid.height / 16, vid.width, 1, LAYOUT_RED, 1);
 	
 	// bottom
-	R_DrawFilledRect (0, vid.height - 24, vid.width, vid.height, 0, 1);
-
-	// bottom fade up
-	// TODO?
+	R_DrawFilledRect (0, vid.height - 72, vid.width, vid.height, 0, 0.7);
 
 	// bottom id tech logo	
 	p = R_CachePic ("gfx/idtech.tga");
