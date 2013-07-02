@@ -35,6 +35,12 @@ cvar_t	cl_rollangle = {"cl_rollangle", "2.0"};
 cvar_t	cl_bob = {"cl_bob", "0.02"};
 cvar_t	cl_bobcycle = {"cl_bobcycle", "0.6"};
 cvar_t	cl_bobup = {"cl_bobup","0.5"};
+
+cvar_t  cl_bobmodel = {"cl_bobmodel", "1"};
+cvar_t  cl_bobmodel_side = {"cl_bobmodel_side", "0.05"};
+cvar_t  cl_bobmodel_up = {"cl_bobmodel_up", "0.02"};
+cvar_t  cl_bobmodel_speed = {"cl_bobmodel_speed", "7"};
+
 cvar_t	v_kicktime = {"v_kicktime", "0.5"};
 cvar_t	v_kickroll = {"v_kickroll", "0.6"};
 cvar_t	v_kickpitch = {"v_kickpitch", "0.6"};
@@ -92,7 +98,6 @@ void V_NewMap (void)
 /*
 ===============
 V_CalcRoll
-
 ===============
 */
 float V_CalcRoll (vec3_t angles, vec3_t velocity)
@@ -123,25 +128,17 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 V_CalcBob
 ===============
 */
-float V_CalcBob (void)
+static float V_CalcBob (void)
 {
-	static double bobtime;
-	static float bob;
-	float	cycle;
-	
-	if (cl.spectator)
+	double bob, cycle;
+
+	if (cl_bob.value == 0)
 		return 0;
-
-	if (!cl.onground)
-		return bob;		// just use old value
-
 	if (cl_bobcycle.value <= 0)	
 		return 0;
 
-	bobtime += cls.frametime;
-	cycle = bobtime - (int)(bobtime/cl_bobcycle.value)*cl_bobcycle.value;
-	cycle /= cl_bobcycle.value;
-
+	cycle = cl.time  / cl_bobcycle.value;
+	cycle -= (int) cycle;
 	if (cycle < cl_bobup.value)
 		cycle = M_PI * cycle / cl_bobup.value;
 	else
@@ -150,13 +147,14 @@ float V_CalcBob (void)
 	// bob is proportional to simulated velocity in the xy plane
 	// (don't count Z, or jumping messes it up)
 	bob = sqrt(cl.simvel[0] * cl.simvel[0] + cl.simvel[1] * cl.simvel[1]) * cl_bob.value;
-	bob = bob * 0.3 + bob * 0.7 * sin(cycle);
 
-	if (bob > 4)
-		bob = 4;
-	else if (bob < -7)
-		bob = -7;
-	
+	if (!cl_bobmodel.value) {
+		bob = bob * 0.3 + bob * 0.7 * sin(cycle);
+		bob = bound(-7, bob, 4);
+	} else {
+		bob = 0;
+	}
+
 	return bob;	
 }
 
@@ -564,7 +562,45 @@ void V_AddViewWeapon (float bob)
 	AngleVectors (r_refdef2.viewangles, forward, NULL, up);
 	
 	VectorCopy (r_refdef2.vieworg, ent.origin);
-	VectorMA (ent.origin, bob * 0.4, forward, ent.origin);
+
+	if (cl_bobmodel.value) {
+		// calculate for swinging gun model
+		// the gun bobs when running on the ground, but doesn't bob when you're in the air.
+		// Sajt: I tried to smooth out the transitions between bob and no bob, which works
+		// for the most part, but for some reason when you go through a message trigger or
+		// pick up an item or anything like that it will momentarily jolt the gun.
+		vec3_t forward, right, up;
+		static double lastongroundtime = 0;
+		double xyspeed;
+		float bspeed;
+		float s, t;
+
+		xyspeed = sqrt(cl.simvel[0] * cl.simvel[0] + cl.simvel[1] * cl.simvel[1]);
+		s = cl.time * cl_bobmodel_speed.value;
+		if (cl.onground) {
+			lastongroundtime = cl.time;
+			if (cl.time - cl.landtime < 0.2) {
+				// just hit the ground, speed the bob back up over the next 0.2 seconds
+				t = cl.time - cl.landtime;
+				t = bound(0, t, 0.2);
+				t *= 5;
+			} else {
+				t = 1;
+			}
+		} else {
+			// recently left the ground, slow the bob down over the next 0.2 seconds
+			t = cl.time - lastongroundtime;
+			t = 0.2 - bound(0, t, 0.2);
+			t *= 5;
+		}
+
+		bspeed = bound (0, xyspeed, 400) * 0.01f;
+		AngleVectors (r_refdef2.viewangles, forward, right, up);
+		bob = bspeed * cl_bobmodel_side.value * sin (s) * t;
+		VectorMA (ent.origin, bob, right, ent.origin);
+		bob = bspeed * cl_bobmodel_up.value * cos (s * 2) * t;
+		VectorMA (ent.origin, bob, up, ent.origin);
+	}
 
 	// fudge position around to keep amount of weapon visible
 	// roughly equal with different FOV
@@ -583,7 +619,6 @@ void V_AddViewWeapon (float bob)
 /*
 ==================
 V_CalcIntermissionRefdef
-
 ==================
 */
 void V_CalcIntermissionRefdef (void)
@@ -603,7 +638,6 @@ void V_CalcIntermissionRefdef (void)
 /*
 ==================
 V_CalcRefdef
-
 ==================
 */
 void V_CalcRefdef (void)
@@ -858,6 +892,10 @@ void V_Init (void)
 	Cvar_Register (&cl_bob);
 	Cvar_Register (&cl_bobcycle);
 	Cvar_Register (&cl_bobup);
+	Cvar_Register (&cl_bobmodel);
+	Cvar_Register (&cl_bobmodel_side);
+	Cvar_Register (&cl_bobmodel_up);
+	Cvar_Register (&cl_bobmodel_speed);
 	Cvar_Register (&v_kicktime);
 	Cvar_Register (&v_kickroll);
 	Cvar_Register (&v_kickpitch);
