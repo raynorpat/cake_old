@@ -222,6 +222,7 @@ qbool GL_CreateGenericProgram (const char *vstext, const char *fstext, GLhandleA
 		return false;
 	else return true;
 */
+	return false;
 }
 
 
