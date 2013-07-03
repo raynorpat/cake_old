@@ -218,6 +218,7 @@ void R_DrawColoredChar (int x, int y, int num, unsigned int color);
 void R_DrawString (int x, int y, const char *str);
 void R_DrawPic (int x, int y, qpic_t *pic);
 void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha);
+void R_DrawSubPic (int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height);
 void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom);
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha);
 void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);

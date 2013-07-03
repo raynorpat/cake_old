@@ -98,6 +98,89 @@ void Draw_TextBox (int x, int y, int width, int lines)
 }
 
 
+/*
+================
+Draw_BigString
+================
+*/
+static void Draw_GetBigfontSourceCoords(char c, int char_width, int char_height, int *sx, int *sy)
+{
+   if (c >= 'A' && c <= 'Z')
+   {
+      (*sx) = ((c - 'A') % 8) * char_width;
+      (*sy) = ((c - 'A') / 8) * char_height;
+   }
+   else if (c >= 'a' && c <= 'z')
+   {
+      // Skip A-Z, hence + 26.
+      (*sx) = ((c - 'a' + 26) % 8) * char_width;
+      (*sy) = ((c - 'a' + 26) / 8) * char_height;
+   }
+   else if (c >= '0' && c <= '9')
+   {
+      // Skip A-Z and a-z.
+      (*sx) = ((c - '0' + 26 * 2) % 8 ) * char_width;
+      (*sy) = ((c - '0' + 26 * 2) / 8) * char_height;
+   }
+   else if (c == ':')
+   {
+      // Skip A-Z, a-z and 0-9.
+      (*sx) = ((c - '0' + 26 * 2 + 10) % 8) * char_width;
+      (*sy) = ((c - '0' + 26 * 2 + 10) / 8) * char_height;
+   }
+   else if (c == '/')
+   {
+      // Skip A-Z, a-z, 0-9 and :
+      (*sx) = ((c - '0' + 26 * 2 + 11) % 8) * char_width;
+      (*sy) = ((c - '0' + 26 * 2 + 11) / 8) * char_height;
+   }
+   else
+   {
+      (*sx) = -1;
+      (*sy) = -1;
+   }
+}
+
+void Draw_BigString (int x, int y, char *str)
+{
+   int num;
+
+   if (y <= -8)
+      return;         // totally off screen
+
+   if (!*str)
+      return;
+
+   // 1. Bind the right texture
+   // 2. Calculate the coordinates correctly
+   {
+      qpic_t *big_charset = R_CachePic("gfx/mcharset.tga");
+      int char_width = (big_charset->width / 8);
+      int char_height = (big_charset->height / 8);
+
+      while (*str)      // stop rendering when out of characters
+      {
+         if ((num = *str++) != 32)   // skip spaces
+         {
+            int sx, sy;
+            char c = (char)(num & 0xFF);
+
+            Draw_GetBigfontSourceCoords (c, char_width, char_height, &sx, &sy); // Get frow and fcol
+
+            if (sx >= 0) // Negative values mean no char
+               R_DrawSubPic (x, y, big_charset, sx, sy, char_width, char_height);
+         }
+         x += char_width;
+      }
+   }
+}
+
+
+/*
+================
+Draw_Crosshair
+================
+*/
 void Draw_Crosshair (void)
 {
 	extern cvar_t crosshaircolor, cl_crossx, cl_crossy;

@@ -419,6 +419,7 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/ttl_sgl.lmp");
 	R_CachePic ("gfx/vidmodes.lmp");
 	R_CachePic ("gfx/idtech.tga");
+	R_CachePic ("gfx/mcharset.tga");
 //	R_CachePic ("gfx/logo.tga");
 }
 
@@ -708,6 +709,32 @@ void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha)
 
 		Draw_ColoredPic (x, y, pic, color);
 	}
+}
+
+/*
+================
+R_DrawSubPic
+================
+*/
+void R_DrawSubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height)
+{
+	glpic_t         *gl;
+	float newsl, newtl, newsh, newth;
+	float oldglwidth, oldglheight;
+
+	gl = (glpic_t *)pic->data;
+
+	oldglwidth = gl->sh - gl->sl;
+	oldglheight = gl->th - gl->tl;
+
+	newsl = gl->sl + (srcx*oldglwidth)/pic->width;
+	newsh = newsl + (width*oldglwidth)/pic->width;
+
+	newtl = gl->tl + (srcy*oldglheight)/pic->height;
+	newth = newtl + (height*oldglheight)/pic->height;
+
+	Draw_TestState (gl->gltexture);
+	Draw_Textured2DQuad (x, y, pic->width, pic->height, newsl, newtl, newsh, newth, NULL);
 }
 
 
