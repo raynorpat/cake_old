@@ -22,12 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rc_wad.h"
 #include "rc_image.h"
 
-byte		*draw_chars;				// 8*8 graphic characters
-
-gltexture_t	*char_texture;
-
-qpic_t		*pic_ovr, *pic_ins; // new cursor handling
-qpic_t		*pic_nul; // for missing gfx, don't crash
+qpic_t		*charset;					// 8*8 graphic characters
+qpic_t		*pic_ovr, *pic_ins;			// new cursor handling
+qpic_t		*pic_nul;					// for missing gfx, don't crash
 
 byte pic_ovr_data[8][8] =
 {
@@ -335,8 +332,6 @@ gltexture_t *Draw_MakeTexture (char *name, int width, int height, byte *data)
 
 static void gl_draw_start(void)
 {
-	byte		*data;
-	unsigned	offset;
 	cachepic_t	*pic;
 	int			i;
 
@@ -348,12 +343,10 @@ static void gl_draw_start(void)
 	// load wad file
 	W_LoadWadFile ("gfx.wad");
 
-	// load conchars from wad file
-	data = W_GetLumpName ("conchars", false);
-	if (!data)
-		Sys_Error ("Draw_LoadPics: couldn't load conchars");
-	offset = (unsigned)data - (unsigned)wad_base;
-	char_texture = TexMgr_LoadImage (NULL, "gfx:conchars", 128, 128, SRC_INDEXED, data,	"gfx", offset, TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+	// load charset
+	charset = R_CachePic ("gfx/charset.tga");
+	if (!charset)
+		Sys_Error ("Draw_Init: couldn't load charset");
 
 	// create internal pics
 	pic_ins = Draw_MakePic ("ins", 8, 9, &pic_ins_data[0][0]);
@@ -576,6 +569,7 @@ R_DrawChar
 void R_DrawChar (int x, int y, int num)
 {
 	unsigned int rgba = 0xffffffff;
+	glpic_t *gl;
 
 	if (y <= -8)
 		return;			// totally off screen
@@ -585,7 +579,8 @@ void R_DrawChar (int x, int y, int num)
 	if (num == 32)
 		return; //don't waste verts on spaces
 
-	Draw_TestState (char_texture);
+	gl = (glpic_t *) charset->data;
+	Draw_TestState (gl->gltexture);
 	Draw_CharacterQuad (x, y, (char) num, (byte *) &rgba);
 }
 
@@ -597,6 +592,8 @@ R_DrawColoredChar
 */
 void R_DrawColoredChar (int x, int y, int num, unsigned int color)
 {
+	glpic_t *gl;
+
 	if (y <= -8)
 		return;			// totally off screen
 
@@ -605,7 +602,8 @@ void R_DrawColoredChar (int x, int y, int num, unsigned int color)
 	if (num == 32)
 		return; //don't waste verts on spaces
 
-	Draw_TestState (char_texture);
+	gl = (glpic_t *) charset->data;
+	Draw_TestState (gl->gltexture);
 	Draw_CharacterQuad (x, y, (char) num, (byte *) &color);
 }
 
@@ -618,11 +616,13 @@ Draw_String
 void R_DrawString (int x, int y, const char *str)
 {
 	unsigned int rgba = 0xffffffff;
+	glpic_t *gl;
 
 	if (y <= -8)
 		return;			// totally off screen
 
-	Draw_TestState (char_texture);
+	gl = (glpic_t *) charset->data;
+	Draw_TestState (gl->gltexture);
 	
 	while (*str)
 	{

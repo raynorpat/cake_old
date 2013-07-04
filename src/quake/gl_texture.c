@@ -37,7 +37,6 @@ unsigned int d_8to24table[256];
 unsigned int d_8to24table_rgba[256];
 unsigned int d_8to24table_fbright[256];
 unsigned int d_8to24table_nobright[256];
-unsigned int d_8to24table_conchars[256];
 
 /*
 ================================================================================
@@ -568,11 +567,6 @@ void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 		usepal = d_8to24table_nobright;
 		padbyte = 0;
 	}
-	else if (glt->flags & TEXPREF_CONCHARS)
-	{
-		usepal = d_8to24table_conchars;
-		padbyte = 0;
-	}
 	else
 	{
 		usepal = d_8to24table;
@@ -951,10 +945,6 @@ static void TexMgr_LoadPalette (void)
 	// correct alpha colour
 	d_8to24table_nobright[255] = 0;
 	d_8to24table_fbright[255] = 0;
-
-	// conchars palette, 0 and 255 are transparent
-	memcpy (d_8to24table_conchars, d_8to24table, 256 * 4);
-	d_8to24table_conchars[0] = 0;
 
 	Hunk_FreeToLowMark (mark);
 }

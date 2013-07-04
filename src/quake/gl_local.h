@@ -844,10 +844,9 @@ extern	cvar_t	gl_overbright;
 #define TEXPREF_REPEAT			0x0008	// force repeat instead of clamp
 #define TEXPREF_OVERWRITE		0x0010	// overwrite existing same-name texture
 #define TEXPREF_NOPICMIP		0x0020	// always load full-sized
-#define TEXPREF_CONCHARS		0x0040	// use conchar palette
-#define TEXPREF_FULLBRIGHT		0x0080	// use fullbright palette
-#define TEXPREF_NOBRIGHT		0x0100	// use nobright mask palette
-#define TEXPREF_CUBEMAP			0x0200	// so that texmgr doesn't fuck with cubemap textures
+#define TEXPREF_FULLBRIGHT		0x0040	// use fullbright palette
+#define TEXPREF_NOBRIGHT		0x0080	// use nobright mask palette
+#define TEXPREF_CUBEMAP			0x0100	// so that texmgr doesn't fuck with cubemap textures
 
 enum srcformat {SRC_INDEXED, SRC_LIGHTMAP, SRC_RGBA};
 
