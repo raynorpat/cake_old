@@ -378,11 +378,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/box_tr.lmp");
 	R_CachePic ("gfx/complete.lmp");
 	R_CachePic ("gfx/conback.lmp");
-	R_CachePic ("gfx/dim_drct.lmp");
-	R_CachePic ("gfx/dim_ipx.lmp");
-	R_CachePic ("gfx/dim_modm.lmp");
-	R_CachePic ("gfx/dim_mult.lmp");
-	R_CachePic ("gfx/dim_tcp.lmp");
 	R_CachePic ("gfx/finale.lmp");
 	R_CachePic ("gfx/help0.lmp");
 	R_CachePic ("gfx/help1.lmp");
@@ -392,7 +387,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/help5.lmp");
 	R_CachePic ("gfx/inter.lmp");
 	R_CachePic ("gfx/loading.lmp");
-	R_CachePic ("gfx/mainmenu.lmp");
 	R_CachePic ("gfx/menudot1.lmp");
 	R_CachePic ("gfx/menudot2.lmp");
 	R_CachePic ("gfx/menudot3.lmp");
@@ -400,27 +394,11 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/menudot5.lmp");
 	R_CachePic ("gfx/menudot6.lmp");
 	R_CachePic ("gfx/menuplyr.lmp");
-	R_CachePic ("gfx/mp_menu.lmp");
-	R_CachePic ("gfx/netmen1.lmp");
-	R_CachePic ("gfx/netmen2.lmp");
-	R_CachePic ("gfx/netmen3.lmp");
-	R_CachePic ("gfx/netmen4.lmp");
-	R_CachePic ("gfx/netmen5.lmp");
 	R_CachePic ("gfx/pause.lmp");
-	R_CachePic ("gfx/p_load.lmp");
-	R_CachePic ("gfx/p_multi.lmp");
-	R_CachePic ("gfx/p_option.lmp");
-	R_CachePic ("gfx/p_save.lmp");
 	R_CachePic ("gfx/qplaque.lmp");
 	R_CachePic ("gfx/ranking.lmp");
-	R_CachePic ("gfx/sp_menu.lmp");
-	R_CachePic ("gfx/ttl_cstm.lmp");
-	R_CachePic ("gfx/ttl_main.lmp");
-	R_CachePic ("gfx/ttl_sgl.lmp");
-	R_CachePic ("gfx/vidmodes.lmp");
 	R_CachePic ("gfx/idtech.tga");
 	R_CachePic ("gfx/mcharset.tga");
-//	R_CachePic ("gfx/logo.tga");
 }
 
 static void gl_draw_shutdown(void)
@@ -716,7 +694,7 @@ void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha)
 R_DrawSubPic
 ================
 */
-void R_DrawSubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height)
+void R_DrawSubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height, float scale)
 {
 	glpic_t         *gl;
 	float newsl, newtl, newsh, newth;
@@ -734,7 +712,7 @@ void R_DrawSubPic(int x, int y, qpic_t *pic, int srcx, int srcy, int width, int 
 	newth = newtl + (height*oldglheight)/pic->height;
 
 	Draw_TestState (gl->gltexture);
-	Draw_Textured2DQuad (x, y, pic->width, pic->height, newsl, newtl, newsh, newth, NULL);
+	Draw_Textured2DQuad (x, y, scale * width, scale * height, newsl, newtl, newsh, newth, NULL);
 }
 
 

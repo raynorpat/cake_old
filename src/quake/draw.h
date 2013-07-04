@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void Draw_Alt_String (int x, int y, const char *str);
 void Draw_TextBox (int x, int y, int width, int lines);
-void Draw_BigString (int x, int y, char *str);
+void Draw_BigString (int x, int y, char *str, float scale, int gap);
 void Draw_Crosshair (void);
 
 #endif /* _CL_DRAW_H_ */

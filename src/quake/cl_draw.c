@@ -141,36 +141,33 @@ static void Draw_GetBigfontSourceCoords(char c, int char_width, int char_height,
    }
 }
 
-void Draw_BigString (int x, int y, char *str)
+void Draw_BigString (int x, int y, char *str, float scale, int gap)
 {
    int num;
 
    if (y <= -8)
       return;         // totally off screen
 
-   if (!*str)
-      return;
-
-   // 1. Bind the right texture
-   // 2. Calculate the coordinates correctly
+   if (*str)
    {
       qpic_t *big_charset = R_CachePic("gfx/mcharset.tga");
       int char_width = (big_charset->width / 8);
       int char_height = (big_charset->height / 8);
 
-      while (*str)      // stop rendering when out of characters
+      while (*str)  // stop rendering when out of characters
       {
-         if ((num = *str++) != 32)   // skip spaces
+         if ((num = *str++) != 32) // skip spaces
          {
-            int sx, sy;
+            int sx = 0, sy = 0;
             char c = (char)(num & 0xFF);
 
             Draw_GetBigfontSourceCoords (c, char_width, char_height, &sx, &sy); // Get frow and fcol
 
             if (sx >= 0) // Negative values mean no char
-               R_DrawSubPic (x, y, big_charset, sx, sy, char_width, char_height);
+               R_DrawSubPic (x, y, big_charset, sx, sy, char_width, char_height, scale);
          }
-         x += char_width;
+
+         x += (char_width * scale) + gap;
       }
    }
 }

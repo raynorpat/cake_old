@@ -96,6 +96,8 @@ void M_Main_Key (int key);
 qbool	m_entersound;		// play after drawing a frame, so caching won't disrupt the sound
 int		m_topmenu;			// set if a submenu was entered via a menu_* command
 
+#define QUAKE_ID_PLAQUE_PATH "gfx/qplaque.lmp"
+
 //=============================================================================
 /* Support Routines */
 
@@ -177,90 +179,61 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 
 //=======================================================
 
+#define BIGLETTER_WIDTH				64
+#define BIGLETTER_HEIGHT			64
+
+#define BIGMENU_LEFT				72
+#define BIGMENU_TOP					32
+#define BIGMENU_ITEMS_SCALE			0.3
+#define BIGMENU_TITLE_SCALE			0.45
+
+#define	BIGMENU_LETTER_SPACING		-2
+#define BIGMENU_VERTICAL_PADDING	2
+
+typedef struct bigmenu_items_s {
+	char *label;
+	void (* enter_handler) (void);
+} bigmenu_items_t;
+
+#define BIGMENU_ITEMS_COUNT(x) (sizeof(x) / sizeof(bigmenu_items_t))
+
+static void M_BigMenu_DrawItems(bigmenu_items_t *menuitems, const unsigned int items, int left_corner, int top_corner, int *width, int *height)
+{
+	int i;
+	int mheight = 0;
+	int mwidth = 0;
+	int x = left_corner;
+	int y = top_corner;
+
+	for (i = 0; i < items; i++) {
+		int thiswidth = strlen(menuitems[i].label)*BIGMENU_ITEMS_SCALE*BIGLETTER_WIDTH;
+		mheight += BIGMENU_ITEMS_SCALE * BIGLETTER_HEIGHT + BIGMENU_VERTICAL_PADDING;
+		mwidth = max(mwidth, thiswidth);
+		Draw_BigString(x, y, menuitems[i].label, BIGMENU_ITEMS_SCALE, BIGMENU_LETTER_SPACING);
+		y += BIGMENU_ITEMS_SCALE * BIGLETTER_HEIGHT + BIGMENU_VERTICAL_PADDING;
+	}
+
+	*width = mwidth;
+	*height = mheight;
+}
+
 #define BUTTON_HEIGHT	10
 #define BUTTON_START	50
 #define	BUTTON_MENU_X	100
-#define LAYOUT_RED		116
 
 /*
 ================
 M_Main_Layout
-
-JHL:ADD; Draws the main menu in desired manner
 ================
 */
-void PrintRed (int cx, int cy, char *str)
-{
-	while (*str)
-	{
-		R_DrawChar (cx, cy, (*str) + 128);
-		str++;
-		cx += 8;
-	}
-}
-
-void PrintWhite (int cx, int cy, char *str)
-{
-	while (*str)
-	{
-		R_DrawChar (cx, cy, *str);
-		str++;
-		cx += 8;
-	}
-}
-
-void M_Main_ButtonList (char *buttons[], int cursor_location, int in_main)
-{
-	int	x, y,
-		x_mod,
-		x_length,
-		i;
-
-	x_length = 0;
-
-	for ( i = 0; buttons[i] != 0; i++ )
-	{
-		x_length = x_length + (strlen(buttons[i])*8);
-	}
-
-	x_mod = (vid.width - x_length) / (i+1);
-	y = vid.height / 14;
-	x = 0;
-
-	for ( i = 0; buttons[i] != 0; i++ )
-	{
-		// center on point origin
-		x = x + x_mod;
-		if (cursor_location == i)
-		{
-			PrintWhite (x, y, buttons[i]);
-			if (in_main == true)
-				R_DrawChar (x-10, y, 12+((int)(curtime * 4)&1));
-		}
-		else
-			PrintRed (x, y, buttons[i]);
-		x = x + (strlen(buttons[i])*8);
-	}
-}
-
-void M_Main_Layout (int f_cursor, int f_inmenu)
+void M_Main_Layout (int f_inmenu)
 {
 	qpic_t *p;
-	char	*names[] = 	// the layout
-	{
-		"Single",
-		"Multiplayer",
-		"Mods",
-		"Options",
-		"Quit",
-		0
-	};
 
 	RB_SetCanvas (CANVAS_NONE);
 
 	// top
 	R_DrawFilledRect (0, 0, vid.width, vid.height / 8, 0, 0.7);
-	R_DrawFilledRect (0, vid.height / 16, vid.width, 1, LAYOUT_RED, 1);
 	
 	// bottom
 	R_DrawFilledRect (0, vid.height - 72, vid.width, vid.height, 0, 0.7);
@@ -269,18 +242,23 @@ void M_Main_Layout (int f_cursor, int f_inmenu)
 	p = R_CachePic ("gfx/idtech.tga");
 	R_DrawAlphaPic (vid.width - 64, vid.height - 64, p, 0.6f);
 
-	// game logo
-//	p = R_CachePic ("gfx/logo.tga");
-//	R_DrawAlphaPic ((vid.width - GetPicWidth(p)) / 2, vid.height / 8, p, 0.6f);
-
-	// button list
-	M_Main_ButtonList (names, f_cursor, f_inmenu);
-
 	// HACK: In submenu, so do the background
 	if (f_inmenu == false)
 		R_FadeScreen ();
 
 	RB_SetCanvas (CANVAS_MENU);
+}
+
+/*
+================
+M_DrawTitle_Layout
+================
+*/
+void M_DrawTitle_Layout (char *str)
+{
+	int thiswidth = strlen(str) * BIGMENU_TITLE_SCALE * BIGLETTER_WIDTH;
+
+	Draw_BigString((320 - thiswidth) / 2, 4, str, BIGMENU_TITLE_SCALE, BIGMENU_LETTER_SPACING);
 }
 
 
@@ -322,11 +300,13 @@ void M_EnterMenu (int state)
 	if (key_dest != key_menu) {
 		m_topmenu = state;
 		Con_ClearNotify ();
+
 		// hide the console
 		scr_conlines = 0;
 		scr_con_current = 0;
-	} else
+	} else {
 		m_topmenu = m_none;
+	}
 
 	key_dest = key_menu;
 	m_state = state;
@@ -353,13 +333,16 @@ void M_LeaveMenu (int parent)
 /* MAIN MENU */
 
 int	m_main_cursor;
-#define	MAIN_ITEMS	5
 
-#define		M_M_SINGLE	0
-#define		M_M_MULTI	1
-#define		M_M_MODS	2
-#define		M_M_OPTION	3
-#define		M_M_QUIT	4
+bigmenu_items_t mainmenu_items[] = {
+	{"Single Player", M_Menu_SinglePlayer_f},
+	{"Multiplayer", M_Menu_MultiPlayer_f},
+	{"Mods", M_Menu_Mods_f},
+	{"Options", M_Menu_Options_f},
+	{"Help", M_Menu_Help_f},
+	{"Quit", M_Menu_Quit_f}
+};
+#define MAIN_ITEMS (BIGMENU_ITEMS_COUNT(mainmenu_items))
 
 void M_Menu_Main_f (void)
 {
@@ -368,7 +351,26 @@ void M_Menu_Main_f (void)
 
 void M_Main_Draw (void)
 {
-	M_Main_Layout (m_main_cursor, true);
+	int itemheight;
+	int x, y, w = 0, h = 0;
+	int f = (int) (curtime * 10) % 6;
+
+	M_Main_Layout (true);
+
+	// side logo plaque
+	M_DrawPic (16, BIGMENU_TOP, R_CachePic (QUAKE_ID_PLAQUE_PATH) );
+
+	// the main menu heading
+	M_DrawTitle_Layout("Main");
+
+	// main menu items
+	x = BIGMENU_LEFT;
+	y = BIGMENU_TOP;
+	M_BigMenu_DrawItems(mainmenu_items, BIGMENU_ITEMS_COUNT(mainmenu_items), x, y, &w, &h);
+	itemheight = h / BIGMENU_ITEMS_COUNT(mainmenu_items);
+
+	// rotating menu dot
+	M_DrawPic (54, BIGMENU_TOP + m_main_cursor * itemheight, R_CachePic(va("gfx/menudot%i.lmp", f+1)) );
 }
 
 void M_Main_Key (int key)
@@ -396,29 +398,7 @@ void M_Main_Key (int key)
 
 	case K_ENTER:
 		m_entersound = true;
-
-		switch (m_main_cursor)
-		{
-		case M_M_SINGLE:
-			M_Menu_SinglePlayer_f ();
-			break;
-
-		case M_M_MULTI:
-			M_Menu_MultiPlayer_f ();
-			break;
-
-		case M_M_OPTION:
-			M_Menu_Options_f ();
-			break;
-
-		case M_M_MODS:
-			M_Menu_Mods_f ();
-			break;
-
-		case M_M_QUIT:
-			M_Menu_Quit_f ();
-			break;
-		}
+		mainmenu_items[m_main_cursor].enter_handler();
 	}
 }
 
@@ -553,12 +533,10 @@ void M_DrawCheckbox (int x, int y, int on)
 void M_Options_Draw (void)
 {
 	float		r;
-	qpic_t	*p;
 
-	M_Main_Layout (M_M_OPTION, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_option.lmp");
-	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
+	M_DrawTitle_Layout("Options");
 
 	M_PrintWhite (16, 32, "    Customize controls");
 	M_PrintWhite (16, 40, "         Go to console");
@@ -755,12 +733,10 @@ void M_Keys_Draw (void)
 	int		keys[2];
 	char	*name;
 	int		x, y;
-	qpic_t	*p;
 
-	M_Main_Layout (M_M_OPTION, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/ttl_cstm.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawTitle_Layout("Customize Keys");
 
 	if (bind_grab)
 		M_Print (12, 32, "Press a key or button for this action");
@@ -894,12 +870,9 @@ void M_Menu_Fps_f (void)
 
 void M_Fps_Draw (void)
 {
-	qpic_t	*p;
+	M_Main_Layout (false);
 
-	M_Main_Layout (M_M_OPTION, false);
-
-	p = R_CachePic ("gfx/ttl_cstm.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawTitle_Layout("Effects");
 
 	M_Print (16, 32, "            Explosions");
 	M_Print (220, 32, cl_explosion.value==0 ? "normal" :
@@ -1172,13 +1145,11 @@ void M_Menu_Video_f (void)
 
 void M_Video_Draw (void)
 {
-	qpic_t	*p;
 	int t;
 
-	M_Main_Layout (M_M_OPTION, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic("gfx/vidmodes.lmp");
-	M_DrawPic((320-p->width)/2, 4, p);
+	M_DrawTitle_Layout("Video Options");
 
 	t = 0;
 
@@ -1348,7 +1319,7 @@ void M_Help_Draw (void)
 	char	onscreen_help[64];
 	int		y;
 
-	M_Main_Layout (M_M_SINGLE, false);
+	M_Main_Layout (false);
 
 	M_DrawTextBox (-4, -4, 39, 29);
 
@@ -1545,7 +1516,7 @@ void M_Credits_Draw (void)
 	char	onscreen_help[64];
 	int		y;
 
-	M_Main_Layout (M_M_SINGLE, false);
+	M_Main_Layout (false);
 
 	M_DrawTextBox (-4, -4, 39, 29);
 
@@ -1746,19 +1717,17 @@ void M_Quit_Draw (void)
 //=============================================================================
 /* SINGLE PLAYER MENU */
 
-#define	SINGLEPLAYER_ITEMS	5
+#define	SINGLEPLAYER_ITEMS	4
 
-#define	GAME_NEW		0
-#define	GAME_LOAD		1
-#define	GAME_SAVE		2
-#define	GAME_HELP		3
-#define	GAME_CREDITS	4
+#define	GAME_NEW			0
+#define	GAME_LOAD			1
+#define	GAME_SAVE			2
+#define	GAME_CREDITS		3
 
 int game_cursor_table[] = {BUTTON_START,
 	   					   BUTTON_START + BUTTON_HEIGHT,
 						   BUTTON_START + BUTTON_HEIGHT*2,
-						   BUTTON_START + BUTTON_HEIGHT*4,
-						   BUTTON_START + BUTTON_HEIGHT*5};
+						   BUTTON_START + BUTTON_HEIGHT*4};
 
 int	m_singleplayer_cursor;
 int	dim_load, dim_save;
@@ -1772,21 +1741,18 @@ void M_Menu_SinglePlayer_f (void)
 
 void M_SinglePlayer_Draw (void)
 {
-	qpic_t	*p;
 	char	*names[] =
 	{
 		"New game",
 		"Load",
 		"Save",
-		"Help",
 		"Credits",
 		0
 	};
 
-	M_Main_Layout (M_M_SINGLE, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/ttl_sgl.lmp");
-	M_DrawPic ((320 - p->width) / 2, 4, p);
+	M_DrawTitle_Layout("Singleplayer");
 
 	dim_load = false;
 	dim_save = false;
@@ -1813,8 +1779,7 @@ void M_SinglePlayer_Draw (void)
 	else
 		M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
 
-	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_HELP], names[3]);
-	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_CREDITS], names[4]);
+	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_CREDITS], names[3]);
 
 	if ((m_singleplayer_cursor == 1 && dim_load == true) || (m_singleplayer_cursor == 2 && dim_save == true))
 		m_singleplayer_cursor = 0;
@@ -1876,10 +1841,6 @@ again:
 			if (dim_save == true)
 				m_entersound = false;
 			M_Menu_Save_f ();
-			break;
-
-		case GAME_HELP:
-			M_Menu_Help_f ();
 			break;
 
 		case GAME_CREDITS:
@@ -1976,12 +1937,10 @@ void M_Menu_Save_f (void)
 void M_Load_Draw (void)
 {
 	int		i;
-	qpic_t	*p;
 
-	M_Main_Layout (M_M_SINGLE, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_load.lmp");
-	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
+	M_DrawTitle_Layout("Load");
 
 	for (i = 0; i < MAX_SAVEGAMES; i++)
 		M_Print (16, 32 + BUTTON_HEIGHT * i, m_filenames[i]);
@@ -1994,12 +1953,10 @@ void M_Load_Draw (void)
 void M_Save_Draw (void)
 {
 	int		i;
-	qpic_t	*p;
 
-	M_Main_Layout (M_M_SINGLE, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_save.lmp");
-	M_DrawPic ( (320 - GetPicWidth(p))/2, 4, p);
+	M_DrawTitle_Layout("Save");
 
 	for (i = 0; i < MAX_SAVEGAMES ; i++)
 		M_Print (16, 32 + BUTTON_HEIGHT * i, m_filenames[i]);
@@ -2101,26 +2058,23 @@ void M_Menu_MultiPlayer_f (void)
 
 void M_MultiPlayer_Draw (void)
 {
-	qpic_t	*p;
 	char	*names[] =
 	{
 		"Join game",
-		"Demos",
 		"Create game",
+		"Demos",
 		"Player setup",
 		0
 	};
 
-	M_Main_Layout (M_M_MULTI, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_multi.lmp");
-	M_DrawPic ((320 - p->width) / 2, 4, p);
-
-	M_DrawPic ((320 - p->width) / 2, 4, p);
+	M_DrawTitle_Layout("Multiplayer");
 
 	M_PrintWhite (BUTTON_MENU_X, BUTTON_START, names[0]);
 	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + BUTTON_HEIGHT, names[1]);
 	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + (BUTTON_HEIGHT * 2), names[2]);
+	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + (BUTTON_HEIGHT * 3), names[3]);
 
 	// cursor
 	M_DrawChar (BUTTON_MENU_X - 10, BUTTON_START + (m_multiplayer_cursor * BUTTON_HEIGHT), 12 + ((int)(curtime * 4)&1));
@@ -2449,9 +2403,10 @@ void M_Demos_Draw (void) {
 	int demoindex, scroll_index;
 	float frac, time, elapsed;
 
-	M_Main_Layout (M_M_MULTI, false);
+	M_Main_Layout (false);
 
-	M_Print (140, 8, "DEMOS");
+	M_DrawTitle_Layout("Demos");
+
 	Q_strncpyz(demoname_scroll, demo_currentdir[0] ? demo_currentdir : "/", sizeof(demoname_scroll));
 	M_PrintWhite (16, 16, demoname_scroll);
 	M_Print (8, 24, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1f");
@@ -2752,7 +2707,7 @@ void M_GameOptions_Draw (void)
 {
 	qpic_t	*p;
 
-	M_Main_Layout (M_M_MULTI, false);
+	M_Main_Layout (false);
 
 	p = R_CachePic ("gfx/p_multi.lmp");
 	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
@@ -3022,12 +2977,10 @@ void M_ServerList_Draw (void)
 {
 	int serv;
 	int line = 1;
-	qpic_t *p;
 
-	M_Main_Layout (M_M_MULTI, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic("gfx/p_multi.lmp");
-	M_DrawPic((320-p->width)/2,4,p);
+	M_DrawTitle_Layout("Multiplayer");
 
 	if (!(slist[0].server)) {
 		M_DrawTextBox(60,80,23,4);
@@ -3213,12 +3166,9 @@ void M_Menu_SEdit_f (void) {
 }
 
 void M_SEdit_Draw (void) {
-	qpic_t *p;
+	M_Main_Layout (false);
 
-	M_Main_Layout (M_M_MULTI, false);
-
-	p = R_CachePic("gfx/p_multi.lmp");
-	M_DrawPic((320 - p->width) / 2, 4, p);
+	M_DrawTitle_Layout("Multiplayer");
 
 	M_DrawTextBox(SERV_X,SERV_Y,23,1);
 	M_DrawTextBox(DESC_X,DESC_Y,23,1);
@@ -3334,10 +3284,9 @@ void M_Setup_Draw (void)
 {
 	qpic_t	*p;
 
-	M_Main_Layout (M_M_MULTI, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_multi.lmp");
-	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
+	M_DrawTitle_Layout("Multiplayer");
 
 	M_Print (64, 40, "Your name");
 	M_DrawTextBox (160, 32, 16, 1);
@@ -3622,15 +3571,13 @@ void M_Menu_Mods_f (void)
 
 void M_Mods_Draw (void)
 {
-	qpic_t *p;
 	int n, y, visible, start, end;
 	char *s_available = "Available Mods";
 	char *s_enabled = "Enabled Mods";
 
-	M_Main_Layout (M_M_MODS, false);
+	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_option.lmp");
-	M_DrawPic((320 - p->width) / 2, 4, p);
+	M_DrawTitle_Layout("Mods");
 
 	M_PrintWhite(0 + 32, 32, s_available);
 	M_PrintWhite(224, 32, s_enabled);
