@@ -22,6 +22,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef _CL_DRAW_H_
 #define _CL_DRAW_H_
 
+#define BIGLETTER_WIDTH				64
+#define BIGLETTER_HEIGHT			64
+
+#define BIGMENU_LEFT				72
+#define BIGMENU_TOP					32
+#define BIGMENU_ITEMS_SCALE			0.3
+#define BIGMENU_TITLE_SCALE			0.45
+
+#define	BIGMENU_LETTER_SPACING		-2
+#define BIGMENU_VERTICAL_PADDING	2
+
 void Draw_Alt_String (int x, int y, const char *str);
 void Draw_TextBox (int x, int y, int width, int lines);
 void Draw_BigString (int x, int y, char *str, float scale, int gap);

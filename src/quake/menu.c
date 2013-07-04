@@ -33,15 +33,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer,
-	m_setup, m_options, m_video, m_keys, m_help, m_credits, m_quit,
-	m_gameoptions, m_slist, m_sedit, m_fps, m_demos, m_mods} m_state;
+	m_setup, m_options, m_video, m_keys, m_help, m_quit, m_gameoptions,
+	m_slist, m_sedit, m_fps, m_demos, m_mods} m_state;
 
 void M_Menu_Main_f (void);
 	void M_Menu_SinglePlayer_f (void);
 		void M_Menu_Load_f (void);
 		void M_Menu_Save_f (void);
 		void M_Menu_Help_f (void);
-		void M_Menu_Credits_f (void);
 	void M_Menu_MultiPlayer_f (void);
 		void M_Menu_ServerList_f (void);
 			void M_Menu_SEdit_f (void);
@@ -60,7 +59,6 @@ void M_Main_Draw (void);
 		void M_Load_Draw (void);
 		void M_Save_Draw (void);
 		void M_Help_Draw (void);
-		void M_Credits_Draw (void);
 	void M_MultiPlayer_Draw (void);
 		void M_ServerList_Draw (void);
 			void M_SEdit_Draw (void);
@@ -79,7 +77,6 @@ void M_Main_Key (int key);
 		void M_Load_Key (int key);
 		void M_Save_Key (int key);
 		void M_Help_Key (int key);
-		void M_Credits_Key (int key);
 	void M_MultiPlayer_Key (int key);
 		void M_ServerList_Key (int key);
 			void M_SEdit_Key (int key);
@@ -95,8 +92,6 @@ void M_Main_Key (int key);
 
 qbool	m_entersound;		// play after drawing a frame, so caching won't disrupt the sound
 int		m_topmenu;			// set if a submenu was entered via a menu_* command
-
-#define QUAKE_ID_PLAQUE_PATH "gfx/qplaque.lmp"
 
 //=============================================================================
 /* Support Routines */
@@ -177,18 +172,50 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	Draw_TextBox (x, y, width, lines);
 }
 
+void M_DrawCheckbox (int x, int y, int on)
+{
+	if (on)
+		M_Print (x, y, "on");
+	else
+		M_Print (x, y, "off");
+}
+
+#define	SLIDER_RANGE 10
+
+void M_DrawSlider (int x, int y, float range)
+{
+	int	i;
+
+	if (range < 0)
+		range = 0;
+	if (range > 1)
+		range = 1;
+	M_DrawChar (x-8, y, 128);
+	for (i=0 ; i<SLIDER_RANGE ; i++)
+		M_DrawChar (x + i*8, y, 129);
+	M_DrawChar (x+i*8, y, 130);
+	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
+}
+
+static void M_DrawRangeSlider (int x, int y, float num, float rangemin, float rangemax)
+{
+	char text[16];
+	int i;
+	float range;
+	range = bound(0, (num - rangemin) / (rangemax - rangemin), 1);
+	M_DrawChar (x-8, y, 128);
+	for (i = 0;i < SLIDER_RANGE;i++)
+		M_DrawChar (x + i*8, y, 129);
+	M_DrawChar (x+i*8, y, 130);
+	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
+	if (fabs((int)num - num) < 0.01)
+		Q_snprintf(text, sizeof(text), "%i", (int)num);
+	else
+		Q_snprintf(text, sizeof(text), "%.3f", num);
+	M_Print(x + (SLIDER_RANGE+2) * 8, y, text);
+}
+
 //=======================================================
-
-#define BIGLETTER_WIDTH				64
-#define BIGLETTER_HEIGHT			64
-
-#define BIGMENU_LEFT				72
-#define BIGMENU_TOP					32
-#define BIGMENU_ITEMS_SCALE			0.3
-#define BIGMENU_TITLE_SCALE			0.45
-
-#define	BIGMENU_LETTER_SPACING		-2
-#define BIGMENU_VERTICAL_PADDING	2
 
 typedef struct bigmenu_items_s {
 	char *label;
@@ -206,7 +233,7 @@ static void M_BigMenu_DrawItems(bigmenu_items_t *menuitems, const unsigned int i
 	int y = top_corner;
 
 	for (i = 0; i < items; i++) {
-		int thiswidth = strlen(menuitems[i].label)*BIGMENU_ITEMS_SCALE*BIGLETTER_WIDTH;
+		int thiswidth = strlen(menuitems[i].label) * BIGMENU_ITEMS_SCALE * BIGLETTER_WIDTH;
 		mheight += BIGMENU_ITEMS_SCALE * BIGLETTER_HEIGHT + BIGMENU_VERTICAL_PADDING;
 		mwidth = max(mwidth, thiswidth);
 		Draw_BigString(x, y, menuitems[i].label, BIGMENU_ITEMS_SCALE, BIGMENU_LETTER_SPACING);
@@ -258,6 +285,9 @@ void M_DrawTitle_Layout (char *str)
 {
 	int thiswidth = strlen(str) * BIGMENU_TITLE_SCALE * BIGLETTER_WIDTH;
 
+//	M_DrawTextBox ((320 - thiswidth) / 2, -8, thiswidth/4, 4);
+
+	// title text
 	Draw_BigString((320 - thiswidth) / 2, 4, str, BIGMENU_TITLE_SCALE, BIGMENU_LETTER_SPACING);
 }
 
@@ -358,7 +388,7 @@ void M_Main_Draw (void)
 	M_Main_Layout (true);
 
 	// side logo plaque
-	M_DrawPic (16, BIGMENU_TOP, R_CachePic (QUAKE_ID_PLAQUE_PATH) );
+	M_DrawPic (16, BIGMENU_TOP, R_CachePic("gfx/qplaque.lmp"));
 
 	// the main menu heading
 	M_DrawTitle_Layout("Main");
@@ -407,8 +437,6 @@ void M_Main_Key (int key)
 /* OPTIONS MENU */
 
 #define	OPTIONS_ITEMS	11
-
-#define	SLIDER_RANGE	10
 
 static int		options_cursor;
 
@@ -479,55 +507,6 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValue (&s_volume, s_volume.value);
 		break;
 	}
-}
-
-void M_DrawSlider (int x, int y, float range)
-{
-	int	i;
-
-	if (range < 0)
-		range = 0;
-	if (range > 1)
-		range = 1;
-	M_DrawChar (x-8, y, 128);
-	for (i=0 ; i<SLIDER_RANGE ; i++)
-		M_DrawChar (x + i*8, y, 129);
-	M_DrawChar (x+i*8, y, 130);
-	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
-}
-
-#define	SLIDER_RANGE	10
-
-static void M_DrawRangeSlider (int x, int y, float num, float rangemin, float rangemax)
-{
-	char text[16];
-	int i;
-	float range;
-	range = bound(0, (num - rangemin) / (rangemax - rangemin), 1);
-	M_DrawChar (x-8, y, 128);
-	for (i = 0;i < SLIDER_RANGE;i++)
-		M_DrawChar (x + i*8, y, 129);
-	M_DrawChar (x+i*8, y, 130);
-	M_DrawChar (x + (SLIDER_RANGE-1)*8 * range, y, 131);
-	if (fabs((int)num - num) < 0.01)
-		Q_snprintf(text, sizeof(text), "%i", (int)num);
-	else
-		Q_snprintf(text, sizeof(text), "%.3f", num);
-	M_Print(x + (SLIDER_RANGE+2) * 8, y, text);
-}
-
-void M_DrawCheckbox (int x, int y, int on)
-{
-#if 0
-	if (on)
-		M_DrawChar (x, y, 131);
-	else
-		M_DrawChar (x, y, 129);
-#endif
-	if (on)
-		M_Print (x, y, "on");
-	else
-		M_Print (x, y, "off");
 }
 
 void M_Options_Draw (void)
@@ -652,6 +631,50 @@ void M_Options_Key (int k)
 //=============================================================================
 /* KEYS MENU */
 
+static void M_FindKeysForCommand (char *command, int *twokeys)
+{
+	int		count;
+	int		j;
+	int		l;
+	char	*b;
+
+	twokeys[0] = twokeys[1] = -1;
+	l = strlen(command);
+	count = 0;
+
+	for (j=0 ; j<256 ; j++)
+	{
+		b = keybindings[j];
+		if (!b)
+			continue;
+		if (!strncmp (b, command, l) )
+		{
+			twokeys[count] = j;
+			count++;
+			if (count == 2)
+				break;
+		}
+	}
+}
+
+static void M_UnbindCommand (char *command)
+{
+	int		j;
+	int		l;
+	char	*b;
+
+	l = strlen(command);
+
+	for (j=0 ; j<256 ; j++)
+	{
+		b = keybindings[j];
+		if (!b)
+			continue;
+		if (!strncmp (b, command, l) )
+			Key_Unbind (j);
+	}
+}
+
 char *bindnames[][2] =
 {
 {"+attack", 		"attack"},
@@ -680,52 +703,6 @@ void M_Menu_Keys_f (void)
 {
 	M_EnterMenu (m_keys);
 }
-
-
-void M_FindKeysForCommand (char *command, int *twokeys)
-{
-	int		count;
-	int		j;
-	int		l;
-	char	*b;
-
-	twokeys[0] = twokeys[1] = -1;
-	l = strlen(command);
-	count = 0;
-
-	for (j=0 ; j<256 ; j++)
-	{
-		b = keybindings[j];
-		if (!b)
-			continue;
-		if (!strncmp (b, command, l) )
-		{
-			twokeys[count] = j;
-			count++;
-			if (count == 2)
-				break;
-		}
-	}
-}
-
-void M_UnbindCommand (char *command)
-{
-	int		j;
-	int		l;
-	char	*b;
-
-	l = strlen(command);
-
-	for (j=0 ; j<256 ; j++)
-	{
-		b = keybindings[j];
-		if (!b)
-			continue;
-		if (!strncmp (b, command, l) )
-			Key_Unbind (j);
-	}
-}
-
 
 void M_Keys_Draw (void)
 {
@@ -778,7 +755,6 @@ void M_Keys_Draw (void)
 	else
 		M_DrawChar (142, 48 + keys_cursor*8, 12+((int)(curtime*4)&1));
 }
-
 
 void M_Keys_Key (int k)
 {
@@ -1202,7 +1178,7 @@ void M_Video_Draw (void)
 	M_DrawChar(200, video_cursor_table[video_cursor], 12+((int)(cl.time*4)&1));
 }
 
-void M_Menu_Video_AdjustSliders (int dir)
+static void M_Menu_Video_AdjustSliders (int dir)
 {
 	int t;
 
@@ -1325,8 +1301,7 @@ void M_Help_Draw (void)
 
 	if (help_page == HELP_MOVEMENT)
 	{
-		p = R_CachePic ("gfx/menu_help.lmp");
-		M_DrawPic ((320 - p->width) / 2, 8, p);
+		M_DrawTitle_Layout("Help");
 
 		y = 52;
 		M_PrintWhite (16, y, "BASIC MOVEMENT"); y += 8;
@@ -1351,8 +1326,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_SWIMMING)
 	{
-		p = R_CachePic ("gfx/menu_help.lmp");
-		M_DrawPic ((320 - p->width) / 2, 8, p);
+		M_DrawTitle_Layout("Help");
 
 		y = 52;
 		M_Print (16, y,	    "  It is very important to get");  y += 8;
@@ -1374,8 +1348,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_HAZARDS)
 	{
-		p = R_CachePic ("gfx/menu_help.lmp");
-		M_DrawPic ((320 - p->width) / 2, 8, p);
+		M_DrawTitle_Layout("Help");
 
 		y = 52;
 		M_Print (16, y,	    "  To swim in a certain direction,");  y += 8;
@@ -1397,8 +1370,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_BUTTONS)
 	{
-		p = R_CachePic ("gfx/menu_help.lmp");
-		M_DrawPic ((320 - p->width) / 2, 8, p);
+		M_DrawTitle_Layout("Help");
 
 		y = 52;
 		M_Print (16, y,	    "  If a door needs a key, get the");  y += 8;
@@ -1421,8 +1393,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_SECRETS)
 	{
-		p = R_CachePic ("gfx/menu_help.lmp");
-		M_DrawPic ((320 - p->width) / 2, 8, p);
+		M_DrawTitle_Layout("Help");
 
 		y = 52;
 		M_PrintWhite (16, y, "SHOOTING BUTTONS AND SECRET WALLS"); y += 8;
@@ -1442,8 +1413,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_ORDERING)
 	{
-		p = R_CachePic ("gfx/menu_help_ordering.lmp");
-		M_DrawPic ((320 - p->width) / 2, 8, p);
+		M_DrawTitle_Layout("Ordering");
 
 		y = 52;
 		M_Print	(16,y, "All four episodes can be"); y += 8;
@@ -1494,118 +1464,6 @@ void M_Help_Key (int key)
 			help_page = NUM_HELP_PAGES - 1;
 		break;
 	}
-}
-
-//=============================================================================
-/* CREDITS MENU */
-
-int		credits_page;
-#define	NUM_CREDITS_PAGES	2
-
-#define CREDITS_CAKE	0
-#define CREDITS_ID		1
-
-void M_Menu_Credits_f (void)
-{
-	M_EnterMenu (m_credits);
-	credits_page = 0;
-}
-
-void M_Credits_Draw (void)
-{
-	char	onscreen_help[64];
-	int		y;
-
-	M_Main_Layout (false);
-
-	M_DrawTextBox (-4, -4, 39, 29);
-
-	if (credits_page == CREDITS_CAKE)
-	{
-		y = 16;
-		M_PrintWhite (16, y, "Cake - Super QuakeWorld Engine Project");
-
-		y = (int)(curtime * 10)%6;
-		M_DrawPic (160, 26, R_CachePic( va("gfx/menudot%i.lmp", y+1 ) ) );
-
-		y = 56;
-		M_PrintWhite (16, y,  "Programming and Project Lead"); y += 8;
-		M_Print (16, y,	      " Pat 'raynorpat' Raynor"); y += 8;
-		y += 8;
-		M_PrintWhite (16, y,  "Special Thanks"); y += 8;
-		M_Print (16, y,       " Anton 'Tonik' Gavrilov     mh"); y += 8;
-		M_Print (16, y,       " Spike                      LordHavoc"); y += 8;
-		M_Print (16, y,       " Tim 'timbo' Angus          QuakeForge"); y += 8;
-		y += 16;
-		M_PrintWhite (16, y, "Cake is open source software; you can"); y += 8;
-		M_PrintWhite (16, y, "redistribute it and/or modify it under"); y += 8;
-		M_PrintWhite (16, y, "the terms of the GNU General Public"); y += 8;
-		M_PrintWhite (16, y, "License. See the GNU General Public"); y += 8;
-		M_PrintWhite (16, y, "License for more details.");
-	}
-	else if (credits_page == CREDITS_ID)
-	{
-		y = 16;
-		M_PrintWhite (16, y, "QUAKE by id Software");
-
-		y = 28;
-		M_PrintWhite (16, y,  "Programming        Art"); y += 8;
-		M_Print (16, y,	      " John Carmack       Adrian Carmack"); y += 8;
-		M_Print (16, y,		  " Michael Abrash     Kevin Cloud"); y += 8;
-		M_Print (16, y,       " John Cash          Paul Steed"); y += 8;
-		M_Print (16, y,       " Dave 'Zoid' Kirsch"); y += 8;
-		y += 8;
-		M_PrintWhite (16, y,  "Design             Biz"); y += 8;
-		M_Print (16, y,       " John Romero        Jay Wilbur"); y += 8;
-		M_Print (16, y,       " Sandy Petersen     Mike Wilson"); y += 8;
-		M_Print (16, y,       " American McGee     Donna Jackson"); y += 8;
-		M_Print (16, y,       " Tim Willits        Todd Hollenshead"); y += 8;
-		y += 8;
-		M_PrintWhite (16, y,  "Support            Projects\n"); y += 8;
-		M_Print (16, y,       " Barrett Alexander  Shawn Green\n"); y += 8;
-		y += 8;
-		M_PrintWhite (16, y,  "Sound Effects"); y += 8;
-		M_Print (16, y,       " Trent Reznor and Nine Inch Nails"); y += 8;
-		y += 16;
-		M_PrintWhite (16, y, "Quake is a trademark of Id Software,"); y += 8;
-		M_PrintWhite (16, y, "inc., (c)1996 Id Software, inc. All"); y += 8;
-		M_PrintWhite (16, y, "rights reserved. NIN logo is a"); y += 8;
-		M_PrintWhite (16, y, "registered trademark licensed to"); y += 8;
-		M_PrintWhite (16, y, "Nothing Interactive, Inc. All rights"); y += 8;
-		M_PrintWhite (16, y, "reserved.");
-	}
-
-	RB_SetCanvas(CANVAS_NONE);
-
-	// do the credits message
-	sprintf (onscreen_help, "Page %i/%i", credits_page+1, NUM_CREDITS_PAGES);
-	M_Centerprint (vid.height - 16, onscreen_help);
-	M_CenterprintWhite (vid.height - 8, "Use the arrow keys to scroll the pages.");
-}
-
-void M_Credits_Key (int key)
-{
-	switch (key)
-	{
-	case K_ESCAPE:
-		M_Menu_SinglePlayer_f ();
-		break;
-
-	case K_DOWNARROW:
-	case K_RIGHTARROW:
-		m_entersound = true;
-		if (++credits_page >= NUM_CREDITS_PAGES)
-			credits_page = 0;
-		break;
-
-	case K_UPARROW:
-	case K_LEFTARROW:
-		m_entersound = true;
-		if (--credits_page < 0)
-			credits_page = NUM_CREDITS_PAGES - 1;
-		break;
-	}
-
 }
 
 //=============================================================================
@@ -1722,12 +1580,10 @@ void M_Quit_Draw (void)
 #define	GAME_NEW			0
 #define	GAME_LOAD			1
 #define	GAME_SAVE			2
-#define	GAME_CREDITS		3
 
 int game_cursor_table[] = {BUTTON_START,
 	   					   BUTTON_START + BUTTON_HEIGHT,
-						   BUTTON_START + BUTTON_HEIGHT*2,
-						   BUTTON_START + BUTTON_HEIGHT*4};
+						   BUTTON_START + BUTTON_HEIGHT*2};
 
 int	m_singleplayer_cursor;
 int	dim_load, dim_save;
@@ -1746,7 +1602,6 @@ void M_SinglePlayer_Draw (void)
 		"New game",
 		"Load",
 		"Save",
-		"Credits",
 		0
 	};
 
@@ -1778,8 +1633,6 @@ void M_SinglePlayer_Draw (void)
 		M_Print (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
 	else
 		M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
-
-	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_CREDITS], names[3]);
 
 	if ((m_singleplayer_cursor == 1 && dim_load == true) || (m_singleplayer_cursor == 2 && dim_save == true))
 		m_singleplayer_cursor = 0;
@@ -1841,10 +1694,6 @@ again:
 			if (dim_save == true)
 				m_entersound = false;
 			M_Menu_Save_f ();
-			break;
-
-		case GAME_CREDITS:
-			M_Menu_Credits_f ();
 			break;
 		}
 	}
@@ -2608,9 +2457,19 @@ typedef struct
 	char	*description;
 } level_t;
 
+level_t		dmlevels[] =
+{
+	{"dm1", "Place of Two Deaths"},				// 0
+	{"dm2", "Claustrophobopolis"},
+	{"dm3", "The Abandoned Base"},
+	{"dm4", "The Bad Place"},
+	{"dm5", "The Cistern"},
+	{"dm6", "The Dark Zone"}
+};
+
 level_t		levels[] =
 {
-	{"start", "Entrance"},	// 0
+	{"start", "Entrance"},						// 0
 
 	{"e1m1", "Slipgate Complex"},				// 1
 	{"e1m2", "Castle of the Damned"},
@@ -2647,13 +2506,6 @@ level_t		levels[] =
 	{"e4m8", "The Nameless City"},
 
 	{"end", "Shub-Niggurath's Pit"},			// 31
-
-	{"dm1", "Place of Two Deaths"},				// 32
-	{"dm2", "Claustrophobopolis"},
-	{"dm3", "The Abandoned Base"},
-	{"dm4", "The Bad Place"},
-	{"dm5", "The Cistern"},
-	{"dm6", "The Dark Zone"}
 };
 
 typedef struct
@@ -2670,8 +2522,7 @@ episode_t	episodes[] =
 	{"Realm of Black Magic", 9, 7},
 	{"Netherworld", 16, 7},
 	{"The Elder World", 23, 8},
-	{"Final Level", 31, 1},
-	{"Deathmatch Arena", 32, 6}
+	{"Final Level", 31, 1}
 };
 
 extern cvar_t maxclients, maxspectators;
@@ -2686,10 +2537,10 @@ void M_Menu_GameOptions_f (void)
 {
 	M_EnterMenu (m_gameoptions);
 
-	// 16 and 8 are not really limits --- just sane values
-	// for these variables...
+	// 16 and 8 are not really limits --- just sane values for these variables...
 	_maxclients = min(16, (int)maxclients.value);
-	if (_maxclients < 2) _maxclients = 8;
+	if (_maxclients < 2)
+		_maxclients = 8;
 	_maxspectators = max(0, min((int)maxspectators.value, 8));
 
 	_deathmatch = max (0, min((int)deathmatch.value, 5));
@@ -2705,12 +2556,9 @@ int		gameoptions_cursor;
 
 void M_GameOptions_Draw (void)
 {
-	qpic_t	*p;
-
 	M_Main_Layout (false);
 
-	p = R_CachePic ("gfx/p_multi.lmp");
-	M_DrawPic ((320 - GetPicWidth(p)) / 2, 4, p);
+	M_DrawTitle_Layout("Game Options");
 
 	M_DrawTextBox (152, 32, 10, 1);
 	M_Print (160, 40, "begin game");
@@ -2765,12 +2613,18 @@ void M_GameOptions_Draw (void)
 	M_Print (0, 104, "       maxspect.");
 	M_Print (160, 104, va("%i", _maxspectators) );
 
-	M_Print (0, 120, "         Episode");
-    M_Print (160, 120, episodes[startepisode].description);
+	if (!_deathmatch) {
+		M_Print (0, 120, "         Episode");
+		M_Print (160, 120, episodes[startepisode].description);
 
-	M_Print (0, 128, "           Level");
-    M_Print (160, 128, levels[episodes[startepisode].firstLevel + startlevel].description);
-	M_Print (160, 136, levels[episodes[startepisode].firstLevel + startlevel].name);
+		M_Print (0, 128, "           Level");
+		M_Print (160, 128, levels[episodes[startepisode].firstLevel + startlevel].description);
+		M_Print (160, 136, levels[episodes[startepisode].firstLevel + startlevel].name);
+	} else {
+		M_Print (0, 120, "           Level");
+		M_Print (160, 120, dmlevels[startlevel].description);
+		M_Print (160, 128, dmlevels[startlevel].name);
+	}
 
 	// line cursor
 	M_DrawChar (144, gameoptions_cursor_table[gameoptions_cursor], 12+((int)(curtime*4)&1));
@@ -2833,9 +2687,12 @@ void M_NetStart_Change (int dir)
 		break;
 
 	case 7:
+		if (_deathmatch) // HACK!!!
+			goto dolevel;
+
 		startepisode += dir;
 		if (registered.value)
-			count = 7;
+			count = 6;
 		else
 			count = 2;
 
@@ -2849,8 +2706,12 @@ void M_NetStart_Change (int dir)
 		break;
 
 	case 8:
+dolevel:
 		startlevel += dir;
-		count = episodes[startepisode].levels;
+		if (!_deathmatch)
+			count = episodes[startepisode].levels;
+		else
+			count = 6; // HACK!!!
 
 		if (startlevel < 0)
 			startlevel = count - 1;
@@ -2924,14 +2785,13 @@ void M_GameOptions_Key (int key)
 			if (!_deathmatch || !deathmatch.value)
 				Cbuf_AddText ("disconnect\n");
 
-			if (_deathmatch == 0)
-			{
+			if (_deathmatch == 0) {
 				_coop = 1;
 				_timelimit = 0;
 				_fraglimit = 0;
-			}
-			else
+			} else {
 				_coop = 0;
+			}
 
 			Cvar_Set (&deathmatch, va("%i", _deathmatch));
 			Cvar_Set (&skill, va("%i", _skill));
@@ -2942,7 +2802,10 @@ void M_GameOptions_Key (int key)
 			Cvar_Set (&maxclients, va("%i", _maxclients));
 			Cvar_Set (&maxspectators, va("%i", _maxspectators));
 
-			Cbuf_AddText ( va ("map %s\n", levels[episodes[startepisode].firstLevel + startlevel].name) );
+			if (!_deathmatch)
+				Cbuf_AddText ( va ("map %s\n", levels[episodes[startepisode].firstLevel + startlevel].name) );
+			else
+				Cbuf_AddText ( va ("map %s\n", dmlevels[startlevel].name) );
 			return;
 		}
 		break;
@@ -2980,7 +2843,7 @@ void M_ServerList_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Multiplayer");
+	M_DrawTitle_Layout("Server Listings");
 
 	if (!(slist[0].server)) {
 		M_DrawTextBox(60,80,23,4);
@@ -3168,7 +3031,7 @@ void M_Menu_SEdit_f (void) {
 void M_SEdit_Draw (void) {
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Multiplayer");
+	M_DrawTitle_Layout("Edit Server");
 
 	M_DrawTextBox(SERV_X,SERV_Y,23,1);
 	M_DrawTextBox(DESC_X,DESC_Y,23,1);
@@ -3286,7 +3149,7 @@ void M_Setup_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Multiplayer");
+	M_DrawTitle_Layout("Player Setup");
 
 	M_Print (64, 40, "Your name");
 	M_DrawTextBox (160, 32, 16, 1);
@@ -3801,7 +3664,6 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_help", M_Menu_Help_f);
-	Cmd_AddCommand ("credits", M_Menu_Credits_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 }
 
@@ -3858,10 +3720,6 @@ void M_Draw (void)
 
 	case m_help:
 		M_Help_Draw ();
-		break;
-
-	case m_credits:
-		M_Credits_Draw ();
 		break;
 
 	case m_quit:
@@ -3950,10 +3808,6 @@ void M_Keydown (int key)
 		M_Help_Key (key);
 		return;
 
-	case m_credits:
-		M_Credits_Key (key);
-		return;
-
 	case m_quit:
 		M_Quit_Key (key);
 		return;
@@ -3981,5 +3835,3 @@ void M_Keydown (int key)
 		break;
 	}
 }
-
-
