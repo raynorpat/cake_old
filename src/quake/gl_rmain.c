@@ -471,7 +471,7 @@ void R_SetViewport (void)
 
 /*
 =============
-R_Clear -- johnfitz -- rewritten and gutted
+R_Clear
 =============
 */
 void R_Clear (void)
@@ -487,14 +487,14 @@ void R_Clear (void)
 
 	if (r_viewleaf && r_viewleaf->contents == CONTENTS_SOLID)
 	{
-		// when noclipping set a black clear color
+		// when noclipping set a grey clear color
 		qglClearColor (0.15, 0.15, 0.15, 1);
 		clearbits |= GL_COLOR_BUFFER_BIT;
 	}
-	else if (1)
+	else
 	{
-		// set the correct clear color
-		qglClearColor (0.15, 0.15, 0.15, 1);
+		// set black clear color
+		qglClearColor (0, 0, 0, 1);
 		clearbits |= GL_COLOR_BUFFER_BIT;
 	}
 

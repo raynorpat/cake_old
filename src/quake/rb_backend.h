@@ -9,7 +9,6 @@ void RB_StartFrame (void);
 void RB_EndFrame (void);
 
 void RB_Finish (void);
-void RB_Clear (void);
 
 typedef enum {
 	CANVAS_INVALID = -1,

@@ -978,8 +978,8 @@ void CL_Init (void)
 
 void CL_BeginLocalConnection (void)
 {
-	S_StopAllSounds (true);
 	SCR_BeginLoadingPlaque ();
+	S_StopAllSounds (true);
 
 	if (com_serveractive)
 	{

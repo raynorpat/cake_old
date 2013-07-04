@@ -550,7 +550,7 @@ SCR_DrawPause
 void SCR_DrawPause (void)
 {
 	extern cvar_t sv_paused;
-	qpic_t	*pic;
+	int thiswidth = strlen("Paused") * BIGMENU_TITLE_SCALE * BIGLETTER_WIDTH;
 
 	if (!scr_showpause.value)		// turn off for screenshots
 		return;
@@ -565,8 +565,7 @@ void SCR_DrawPause (void)
 
 	RB_SetCanvas (CANVAS_MENU);
 
-	pic = R_CachePic ("gfx/pause.lmp");
-	R_DrawPic ( (320 - pic->width)/2, (240 - 48 - pic->height)/2, pic);
+	Draw_BigString ((320 - thiswidth) / 2, (200 - BIGLETTER_HEIGHT) / 2, "Paused", BIGMENU_TITLE_SCALE, BIGMENU_LETTER_SPACING);
 }
 
 extern void Host_StartVideo (void);
@@ -579,7 +578,6 @@ SCR_BeginLoadingPlaque
 void SCR_BeginLoadingPlaque (void)
 {
 	Host_StartVideo();
-	S_StopAllSounds (true);
 	R_LoadingScreen();
 }
 
@@ -606,21 +604,20 @@ void SCR_RunConsole (void)
 	Con_CheckResize ();
 
 	// decide on the height of the console
-	if (cls.state != ca_active && !cl.intermission)
-	{
+	if (cls.state != ca_active && !cl.intermission)	{
 		scr_conlines = vid.height;		// full screen
 		scr_con_current = scr_conlines;
 	}
-	else if (key_dest == key_console)
-	{
+	else if (key_dest == key_console) {
 		scr_conlines = vid.height * scr_consize.value;
 		if (scr_conlines < 30)
 			scr_conlines = 30;
 		if (scr_conlines > vid.height - 10)
 			scr_conlines = vid.height - 10;
 	}
-	else
+	else {
 		scr_conlines = 0;				// none visible
+	}
 
 	// scroll it up or down
 	if (scr_con_current > scr_conlines) {
@@ -659,7 +656,7 @@ void SCR_DrawConsole (void)
 	{
 		// console is up, draw notify instead
 		if (key_dest == key_game || key_dest == key_message)
-			Con_DrawNotify ();	// only draw notify in game
+			Con_DrawNotify (); // only draw notify in game
 		return;
 	}
 
@@ -670,7 +667,7 @@ void SCR_DrawConsole (void)
 
 	// draw the background
 	if (scr_con_current == vid.height)
-		alpha = 1.0f;	// non-transparent if full screen
+		alpha = 1.0f; // non-transparent if full screen
 	else
 		alpha = bound (0.0f, scr_conalpha.value, 1.0f);
 

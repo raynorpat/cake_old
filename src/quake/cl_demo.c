@@ -1164,7 +1164,6 @@ void CL_StartDemos_f (void)
 
 	// start at first demo
 	cls.demonum = 0;
-	Cbuf_InsertText (va("playdemo \"%s\"\n", cls.demos[0]));
-
 	SCR_BeginLoadingPlaque ();
+	Cbuf_InsertText (va("playdemo \"%s\"\n", cls.demos[0]));
 }

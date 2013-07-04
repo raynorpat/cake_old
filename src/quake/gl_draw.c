@@ -378,7 +378,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/box_tr.lmp");
 	R_CachePic ("gfx/complete.lmp");
 	R_CachePic ("gfx/conback.lmp");
-	R_CachePic ("gfx/finale.lmp");
 	R_CachePic ("gfx/help0.lmp");
 	R_CachePic ("gfx/help1.lmp");
 	R_CachePic ("gfx/help2.lmp");
@@ -386,7 +385,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/help4.lmp");
 	R_CachePic ("gfx/help5.lmp");
 	R_CachePic ("gfx/inter.lmp");
-	R_CachePic ("gfx/loading.lmp");
 	R_CachePic ("gfx/menudot1.lmp");
 	R_CachePic ("gfx/menudot2.lmp");
 	R_CachePic ("gfx/menudot3.lmp");
@@ -394,9 +392,7 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/menudot5.lmp");
 	R_CachePic ("gfx/menudot6.lmp");
 	R_CachePic ("gfx/menuplyr.lmp");
-	R_CachePic ("gfx/pause.lmp");
 	R_CachePic ("gfx/qplaque.lmp");
-	R_CachePic ("gfx/ranking.lmp");
 	R_CachePic ("gfx/idtech.tga");
 	R_CachePic ("gfx/mcharset.tga");
 }
@@ -832,25 +828,28 @@ void R_DrawCrosshair (int crossx, int crossy, int color)
 
 //=============================================================================
 
+extern void R_Clear(void);
+
 void R_LoadingScreen (void)
 {
-	float x, y;
-	qpic_t *pic;
+	int thiswidth = strlen("Loading") * BIGMENU_TITLE_SCALE * BIGLETTER_WIDTH;
 
 	// don't do anything if not initialized yet
 	if (vid_hidden)
 		return;
 
+	R_Clear ();
+
 	RB_SetCanvas (CANVAS_MENU);
 
-	// draw the loading plaque
-	pic = R_CachePic("gfx/loading.lmp");
-	x = (320 - pic->width) / 2;
-	y = (200 - pic->height) / 2;
-	R_DrawPic (x, y, pic);
+	// draw the loading text
+	Draw_BigString ((320 - thiswidth) / 2, (200 - BIGLETTER_HEIGHT) / 2, "Loading", BIGMENU_TITLE_SCALE, BIGMENU_LETTER_SPACING);
+
+	// flush draw buffer
+	Draw_EndBatching ();
 
 	// refresh
-	VID_Finish();
+	VID_Finish ();
 }
 
 void R_FadeScreen (void)
