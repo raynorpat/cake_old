@@ -369,7 +369,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/box_tl.lmp");
 	R_CachePic ("gfx/box_tm.lmp");
 	R_CachePic ("gfx/box_tr.lmp");
-	R_CachePic ("gfx/complete.lmp");
 	R_CachePic ("gfx/conback.lmp");
 	R_CachePic ("gfx/help0.lmp");
 	R_CachePic ("gfx/help1.lmp");
@@ -377,7 +376,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/help3.lmp");
 	R_CachePic ("gfx/help4.lmp");
 	R_CachePic ("gfx/help5.lmp");
-	R_CachePic ("gfx/inter.lmp");
 	R_CachePic ("gfx/menudot1.lmp");
 	R_CachePic ("gfx/menudot2.lmp");
 	R_CachePic ("gfx/menudot3.lmp");

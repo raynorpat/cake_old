@@ -26,25 +26,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qbool		sb_drawinventory;
 qbool		sb_drawmain;
 
-#define STAT_MINUS		10	// num frame for '-' stats digit
+#define STAT_MINUS 10					// num frame for '-' stats digit
 static qpic_t	*sb_nums[2][11];
 static qpic_t	*sb_colon, *sb_slash;
 static qpic_t	*sb_scorebar;
 
-static qpic_t	*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
+static qpic_t	*sb_weapons[7][8];		// 0 is active, 1 is owned, 2-5 are flashes
 static qpic_t	*sb_ammo[4];
 static qpic_t	*sb_sigil[4];
 static qpic_t	*sb_armor[3];
 static qpic_t	*sb_items[32];
 
 static qpic_t	*sb_faces[5][2];		// 0 is dead, 1-4 are alive
-								// 0 is static, 1 is temporary animation
+										// 0 is static, 1 is temporary animation
 static qpic_t	*sb_face_invis;
 static qpic_t	*sb_face_quad;
 static qpic_t	*sb_face_invuln;
 static qpic_t	*sb_face_invis_invuln;
 
-static qpic_t	*sb_disc;			// invulnerability
+static qpic_t	*sb_disc;				// invulnerability
 
 // hipnotic defines
 #define HIT_PROXIMITY_GUN_BIT 16
@@ -1169,10 +1169,10 @@ Sbar_IntermissionOverlay
 */
 void Sbar_IntermissionOverlay (void)
 {
-	qpic_t	*pic;
 	int		dig;
 	int		num;
 	int		time;
+	int		thiswidth;
 
 	if (cl.gametype == GAME_DEATHMATCH)
 	{
@@ -1185,8 +1185,9 @@ void Sbar_IntermissionOverlay (void)
 
 	RB_SetCanvas (CANVAS_MENU);
 
-	pic = R_CachePic ("gfx/complete.lmp");
-	R_DrawPic (64, 24, pic);
+	// title text
+	thiswidth = strlen("Complete") * BIGMENU_TITLE_SCALE * BIGLETTER_WIDTH;
+	Draw_BigString(64, 24, "Complete", BIGMENU_TITLE_SCALE, BIGMENU_LETTER_SPACING);
 
 	// in coop, pressing TAB shows player frags instead of totals
 	if ((sb_showscores || sb_showteamscores) && cl.maxclients > 1 && atoi(Info_ValueForKey(cl.serverinfo, "coop")))
@@ -1195,10 +1196,9 @@ void Sbar_IntermissionOverlay (void)
 		return;
 	}
 
-	pic = R_CachePic ("gfx/inter.lmp");
-	R_DrawPic (0, 56, pic);
-
 	// time
+	thiswidth = strlen("Time") * BIGMENU_ITEMS_SCALE * BIGLETTER_WIDTH;
+	Draw_BigString(0, 64, "Time", BIGMENU_ITEMS_SCALE, BIGMENU_LETTER_SPACING);
 	if (cl.servertime_works) {
 		// we know the exact time
 		time = cl.solo_completed_time;
@@ -1213,10 +1213,16 @@ void Sbar_IntermissionOverlay (void)
 	R_DrawPic (240, 64, sb_nums[0][num/10]);
 	R_DrawPic (264, 64, sb_nums[0][num%10]);
 
+	// secrets
+	thiswidth = strlen("Secrets") * BIGMENU_ITEMS_SCALE * BIGLETTER_WIDTH;
+	Draw_BigString(0, 104, "Secrets", BIGMENU_ITEMS_SCALE, BIGMENU_LETTER_SPACING);
 	Sbar_IntermissionNumber (152, 104, cl.stats[STAT_SECRETS], 3, 0);
 	R_DrawPic (224, 104, sb_slash);
 	Sbar_IntermissionNumber (240, 104, cl.stats[STAT_TOTALSECRETS], 3, 0);
 
+	// monsters
+	thiswidth = strlen("Monsters") * BIGMENU_ITEMS_SCALE * BIGLETTER_WIDTH;
+	Draw_BigString(0, 144, "Monsters", BIGMENU_ITEMS_SCALE, BIGMENU_LETTER_SPACING);
 	Sbar_IntermissionNumber (152, 144, cl.stats[STAT_MONSTERS], 3, 0);
 	R_DrawPic (224, 144, sb_slash);
 	Sbar_IntermissionNumber (240, 144, cl.stats[STAT_TOTALMONSTERS], 3, 0);
