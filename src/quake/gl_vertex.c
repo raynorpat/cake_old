@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static void *r_currentindexes = NULL;
 
-void GL_SetIndices (int indexBuffer, void *indexes)
+void GL_SetIndices (void *indexes)
 {
 	r_currentindexes = indexes;
 }
@@ -102,7 +102,6 @@ void GL_TexCoordPointer (int size, GLenum type, GLsizei stride, const GLvoid *pt
 
 typedef struct gl_stream_s
 {
-	int vbonum;
 	int desc;
 	int size;
 	GLenum type;
@@ -115,11 +114,11 @@ typedef struct gl_stream_s
 
 static gl_stream_t gl_streams[5] =
 {
-	{0, GLSTREAM_POSITION, 0, GL_NONE, 0, NULL, GL_VertexPointer, GL_NONE, GL_VERTEX_ARRAY},
-	{0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL, GL_ColorPointer, GL_NONE, GL_COLOR_ARRAY},
-	{0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE0_ARB, GL_TEXTURE_COORD_ARRAY},
-	{0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE1_ARB, GL_TEXTURE_COORD_ARRAY},
-	{0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE2_ARB, GL_TEXTURE_COORD_ARRAY}
+	{GLSTREAM_POSITION, 0, GL_NONE, 0, NULL, GL_VertexPointer, GL_NONE, GL_VERTEX_ARRAY},
+	{GLSTREAM_COLOR, 0, GL_NONE, 0, NULL, GL_ColorPointer, GL_NONE, GL_COLOR_ARRAY},
+	{GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE0_ARB, GL_TEXTURE_COORD_ARRAY},
+	{GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE1_ARB, GL_TEXTURE_COORD_ARRAY},
+	{GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL, GL_TexCoordPointer, GL_TEXTURE2_ARB, GL_TEXTURE_COORD_ARRAY}
 };
 
 static int gl_activestreams = 0;
@@ -138,7 +137,7 @@ static void GL_ClientActiveTexture (gl_stream_t *stream)
 
 // note that NULL may be a valid ptr if a VBO is used?
 // 0 is also a valid stride for tightly packed vertexes, so we need to check type == GL_NONE for disabled
-void GL_SetStreamSource (int vbonum, int streamnum, int size, GLenum type, int stride, void *ptr)
+void GL_SetStreamSource (int streamnum, int size, GLenum type, int stride, void *ptr)
 {
 	gl_stream_t *stream = NULL;
 
@@ -229,12 +228,30 @@ void GL_DrawIndexedPrimitive (GLenum mode, int numIndexes, int numVertexes)
 
 void GL_UnbindBuffers (void)
 {
+	GL_BindBuffer (GL_ARRAY_BUFFER_ARB, 0);
+
 	// unbind all buffer objects on a mode switch
-	GL_SetIndices (0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetIndices (NULL);
+	GL_SetStreamSource (GLSTREAM_POSITION, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 }
+
+
+GLuint r_currentvbo = 0;
+
+void GL_BindBuffer (GLenum mode, GLuint buffer)
+{
+	if (gl_support_arb_vertex_buffer_object)
+	{
+		if (r_currentvbo != buffer)
+		{
+			qglBindBufferARB (mode, buffer);
+			r_currentvbo = buffer;
+		}
+	}
+}
+
 

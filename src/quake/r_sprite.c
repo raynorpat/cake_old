@@ -25,7 +25,6 @@ GLuint r_lastspritetexture = 0;
 r_defaultquad_t *r_sprite_quads = NULL;
 r_defaultquad2_t *r_sprite_quads2 = NULL;
 
-extern unsigned int r_quadindexbuffer;
 extern unsigned int r_parttexcoordbuffer;
 
 void R_InvalidateSprite (void)
@@ -41,13 +40,13 @@ void R_SpriteBegin (void)
 	r_sprite_quads = r_default_quads;
 	r_sprite_quads2 = r_default_quads2;
 
-	GL_SetIndices (0, r_quad_indexes);
+	GL_SetIndices (r_quad_indexes);
 
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
+	GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 }

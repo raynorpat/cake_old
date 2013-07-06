@@ -793,7 +793,7 @@ extern glmatrix r_world_matrix;
 
 extern model_t		*r_worldmodel;
 extern entity_t		r_worldentity;
-extern vec3_t		modelorg, r_entorigin;
+extern vec3_t		r_entorigin;
 extern int			r_visframecount;
 extern int			r_framecount;
 extern mplane_t		frustum[4];
@@ -912,9 +912,9 @@ void Fog_StopAdditive (void);
 void Fog_Init (void);
 void Fog_NewMap (void);
 
-qbool R_CullBox (vec3_t mins, vec3_t maxs);
-qbool R_CullModelForEntity (entity_t *e);
+void R_AddVisEdict (entity_t *e);
 
+qbool R_CullBox (vec3_t mins, vec3_t maxs);
 
 void R_ScreenShot_f (void);
 
@@ -943,7 +943,8 @@ void GL_MakeAliasModelDisplayLists (stvert_t *stverts, dtriangle_t *triangles);
 void Sky_Init (void);
 void Sky_NewMap (void);
 void Sky_LoadTexture (texture_t *mt, byte *data);
-void Sky_LoadSkyBox (char *name);
+void Sky_LoadCubeMap (char *name);
+void Sky_ClearSkybox (void);
 
 void R_GetTranslatedPlayerSkin (int colormap, gltexture_t **texture, gltexture_t **fb_texture);
 void R_FlushTranslations (void);
@@ -971,8 +972,11 @@ void R_AddEntityToAlphaList (entity_t *ent);
 unsigned short *R_TransferIndexes (unsigned short *src, unsigned short *dst, int numindexes, int offset);
 void GL_DrawIndexedPrimitive (GLenum mode, int numIndexes, int numVertexes);
 void GL_DrawPrimitive (GLenum mode, int firstvert, int numverts);
-void GL_SetIndices (int indexBuffer, void *indexes);
-void GL_SetStreamSource (int vbonum, int streamnum, int size, GLenum type, int stride, void *ptr);
+void GL_SetIndices (void *indexes);
+void GL_SetStreamSource (int streamnum, int size, GLenum type, int stride, void *ptr);
+
+void GL_UnbindBuffers (void);
+void GL_BindBuffer (GLenum mode, GLuint buffer);
 
 // set these up so that we can do bitwise on them some time
 #define GLSTREAM_POSITION		1
@@ -984,6 +988,12 @@ void GL_SetStreamSource (int vbonum, int streamnum, int size, GLenum type, int s
 void R_ShowTrisBegin (void);
 void R_ShowTrisEnd (void);
 extern cvar_t r_showtris;
+
+
+void R_BeginSurfaces (void);
+void R_BatchSurface (msurface_t *surf, glmatrix *matrix, int entnum);
+void R_EndSurfaces (void);
+
 
 // this order matches a d3d fvf order which may therefore be assumed to be more optimal for hardware
 typedef struct r_defaultquad_s

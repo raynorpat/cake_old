@@ -369,7 +369,6 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/box_tl.lmp");
 	R_CachePic ("gfx/box_tm.lmp");
 	R_CachePic ("gfx/box_tr.lmp");
-	R_CachePic ("gfx/conback.lmp");
 	R_CachePic ("gfx/help0.lmp");
 	R_CachePic ("gfx/help1.lmp");
 	R_CachePic ("gfx/help2.lmp");
@@ -384,6 +383,7 @@ static void gl_draw_start(void)
 	R_CachePic ("gfx/menudot6.lmp");
 	R_CachePic ("gfx/menuplyr.lmp");
 	R_CachePic ("gfx/qplaque.lmp");
+	R_CachePic ("gfx/conback.tga");
 	R_CachePic ("gfx/idtech.tga");
 	R_CachePic ("gfx/mcharset.tga");
 }
@@ -436,7 +436,7 @@ void Draw_EndBatching (void)
 {
 	if (r_num_quads)
 	{
-		GL_SetIndices (0, r_quad_indexes);
+		GL_SetIndices (r_quad_indexes);
 		GL_DrawIndexedPrimitive (GL_TRIANGLES, r_num_quads * 6, r_num_quads * 4);
 	}
 
@@ -521,17 +521,17 @@ void Draw_TestState (gltexture_t *texture)
 	{
 		Draw_EndBatching ();
 
-		GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
-		GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
+		GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
 		if (texture)
 		{
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
+			GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
 			GL_BindTexture (GL_TEXTURE0_ARB, texture);
 		}
-		else GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+		else GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
 
 		draw_lasttexture = texture;
 	}
@@ -747,7 +747,7 @@ void R_DrawConsoleBackground (float alpha)
 {
 	qpic_t *pic;
 
-	pic = R_CachePic ("gfx/conback.lmp");
+	pic = R_CachePic ("gfx/conback.tga");
 	pic->width = vid_conwidth.value;
 	pic->height = vid_conheight.value;
 

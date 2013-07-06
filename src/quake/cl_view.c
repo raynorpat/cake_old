@@ -757,6 +757,8 @@ void V_AddEntity (entity_t *ent)
 	
 	cl_visedicts[cl_numvisedicts++] = *ent;
 	cl_visedicts[cl_numvisedicts].entnum = cl_numvisedicts;
+
+	R_AddVisEdict (ent);
 }
 
 /*

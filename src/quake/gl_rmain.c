@@ -30,13 +30,129 @@ int r_num_quads = 0;
 
 unsigned short *r_quad_indexes = NULL;
 
-unsigned int r_quadindexbuffer = 0;
 unsigned int r_parttexcoordbuffer = 0;
 
 void R_InitQuads (void);
 void R_DrawCoronas (void);
 
 glmatrix r_world_matrix;
+
+void R_SetupAliasFrame (entity_t *e, aliashdr_t *paliashdr, int frame, aliasstate_t *state);
+void R_SetupEntityTransform (entity_t *e, aliasstate_t *state);
+
+void R_BBoxForEnt (entity_t *e)
+{
+	int i, j;
+	float mins[3];
+	float maxs[3];
+	vec3_t bbox[8];
+	vec3_t fv, rv, uv;
+	float angles[3];
+
+	if (!e->model) return;
+
+	// figure the base bbox size
+	if (e->model->type == mod_alias)
+	{
+		aliasstate_t *state = &e->aliasstate;
+		aliashdr_t *hdr = (aliashdr_t *) Mod_Extradata (e->model);
+		aliasbbox_t *bboxes = (aliasbbox_t *) ((byte *) hdr + hdr->bboxes);
+
+		// wipe the state and set up interpolation
+		memset (&e->aliasstate, 0, sizeof (aliasstate_t));
+		R_SetupAliasFrame (e, hdr, e->frame, state);
+		R_SetupEntityTransform (e, state);
+
+		for (i = 0; i < 3; i++)
+		{
+			mins[i] = bboxes[state->pose1].mins[i] * (1.0f - state->blend) + bboxes[state->pose2].mins[i] * state->blend;
+			maxs[i] = bboxes[state->pose1].maxs[i] * (1.0f - state->blend) + bboxes[state->pose2].maxs[i] * state->blend;
+		}
+	}
+	else if (e->model->type == mod_brush)
+	{
+		VectorCopy (e->model->bbmins, mins);
+		VectorCopy (e->model->bbmaxs, maxs);
+	}
+	else
+	{
+		VectorCopy (e->model->mins, mins);
+		VectorCopy (e->model->maxs, maxs);
+	}
+
+	// compute a full bounding box
+	for (i = 0; i < 8; i++)
+	{
+		// the bounding box is expanded by 1 unit in each direction so
+		// that it won't z-fight with the model (if it's a tight box)
+		bbox[i][0] = (i & 1) ? mins[0] - 1.0f : maxs[0] + 1.0f;
+		bbox[i][1] = (i & 2) ? mins[1] - 1.0f : maxs[1] + 1.0f;
+		bbox[i][2] = (i & 4) ? mins[2] - 1.0f : maxs[2] + 1.0f;
+	}
+
+	// these factors hold valid for both MDLs and brush models; tested brush models with rmq rotate test
+	// and ne_tower; tested alias models by assigning bobjrotate to angles 0/1/2 and observing the result
+	// i guess that ID just left out angles[2] because it never really happened in the original game
+	if (e->model->type == mod_brush)
+	{
+		angles[0] = -e->angles[0];
+		angles[1] = -e->angles[1];
+		angles[2] = -e->angles[2];
+	}
+	else
+	{
+		angles[0] = e->angles[0];
+		angles[1] = -e->angles[1];
+		angles[2] = -e->angles[2];
+	}
+
+	// derive forward/right/up vectors from the angles
+	AngleVectors (angles, fv, rv, uv);
+
+	// compute the rotated bbox corners
+	mins[0] = mins[1] = mins[2] = 9999999;
+	maxs[0] = maxs[1] = maxs[2] = -9999999;
+
+	// and rotate the bounding box
+	for (i = 0; i < 8; i++)
+	{
+		vec3_t tmp;
+
+		VectorCopy (bbox[i], tmp);
+
+		bbox[i][0] = DotProduct (fv, tmp);
+		bbox[i][1] = -DotProduct (rv, tmp);
+		bbox[i][2] = DotProduct (uv, tmp);
+
+		// and convert them to mins and maxs
+		for (j = 0; j < 3; j++)
+		{
+			if (bbox[i][j] < mins[j]) mins[j] = bbox[i][j];
+			if (bbox[i][j] > maxs[j]) maxs[j] = bbox[i][j];
+		}
+	}
+
+	// translate the bbox to it's final position at the entity origin
+	VectorAdd (e->origin, mins, e->mins);
+	VectorAdd (e->origin, maxs, e->maxs);
+
+	// true origin of entity is at bbox center point (needed for bmodels
+	// where the origin could be at (0, 0, 0) or at a corner)
+	e->trueorigin[0] = e->mins[0] + (e->maxs[0] - e->mins[0]) * 0.5f;
+	e->trueorigin[1] = e->mins[1] + (e->maxs[1] - e->mins[1]) * 0.5f;
+	e->trueorigin[2] = e->mins[2] + (e->maxs[2] - e->mins[2]) * 0.5f;
+}
+
+
+void R_AddVisEdict (entity_t *e)
+{
+	// figure the entities bounding box with proper correction for rotation
+	R_BBoxForEnt (e);
+
+	// mark as visible (static entities need this so that they won't be added twice)
+	e->visframe = r_framecount;
+}
+
 
 void R_InitVertexBuffers (void)
 {
@@ -122,7 +238,7 @@ void R_ShowTrisEnd (void)
 model_t	*r_worldmodel;
 entity_t r_worldentity;
 
-vec3_t	modelorg, r_entorigin;
+vec3_t	r_entorigin;
 
 int		r_visframecount;	// bumped when going to a new PVS
 int		r_framecount;		// used for dlight push checking
@@ -266,36 +382,6 @@ qbool R_CullBox (vec3_t emins, vec3_t emaxs)
 	return false;
 }
 
-/*
-===============
-R_CullModelForEntity
-
-uses correct bounds based on rotation
-===============
-*/
-qbool R_CullModelForEntity (entity_t *e)
-{
-	vec3_t mins, maxs;
-
-	if (e->angles[0] || e->angles[2]) // pitch or roll
-	{
-		VectorAdd (e->origin, e->model->rmins, mins);
-		VectorAdd (e->origin, e->model->rmaxs, maxs);
-	}
-	else if (e->angles[1]) // yaw
-	{
-		VectorAdd (e->origin, e->model->ymins, mins);
-		VectorAdd (e->origin, e->model->ymaxs, maxs);
-	}
-	else // no rotation
-	{
-		VectorAdd (e->origin, e->model->mins, mins);
-		VectorAdd (e->origin, e->model->maxs, maxs);
-	}
-
-	return R_CullBox (mins, maxs);
-}
-
 
 //==============================================================================
 //
@@ -429,10 +515,27 @@ void R_SetupGL (void)
 }
 
 
+vec3_t r_oldorigin;
+vec3_t r_oldangles;
+qbool r_recachesurfaces = false;
+
+int cached = 0;
+int uncached = 0;
+
 void R_SetViewport (void)
 {
 	// now set the correct viewport
 	qglViewport (gl_vpx, gl_vpy, gl_vpwidth, gl_vpheight);
+
+	if (memcmp (r_oldorigin, r_refdef2.vieworg, sizeof (vec3_t)) || memcmp (r_oldangles, r_refdef2.viewangles, sizeof (vec3_t)))
+	{
+		memcpy (r_oldorigin, r_refdef2.vieworg, sizeof (vec3_t));
+		memcpy (r_oldangles, r_refdef2.viewangles, sizeof (vec3_t));
+		r_recachesurfaces = true;
+		uncached++;
+	}
+	else
+		cached++;
 
 	// johnfitz -- rewrote this section
 	qglMatrixMode (GL_PROJECTION);
@@ -643,12 +746,12 @@ void GL_PolyBlend (void)
 	qglRotatef (-90, 1, 0, 0);	    // put Z going up
 	qglRotatef (90, 0, 0, 1);	    // put Z going up
 
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, 0, blendverts);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
-	GL_SetIndices (0, r_quad_indexes);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, 0, blendverts);
+	GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetIndices (r_quad_indexes);
 
 	qglColor4f (v_blend[0], v_blend[1], v_blend[2], v_blend[3]);
 

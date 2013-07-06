@@ -21,7 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
+float R_PlaneDist (mplane_t *plane, entity_t *ent);
+
 extern float r_globalwateralpha;
+extern GLuint r_surfacevbo;
 
 GLenum gl_Lightmap_Format = GL_RGBA;
 GLenum gl_Lightmap_Type = GL_UNSIGNED_BYTE;
@@ -34,6 +37,7 @@ void R_AllocModelSurf (msurface_t *surf, texture_t *tex, glmatrix *matrix, int e
 
 // using tall but narrow lightmaps means that we map need to touch more lightmaps to do updates, but we
 // also need to touch considerably less of each lightmap
+// these can never go so that a lightmap is > 1MB because it needs to use the scratchbuf for startup testing
 #define	LM_BLOCK_WIDTH	256
 #define	LM_BLOCK_HEIGHT	256
 
@@ -54,6 +58,15 @@ gl_lightmap_t gl_lightmaps[MAX_LIGHTMAPS];
 int lm_used = 0;
 
 cvar_t r_instancedlight = {"r_instancedlight", "1", CVAR_ARCHIVE};
+
+// so that I don't need to update it in a million places if I change the conditions
+qbool R_UseInstancedLight (model_t *mod)
+{
+	if (mod->firstmodelsurface == 0 && r_instancedlight.value)// && !mod->lightdata)
+		return true;
+	else return false;
+}
+
 
 /*
 ===============
@@ -119,61 +132,74 @@ void R_MarkNodes (mnode_t *node)
 	R_MarkNodes (node->children[1]);
 }
 
+void R_BBoxForEnt (entity_t *e);
 
 void R_DrawBrushModel (entity_t *e)
 {
 	int			i;
 	msurface_t	*surf;
 	float		dot;
-	mplane_t	*pplane;
 	model_t		*clmodel;
 	int			r_numdrawsurfs;
+	glmatrix	*entmatrix;
 
-	if (R_CullModelForEntity (e)) return;
 	if (!r_drawentities.value) return;
 
+	// to do - an offscreen model should probably cache anyway...
+	R_BBoxForEnt(e);
+	if (R_CullBox (e->mins, e->maxs)) return;
+
 	clmodel = e->model;
-	VectorSubtract (r_refdef2.vieworg, e->origin, modelorg);
+	VectorSubtract (r_refdef2.vieworg, e->origin, e->modelorg);
 
 	// hide the entity until we know that we need to draw it (based on r_numdrawsurfs)
 	e->visframe = -1;
 	r_numdrawsurfs = 0;
 
+	// assume no transforms yet
+	entmatrix = NULL;
+
+	// always set identity so that we're prepared if we ever need it
+	GL_IdentityMatrix (&e->matrix);
+
 	if (e->angles[0] || e->angles[1] || e->angles[2])
 	{
+		// fucking thing works again...
 		vec3_t	temp;
 		vec3_t	forward, right, up;
 
-		VectorCopy (modelorg, temp);
+		VectorCopy (e->modelorg, temp);
 		AngleVectors (e->angles, forward, right, up);
 
-		modelorg[0] = DotProduct (temp, forward);
-		modelorg[1] = -DotProduct (temp, right);
-		modelorg[2] = DotProduct (temp, up);
+		e->modelorg[0] = DotProduct (temp, forward);
+		e->modelorg[1] = -DotProduct (temp, right);
+		e->modelorg[2] = DotProduct (temp, up);
+
+		entmatrix = &e->matrix;
 	}
 
-	surf = &clmodel->surfaces[clmodel->firstmodelsurface];
-
-	// ahhhh; d3d-like functions.  MUCH better.
-	// we always build the matrix and always send it, recreate and transform the verts
-	// because an entity might move back to [0,0,0][0,0,0] while it's out of the PVS
-	GL_IdentityMatrix (&e->matrix);
-
 	if (e->origin[0] || e->origin[1] || e->origin[2])
+	{
+		entmatrix = &e->matrix;
 		GL_TranslateMatrix (&e->matrix, e->origin[0], e->origin[1], e->origin[2]);
+	}
 
+	// don't need to negate angles[0] as it's not going through the extra negation in R_RotateForEntity
 	if (e->angles[1]) GL_RotateMatrix (&e->matrix, e->angles[1], 0, 0, 1);
-	if (e->angles[0]) GL_RotateMatrix (&e->matrix, -e->angles[0], 0, 1, 0);
+	if (e->angles[0]) GL_RotateMatrix (&e->matrix, e->angles[0], 0, 1, 0);
 	if (e->angles[2]) GL_RotateMatrix (&e->matrix, e->angles[2], 1, 0, 0);
 
 	// draw it
-	for (i = 0; i < clmodel->nummodelsurfaces; i++, surf++)
+	for (i = 0, surf = &clmodel->surfaces[clmodel->firstmodelsurface]; i < clmodel->nummodelsurfaces; i++, surf++)
 	{
-		pplane = surf->plane;
-		dot = DotProduct (modelorg, pplane->normal) - pplane->dist;
+		// fucking thing works again...
+		dot = R_PlaneDist (surf->plane, e);
 
-		//if (((surf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) || (!(surf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
+		if (((surf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) || (!(surf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
+			// now mark as visible in this frame
+			surf->visframe = r_framecount;
+
 			if (surf->flags & SURF_DRAWTURB)
 			{
 				// set the correct wateralpha
@@ -185,13 +211,13 @@ void R_DrawBrushModel (entity_t *e)
 
 				// turb surfaces don't animate and aren't backface culled
 				// alpha surfs get added to the alpha list later on
-				R_AllocModelSurf (surf, surf->texinfo->texture, &e->matrix, e->entnum);
+				R_AllocModelSurf (surf, surf->texinfo->texture, entmatrix, e->entnum);
 				R_CheckSubdivide (surf, clmodel);
 			}
 			else if (surf->flags & SURF_DRAWSKY)
 			{
 				// always alloc; no animation or lightmap
-				R_AllocModelSurf (surf, surf->texinfo->texture, &e->matrix, e->entnum);
+				R_AllocModelSurf (surf, surf->texinfo->texture, entmatrix, e->entnum);
 			}
 			else
 			{
@@ -199,12 +225,12 @@ void R_DrawBrushModel (entity_t *e)
 				surf->wateralpha = (float) e->alpha / 255.0f;
 
 				// set the correct lightmap to use
-				if (clmodel->firstmodelsurface == 0 && r_instancedlight.value && !clmodel->lightdata)
+				if (R_UseInstancedLight (clmodel))
 					surf->lightmaptexturenum = 0;
 				else surf->lightmaptexturenum = surf->truelightmaptexturenum;
 
 				// always alloc
-				R_AllocModelSurf (surf, R_TextureAnimation (surf->texinfo->texture, e->frame), &e->matrix, e->entnum);
+				R_AllocModelSurf (surf, R_TextureAnimation (surf->texinfo->texture, e->frame), entmatrix, e->entnum);
 				r_numdrawsurfs++;
 			}
 
@@ -213,9 +239,6 @@ void R_DrawBrushModel (entity_t *e)
 			surf->model = e->model;
 
 			rs_brushpolys++;
-
-			// mark visibility so that we can test it in the dlight push
-			surf->visframe = r_framecount;
 		}
 	}
 
@@ -229,24 +252,29 @@ void R_DrawBrushModel (entity_t *e)
 		// and send it through the same as the world
 		R_PushDlights (clmodel->nodes + clmodel->firstnode);
 	}
-	else if (r_instancedlight.value && !clmodel->lightdata)
+	else if (R_UseInstancedLight (clmodel))
 	{
-		vec3_t oldorg;
-		vec3_t neworg;
 		vec3_t lightcolor;
 		int row = e->entnum >> 8;
 		int col = e->entnum & 255;
 		byte *base;
 
-		VectorCopy (e->origin, oldorg);
-
-		VectorAdd (clmodel->mins, clmodel->maxs, neworg);
-		VectorScale (neworg, 0.5f, neworg);
-		VectorAdd (e->origin, neworg, e->origin);
-
 		R_LightPoint (e, lightcolor);
 
-		VectorCopy (oldorg, e->origin);
+		// scale back to the same range as the world (accounting for overbrighting)
+		if (gl_overbright.value)
+		{
+			lightcolor[0] *= (1.0f / 256.0f);
+			lightcolor[1] *= (1.0f / 256.0f);
+			lightcolor[2] *= (1.0f / 256.0f);
+		}
+		else
+		{
+			lightcolor[0] *= (1.0f / 128.0f);
+			lightcolor[1] *= (1.0f / 128.0f);
+			lightcolor[2] *= (1.0f / 128.0f);
+		}
+
 		base = gl_lightmaps[0].data + (row * LM_BLOCK_WIDTH + col) * 4;
 
 		if (gl_Lightmap_Format == GL_BGRA)
@@ -270,8 +298,6 @@ void R_DrawBrushModel (entity_t *e)
 		if (col > gl_lightmaps[0].dirtyrect.right) gl_lightmaps[0].dirtyrect.right = col;
 		if (row < gl_lightmaps[0].dirtyrect.top) gl_lightmaps[0].dirtyrect.top = row;
 		if (row > gl_lightmaps[0].dirtyrect.bottom) gl_lightmaps[0].dirtyrect.bottom = row;
-
-		lightcolor[0] = lightcolor[0];
 	}
 
 	// now mark that we got regular surfaces for this entity
@@ -642,14 +668,20 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 
 void GL_RegenerateVertexes (model_t *mod, msurface_t *surf, glmatrix *matrix)
 {
-	int i;
+	int i, j;
 	glvertex_t *glv = surf->glvertexes;
 	medge_t *r_pedge;
 	float *vec;
 
-	for (i = 0; i < surf->numglvertexes; i++, glv++)
+	for (i = 0, j = surf->numglvertexes; i < surf->numglvertexes; i++, j--)
 	{
 		int lindex = mod->surfedges[surf->firstedge + i];
+		int stripdst = i ? (i * 2 - 1) : 0;
+
+		if (stripdst >= surf->numglvertexes) stripdst = j * 2;
+		if (surf->flags & SURF_DRAWTURB) stripdst = i;
+
+		glv = &surf->glvertexes[stripdst];
 
 		if (lindex > 0)
 		{
@@ -678,7 +710,7 @@ called at level load time
 */
 void GL_BuildPolygonForSurface (msurface_t *surf, model_t *mod)
 {
-	int			i;
+	int			i, j;
 	medge_t		*r_pedge;
 	glvertex_t	*verts;
 	float		texscale = (1.0f / 32.0f);
@@ -712,25 +744,48 @@ void GL_BuildPolygonForSurface (msurface_t *surf, model_t *mod)
 
 	// rebuild the verts in generation order for better cache locality
 	surf->glvertexes = &mod->glvertexes[mod->numglvertexes];
+	surf->firstglvertex = mod->numglvertexes;
 	mod->numglvertexes += surf->numglvertexes;
 
 	surf->glindexes = &mod->glindexes[mod->numglindexes];
+	surf->firstglindex = mod->numglindexes;
 	mod->numglindexes += surf->numglindexes;
 
+	// for glDrawArrays caching
+	surf->model = mod;
+
 	// generate the indexes here
-	for (i = 2, ndx = surf->glindexes; i < surf->numglvertexes; i++, ndx += 3)
+	if (surf->flags & SURF_DRAWTURB)
 	{
-		ndx[0] = 0;
-		ndx[1] = i - 1;
-		ndx[2] = i;
+		for (i = 2, ndx = surf->glindexes; i < surf->numglvertexes; i++, ndx += 3)
+		{
+			ndx[0] = 0;
+			ndx[1] = i - 1;
+			ndx[2] = i;
+		}
+	}
+	else
+	{
+		for (i = 2, ndx = surf->glindexes; i < surf->numglvertexes; i++, ndx += 3)
+		{
+			ndx[0] = i - 2;
+			ndx[1] = (i & 1) ? i : (i - 1);
+			ndx[2] = (i & 1) ? (i - 1) : i;
+		}
 	}
 
 	// reconstruct the polygon
 	surf->midpoint[0] = surf->midpoint[1] = surf->midpoint[2] = 0;
 
-	for (i = 0, verts = surf->glvertexes; i < surf->numglvertexes; i++, verts++)
+	for (i = 0, j = surf->numglvertexes; i < surf->numglvertexes; i++, j--)
 	{
 		int lindex = mod->surfedges[surf->firstedge + i];
+		int stripdst = i ? (i * 2 - 1) : 0;
+
+		if (stripdst >= surf->numglvertexes) stripdst = j * 2;
+		if (surf->flags & SURF_DRAWTURB) stripdst = i;
+
+		verts = &surf->glvertexes[stripdst];
 
 		if (lindex > 0)
 		{
@@ -817,6 +872,8 @@ int Surf_NumberSort (msurface_t *s1, msurface_t *s2)
 	return s1->surfnum - s2->surfnum;
 }
 
+void Mod_SetCorrectBBox (model_t *mod);
+
 void GL_BuildLightmaps (void)
 {
 	int		i, j, numlm;
@@ -835,24 +892,30 @@ void GL_BuildLightmaps (void)
 
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
+		msurface_t *surf = NULL;
+
 		if (!(m = cl.model_precache[j])) break;
+		if (m->type != mod_brush) continue;
+
+		Mod_SetCorrectBBox (m);
+
 		if (m->name[0] == '*') continue;
 
 		// order surfs by texture
-		qsort (m->surfaces, m->numsurfaces, sizeof (msurface_t), (int (*) (const void *, const void *)) Surf_TextureSort);
+		qsort (m->surfaces, m->numsurfaces, sizeof (msurface_t), (sortfunc_t) Surf_TextureSort);
 
 		// restart vertexes
 		m->numglvertexes = 0;
 		m->numglindexes = 0;
 
-		for (i = 0; i < m->numsurfaces; i++)
+		for (i = 0, surf = m->surfaces; i < m->numsurfaces; i++, surf++)
 		{
-			GL_CreateSurfaceLightmap (&m->surfaces[i]);
-			GL_BuildPolygonForSurface (&m->surfaces[i], m);
+			GL_CreateSurfaceLightmap (surf);
+			GL_BuildPolygonForSurface (surf, m);
 		}
 
 		// restore original order
-		qsort (m->surfaces, m->numsurfaces, sizeof (msurface_t), (int (*) (const void *, const void *)) Surf_NumberSort);
+		qsort (m->surfaces, m->numsurfaces, sizeof (msurface_t), (sortfunc_t) Surf_NumberSort);
 	}
 
 	// create lightmap 0 as the entity lightmap
@@ -887,8 +950,17 @@ void GL_BuildLightmaps (void)
 			lightmap_textures[i].texnum = gl_lightmaps[i].texnum;
 			GL_BindTexture (GL_TEXTURE0_ARB, &lightmap_textures[i]);
 
-			qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			if (i == 0)
+			{
+				// the entity lightmap needs to read a single texel so it uses point sampling
+				qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			}
+			else
+			{
+				qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			}
 
 			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, LM_BLOCK_WIDTH, LM_BLOCK_HEIGHT, 0, gl_Lightmap_Format, gl_Lightmap_Type, gl_lightmaps[i].data);
 		}
@@ -1077,4 +1149,71 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 	}
 }
 
+
+void R_RecursiveVBOSetup (mnode_t *node, int *numvboverts)
+{
+	if (node->contents == CONTENTS_SOLID) return;
+	if (node->contents < 0) return;
+
+	R_RecursiveVBOSetup (node->children[0], numvboverts);
+
+	if (node->numsurfaces)
+	{
+		int c;
+		msurface_t *surf = r_worldmodel->surfaces + node->firstsurface;
+
+		for (c = node->numsurfaces; c; c--, surf++)
+		{
+			if (surf->flags & SURF_DRAWTURB) continue;
+
+			surf->vboffset = numvboverts[0];
+			numvboverts[0] += surf->numglvertexes;
+		}
+	}
+
+	R_RecursiveVBOSetup (node->children[1], numvboverts);
+}
+
+
+void R_BuildBrushBuffers (void)
+{
+	int i, j;
+	model_t *m;
+	msurface_t *surf = NULL;
+	int numvboverts = 0;
+
+	if (!gl_support_arb_vertex_buffer_object) return;
+
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		if (!(m = cl.model_precache[j])) break;
+		if (m->type != mod_brush) continue;
+
+		// allocate offsets in bsp tree order so that we're sequentially hopping around
+		// in the final vbo as much as possible
+		R_RecursiveVBOSetup (m->nodes + m->firstnode, &numvboverts);
+	}
+
+	qglDeleteBuffersARB (1, &r_surfacevbo);
+	qglGenBuffersARB (1, &r_surfacevbo);
+	GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
+	qglBufferDataARB (GL_ARRAY_BUFFER_ARB, numvboverts * sizeof (glvertex_t), NULL, GL_STATIC_DRAW_ARB);
+
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		if (!(m = cl.model_precache[j])) break;
+		if (m->type != mod_brush) continue;
+		if (m->name[0] == '*') continue;
+
+		for (i = 0, surf = m->surfaces; i < m->numsurfaces; i++, surf++)
+		{
+			if (surf->vboffset == -1) continue;
+			if (surf->flags & SURF_DRAWTURB) continue;
+
+			qglBufferSubDataARB (GL_ARRAY_BUFFER_ARB, surf->vboffset * sizeof (glvertex_t), surf->numglvertexes * sizeof (glvertex_t), surf->glvertexes);
+		}
+	}
+
+	GL_BindBuffer (GL_ARRAY_BUFFER_ARB, 0);
+}
 

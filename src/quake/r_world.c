@@ -21,7 +21,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_local.h"
 
+extern qbool r_recachesurfaces;
+int r_firstentitysurface = 0;
+
 static int r_world_tmus = 0;
+GLuint r_surfacevbo = 0;
 
 extern float r_globalwateralpha;
 
@@ -55,6 +59,8 @@ r_modelsurf_t *r_modelsurfs[R_MAX_MODELSURFS] = {NULL};
 r_modelsurf_t *lightmap_modelsurfs[MAX_LIGHTMAPS] = {NULL};
 int r_num_modelsurfs = 0;
 qbool r_skysurfaces = false;
+entity_t r_worldentity;
+extern mplane_t frustum[];
 
 // this is called on a new map load (see r_newmap) to init the lists
 // as the hunk will have been cleared from the previous map
@@ -90,7 +96,6 @@ void R_ModelSurfsBeginFrame (void)
 		glt->surfchain = NULL;
 
 	// no modelsurfs in use yet
-	r_num_modelsurfs = 0;
 	r_skysurfaces = false;
 }
 
@@ -100,7 +105,11 @@ void R_ModelSurfsBeginFrame (void)
 void R_AllocModelSurf (msurface_t *surf, texture_t *tex, glmatrix *matrix, int entnum)
 {
 	// oh shit
-	if (r_num_modelsurfs >= R_MAX_MODELSURFS) return;
+	if (r_num_modelsurfs >= R_MAX_MODELSURFS)
+	{
+		Com_Printf ("R_MAX_MODELSURFS - overflow (this won't happen after fullvis)\n");
+		return;
+	}
 
 	// set necessary flags
 	if (surf->flags & SURF_DRAWSKY) r_skysurfaces = true;
@@ -119,6 +128,8 @@ void R_AllocModelSurf (msurface_t *surf, texture_t *tex, glmatrix *matrix, int e
 	// no chains yet
 	r_modelsurfs[r_num_modelsurfs]->surfchain = NULL;
 	r_modelsurfs[r_num_modelsurfs]->lightchain = NULL;
+
+	// the entnum is used for correcting lightmap coords for instanced bmodels
 	r_modelsurfs[r_num_modelsurfs]->entnum = entnum;
 
 	// go to the next modelsurf
@@ -144,6 +155,7 @@ void R_SortModelSurfs (void)
 	for (i = r_num_modelsurfs - 1; i >= 0; i--)
 	{
 		ms = r_modelsurfs[i];
+		rs_brushpolys++; // count wpolys here
 
 		// defer dynamic lights to here so that we can restrict R_PushDLights to surfs actually in the pvs
 		R_RenderDynamicLightmaps (ms->surface);
@@ -177,132 +189,76 @@ void R_SortModelSurfs (void)
 }
 
 
-// may also be used with leafs owing to common data
-qbool R_CullNode (mnode_t *node)
+float R_PlaneDist (mplane_t *plane, entity_t *ent)
 {
-	int i;
-	extern mplane_t frustum[];
-
-#if 0
-	// this is just a sanity check and never happens (yes, i tested it)
-	if (node->parent && node->parent->bops == FULLY_OUTSIDE_FRUSTUM)
+	// for axial planes it's quicker to just eval the dist and there's no need to cache;
+	// for non-axial we check the cache and use if it current, otherwise calc it and cache it
+	if (plane->type < 3)
+		return ent->modelorg[plane->type] - plane->dist;
+	else if (plane->cacheframe == r_framecount && plane->cacheent == ent)
 	{
-		node->bops = FULLY_OUTSIDE_FRUSTUM;
-		return true;
+		// Com_Printf ("Cached planedist\n");
+		return plane->cachedist;
 	}
-#endif
+	else plane->cachedist = DotProduct (ent->modelorg, plane->normal) - plane->dist;
 
-	// if the node's parent was fully inside the frustum then the node is also fully inside the frustum
-	if (node->parent && node->parent->bops == FULLY_INSIDE_FRUSTUM)
-	{
-		node->bops = FULLY_INSIDE_FRUSTUM;
-		return false;
-	}
+	// cache the result for this plane
+	plane->cacheframe = r_framecount;
+	plane->cacheent = ent;
 
-	// BoxOnPlaneSide result flags are unknown
-	node->bops = 0;
-
-	// need to check all 4 sides
-	for (i = 0; i < 4; i++)
-	{
-		// if the parent is inside the frustum on this side then so is this node and we don't need to check
-		if (node->parent && node->parent->sides[i] == INSIDE_FRUSTUM)
-			continue;
-
-		// need to check
-		node->sides[i] |= BoxOnPlaneSide (node->minmaxs, node->minmaxs + 3, frustum + i);
-
-		// if the node is outside the frustum on any side then the entire node is rejected
-		if (node->sides[i] == OUTSIDE_FRUSTUM)
-		{
-			node->bops = FULLY_OUTSIDE_FRUSTUM;
-			return true;
-		}
-
-		if (node->sides[i] == INTERSECT_FRUSTUM)
-		{
-			// if any side intersects the frustum we mark it all as intersecting so that we can do comparisons more cleanly
-			node->bops = FULLY_INTERSECT_FRUSTUM;
-			return false;
-		}
-	}
-
-	// the node will be fully inside the frustum here because none of the sides evaluated to outside or intersecting
-	// set the bops flag correctly as it may have been skipped above
-	node->bops = FULLY_INSIDE_FRUSTUM;
-	return false;
+	// and return what we got
+	return plane->cachedist;
 }
 
 
-// theoretically we only need to do this if the PVS changes and then we can rely on culling and backfacing in the frames
-// we might overflow the modelsurfs list if we did that however.
-void R_RecursiveWorldNode (mnode_t *node)
+void R_RecursiveWorldNode (mnode_t *node, int clipflags)
 {
-	int			c, side;
-	mplane_t	*plane;
-	msurface_t	**mark;
-	mleaf_t		*pleaf;
-	float		dot;
+	float dot;
+	int c, side;
 
-loc0:;
-	if (node->contents == CONTENTS_SOLID) return;		// solid
+	if (node->contents == CONTENTS_SOLID) return;
 	if (node->visframe != r_visframecount) return;
-	if (R_CullNode (node)) return;
 
-	// if a leaf node, draw stuff
+	if (clipflags)
+	{
+		for (c = 0, side = 0; c < 4; c++)
+		{
+			// clipflags is a 4 bit mask, for each bit 0 = auto accept on this side, 1 = need to test on this side
+			// BOPS returns 0 (intersect), 1 (inside), or 2 (outside).  if a node is inside on any side then all
+			// of it's child nodes are also guaranteed to be inside on the same side
+			if (!(clipflags & (1 << c))) continue;
+			if ((side = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, &frustum[c])) == 2) return;
+			if (side == 1) clipflags &= ~(1 << c);
+		}
+	}
+
 	if (node->contents < 0)
 	{
-		pleaf = (mleaf_t *) node;
-
-		mark = pleaf->firstmarksurface;
-		c = pleaf->nummarksurfaces;
+		// node is a leaf so add stuff for drawing
+		msurface_t **mark = ((mleaf_t *) node)->firstmarksurface;
+		int c = ((mleaf_t *) node)->nummarksurfaces;
 
 		if (c)
 		{
 			do
 			{
-				(*mark)->intersect = (pleaf->bops == FULLY_INTERSECT_FRUSTUM);
 				(*mark)->visframe = r_framecount;
+				(*mark)->clipflags = clipflags;
 				mark++;
+			} while (--c);
 			}
-			while (--c);
-		}
 
-		// deal with model fragments in this leaf
-		if (pleaf->efrags)
-			R_StoreEfrags (&pleaf->efrags);
-
+		R_StoreEfrags (&((mleaf_t *) node)->efrags);
 		return;
 	}
 
-	// node is just a decision point, so go down the apropriate sides
-	// find which side of the node we are on
-	plane = node->plane;
-
-	switch (plane->type)
-	{
-	case PLANE_X:
-		dot = modelorg[0] - plane->dist;
-		break;
-	case PLANE_Y:
-		dot = modelorg[1] - plane->dist;
-		break;
-	case PLANE_Z:
-		dot = modelorg[2] - plane->dist;
-		break;
-	default:
-		dot = DotProduct (modelorg, plane->normal) - plane->dist;
-		break;
-	}
-
-	if (dot >= 0)
-		side = 0;
-	else side = 1;
+	// figure which side of the node we're on
+	dot = R_PlaneDist (node->plane, &r_worldentity);
+	side = (dot >= 0 ? 0 : 1);
 
 	// recurse down the children, front side first
-	R_RecursiveWorldNode (node->children[side]);
+	R_RecursiveWorldNode (node->children[side], clipflags);
 
-	// draw stuff
 	if ((c = node->numsurfaces) != 0)
 	{
 		msurface_t *surf = r_worldmodel->surfaces + node->firstsurface;
@@ -319,10 +275,8 @@ loc0:;
 			if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)) continue;		// wrong side
 
 			// this can be optimized by only checking for culling if the leaf or node containing the surf intersects the frustum
-			if (surf->intersect && (node->bops == FULLY_INTERSECT_FRUSTUM))
+			if (clipflags && surf->clipflags)
 				if (R_CullBox (surf->mins, surf->maxs)) continue;
-
-			rs_brushpolys++; //count wpolys here
 
 			// get the correct animation here as modelsurfs aren't aware of the entity frame;
 			// the world never does alternate anims
@@ -345,235 +299,304 @@ loc0:;
 		}
 	}
 
-	// recurse down the back side
-	// (in case the compiler doesn't optimize out tail recursion (it should, but you never know))
-	node = node->children[!side];
-	goto loc0;
+	// recurse down the back side (the compiler should optimize this tail recursion)
+	R_RecursiveWorldNode (node->children[!side], clipflags);
 }
 
 
-void R_MarkLeafSurfs (mleaf_t *leaf)
+void R_SetVertexDecl353 (void)
 {
-	msurface_t **mark = leaf->firstmarksurface;
-	int c = leaf->nummarksurfaces;
-
-	if (c)
+	if (gl_support_arb_vertex_buffer_object)
 	{
-		do
-		{
-			(*mark)->intersect = (leaf->bops == FULLY_INTERSECT_FRUSTUM);
-			(*mark)->visframe = r_framecount;
-			mark++;
-		} while (--c);
+		GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (3 * sizeof (float)));
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (5 * sizeof (float)));
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (3 * sizeof (float)));
+	}
+	else
+	{
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), verts->v);
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[3]);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[5]);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[3]);
 	}
 }
 
 
-void R_NewRecursiveWorldNode (mnode_t *node)
+void R_SetVertexDecl350 (void)
 {
-	int c;
-	int side;
-	float dot;
-
-loc0:;
-	// node is just a decision point, so go down the appropriate sides
-	// find which side of the node we are on
-	switch (node->plane->type)
+	if (gl_support_arb_vertex_buffer_object)
 	{
-	case PLANE_X:
-		dot = modelorg[0] - node->plane->dist;
-		break;
-	case PLANE_Y:
-		dot = modelorg[1] - node->plane->dist;
-		break;
-	case PLANE_Z:
-		dot = modelorg[2] - node->plane->dist;
-		break;
-	default:
-		dot = DotProduct (modelorg, node->plane->normal) - node->plane->dist;
-		break;
+		GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (3 * sizeof (float)));
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (5 * sizeof (float)));
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 	}
-
-	// find which side we're on
-	side = (dot >= 0 ? 0 : 1);
-
-	// recurse down the children, front side first
-	if (node->children[side]->contents == CONTENTS_SOLID) goto rrwnnofront;
-	if (node->children[side]->visframe != r_visframecount) goto rrwnnofront;
-	if (R_CullNode (node->children[side])) goto rrwnnofront;
-
-	// check for a leaf
-	if (node->children[side]->contents < 0)
+	else
 	{
-		R_MarkLeafSurfs ((mleaf_t *) node->children[side]);
-		R_StoreEfrags (&((mleaf_t *) node->children[side])->efrags);
-		goto rrwnnofront;
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), verts->v);
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[3]);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[5]);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 	}
-
-	// now we can recurse
-	R_NewRecursiveWorldNode (node->children[side]);
-
-rrwnnofront:;
-	if ((c = node->numsurfaces) != 0)
-	{
-		msurface_t *surf = r_worldmodel->surfaces + node->firstsurface;
-		texture_t *tex = NULL;
-
-		if (dot < 0 - BACKFACE_EPSILON)
-			side = SURF_PLANEBACK;
-		else if (dot > BACKFACE_EPSILON)
-			side = 0;
-
-		for (; c; c--, surf++)
-		{
-			if (surf->visframe != r_framecount) continue;
-			if ((dot < 0) ^ !! (surf->flags & SURF_PLANEBACK)) continue;		// wrong side
-
-			// this can be optimized by only checking for culling if the leaf or node containing the surf intersects the frustum
-			if (surf->intersect && (node->bops == FULLY_INTERSECT_FRUSTUM))
-				if (R_CullBox (surf->mins, surf->maxs)) continue;
-
-			rs_brushpolys++; //count wpolys here
-
-			// get the correct animation here as modelsurfs aren't aware of the entity frame;
-			// the world never does alternate anims
-			tex = R_TextureAnimation (surf->texinfo->texture, 0);
-
-			// add to the list; the world is untransformed and has no matrix
-			R_AllocModelSurf (surf, tex, NULL, -1);
-
-			// take r_wateralpha from the world
-			// (to do - add a worldspawn flag for overriding this...)
-			if (surf->flags & SURF_DRAWTURB)
-			{
-				if (r_globalwateralpha > 0)
-					surf->wateralpha = r_globalwateralpha;
-				else surf->wateralpha = r_wateralpha.value;
-
-				R_CheckSubdivide (surf, r_worldmodel);
-			}
-			else surf->wateralpha = 1;
-		}
-	}
-
-	// recurse down the back side
-	// the compiler should be performing this optimization anyway
-	node = node->children[!side];
-
-	// check the back side
-	if (node->contents == CONTENTS_SOLID) return;
-	if (node->visframe != r_visframecount) return;
-	if (R_CullNode (node)) return;
-
-	// if a leaf node, draw stuff
-	if (node->contents < 0)
-	{
-		R_MarkLeafSurfs ((mleaf_t *) node);
-		R_StoreEfrags (&((mleaf_t *) node)->efrags);
-		return;
-	}
-
-	goto loc0;
 }
 
 
-r_modelsurf_t *R_GetLightChainNext (r_modelsurf_t *ms) {return ms->lightchain;}
-r_modelsurf_t *R_GetSurfChainNext (r_modelsurf_t *ms) {return ms->surfchain;}
+void R_SetVertexDecl300 (void)
+{
+	if (gl_support_arb_vertex_buffer_object)
+	{
+		GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
 
-typedef r_modelsurf_t *(*RGETMSCHAINNEXTFUNC) (r_modelsurf_t *);
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (3 * sizeof (float)));
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	}
+	else
+	{
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
 
-int r_numworldvertexes = 0;
-int r_numworldindexes = 0;
-unsigned short *r_worldindexes = NULL;
-glvertex_t *r_baseworldvertexes = (glvertex_t *) (((unsigned short *) scratchbuf) + 32768);
-glvertex_t *r_worldvertexes = NULL;
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), verts->v);
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[3]);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	}
+}
+
+
+void R_SetVertexDecl500 (void)
+{
+	if (gl_support_arb_vertex_buffer_object)
+	{
+		GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), (void *) (5 * sizeof (float)));
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	}
+	else
+	{
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), verts->v);
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), &verts->verts[5]);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	}
+}
+
+
+void R_SetVertexDecl000 (void)
+{
+	if (gl_support_arb_vertex_buffer_object)
+	{
+		GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	}
+	else
+	{
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+
+		GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), verts->v);
+		GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	}
+}
+
+
+#define R_MAX_DRAWSURFACES	4096
+msurface_t *r_drawsurfaces[R_MAX_DRAWSURFACES];
+int r_numdrawsurfaces;
+int r_numdrawverts;
+glmatrix *r_lastmatrix;
+texture_t *lasttexture = NULL;
+gltexture_t *lastlightmap = NULL;
+float last_surfalpha = -1;
 qbool r_restart_surface = false;
 
-void R_BeginModelSurfs (void)
+
+void R_BeginSurfaces (void)
 {
-	r_worldindexes = (unsigned short *) scratchbuf;
-	r_worldvertexes = (glvertex_t *) (r_worldindexes + 32768);
-	r_numworldvertexes = 0;
-	r_numworldindexes = 0;
+	r_numdrawsurfaces = 0;
+	r_numdrawverts = 0;
+
+	lasttexture = NULL;
+	lastlightmap = NULL;
+	last_surfalpha = -1;
+
+	r_lastmatrix = NULL;
 	r_restart_surface = false;
 }
 
 
-void R_CheckModelSurfs (msurface_t *surf)
+void R_FlushSurfaces (void)
 {
-	if (r_numworldindexes + surf->numglindexes >= 32768) r_restart_surface = true;
-	if (r_numworldvertexes + surf->numglvertexes >= 16384) r_restart_surface = true;
-
-	if (r_restart_surface)
-	{
-		GL_SetIndices (0, scratchbuf);
-		GL_DrawIndexedPrimitive (GL_TRIANGLES, r_numworldindexes, r_numworldvertexes);
-		R_BeginModelSurfs ();
-	}
-}
-
-
-void R_TransferModelSurf (msurface_t *surf, glmatrix *matrix, int entnum)
-{
-	// regenerate and transform the vertexes
-	if (matrix) GL_RegenerateVertexes (surf->model, surf, matrix);
-
-	r_worldindexes = R_TransferIndexes (surf->glindexes, r_worldindexes, surf->numglindexes, r_numworldvertexes);
-
-	if (surf->lightmaptexturenum)
-		memcpy (r_worldvertexes, surf->glvertexes, sizeof (glvertex_t) * surf->numglvertexes);
-	else
+	if (r_numdrawsurfaces > 1)
 	{
 		int i;
-		glvertex_t *v = surf->glvertexes;
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+		unsigned short *ndx = (unsigned short *) (verts + r_numdrawverts);
+		int numvertexes = 0;
+		int numindexes = 0;
 
-		// if LM_BLOCK_WIDTH and/or LM_BLOCK_HEIGHT change these need to be changed too
-		float row = (float) (entnum >> 8) / 256.0f + (1.0f / 512.0f);
-		float col = (float) (entnum & 255) / 256.0f + (1.0f / 512.0f);
+		GL_SetIndices (ndx);
 
-		for (i = 0; i < surf->numglvertexes; i++, v++)
+		for (i = 0; i < r_numdrawsurfaces; i++)
 		{
-			r_worldvertexes[i].v[0] = v->v[0];
-			r_worldvertexes[i].v[1] = v->v[1];
-			r_worldvertexes[i].v[2] = v->v[2];
+			msurface_t *surf = r_drawsurfaces[i];
+			unsigned short *srcindexes = surf->glindexes;
+			int n = (surf->numglindexes + 7) >> 3;
 
-			r_worldvertexes[i].st1[0] = v->st1[0];
-			r_worldvertexes[i].st1[1] = v->st1[1];
+			// we can't just memcpy the indexes as we need to add an offset to each so instead we'll Duff the bastards
+			switch (surf->numglindexes % 8)
+			{
+			case 0: do {*ndx++ = numvertexes + *srcindexes++;
+			case 7: *ndx++ = numvertexes + *srcindexes++;
+			case 6: *ndx++ = numvertexes + *srcindexes++;
+			case 5: *ndx++ = numvertexes + *srcindexes++;
+			case 4: *ndx++ = numvertexes + *srcindexes++;
+			case 3: *ndx++ = numvertexes + *srcindexes++;
+			case 2: *ndx++ = numvertexes + *srcindexes++;
+			case 1: *ndx++ = numvertexes + *srcindexes++;
+			} while (--n > 0);
+			}
 
-			r_worldvertexes[i].st2[0] = col;
-			r_worldvertexes[i].st2[1] = row;
+			memcpy (verts, surf->glvertexes, surf->numglvertexes * sizeof (glvertex_t));
+			verts += surf->numglvertexes;
+			numvertexes += surf->numglvertexes;
+			numindexes += surf->numglindexes;
+		}
+
+		GL_DrawIndexedPrimitive (GL_TRIANGLES, numindexes, numvertexes);
+	}
+	else if (r_numdrawsurfaces)
+	{
+		int i;
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+		int numvertexes = 0;
+
+		for (i = 0; i < r_numdrawsurfaces; i++)
+		{
+			msurface_t *surf = r_drawsurfaces[i];
+
+			memcpy (verts, surf->glvertexes, surf->numglvertexes * sizeof (glvertex_t));
+			verts += surf->numglvertexes;
+
+			qglDrawArrays (GL_TRIANGLE_STRIP, numvertexes, surf->numglvertexes);
+			numvertexes += surf->numglvertexes;
 		}
 	}
 
-	r_numworldindexes += surf->numglindexes;
-	r_numworldvertexes += surf->numglvertexes;
-	r_worldvertexes += surf->numglvertexes;
+	r_numdrawsurfaces = 0;
+	r_numdrawverts = 0;
 }
 
 
-void R_FinishModelSurfs (void)
+qbool R_UseInstancedLight (model_t *mod);
+
+void R_BatchSurface (msurface_t *surf, glmatrix *matrix, int entnum)
 {
-	if (r_numworldindexes)
+	if (matrix != r_lastmatrix)
 	{
-		GL_SetIndices (0, scratchbuf);
-		GL_DrawIndexedPrimitive (GL_TRIANGLES, r_numworldindexes, r_numworldvertexes);
+		R_FlushSurfaces ();
+
+		// always load the world matrix as a baseline
+		qglLoadMatrixf (r_world_matrix.m16);
+
+		if (matrix)
+		{
+			// we need to do it this way as water transforms will go to shit otherwise
+			// we'll put it back when we rewrite water surface handling...
+			qglMultMatrixf (matrix->m16);
+		}
+
+		r_lastmatrix = matrix;
+	}
+	else if (r_numdrawsurfaces >= R_MAX_DRAWSURFACES)
+		R_FlushSurfaces ();
+	else if (r_numdrawverts >= 16384)
+		R_FlushSurfaces ();
+
+	if (entnum > -1 && R_UseInstancedLight (surf->model))
+	{
+		int i;
+		glvertex_t *verts = (glvertex_t *) scratchbuf;
+		float st20 = ((float) (entnum & 255) / 255.0f) + 0.0005f;
+		float st21 = ((float) (entnum >> 8) / 255.0f) + 0.0005f;
+
+		// flush everything so that we can safely use our scratchbuffer here
+		R_FlushSurfaces ();
+
+		// generate the vertexes with the correct lightmap texcoords for instanced lighting
+		for (i = 0; i < surf->numglvertexes; i++, verts++)
+		{
+			verts->v[0] = surf->glvertexes[i].v[0];
+			verts->v[1] = surf->glvertexes[i].v[1];
+			verts->v[2] = surf->glvertexes[i].v[2];
+
+			verts->st1[0] = surf->glvertexes[i].st1[0];
+			verts->st1[1] = surf->glvertexes[i].st1[1];
+
+			verts->st2[0] = st20;
+			verts->st2[1] = st21;
+		}
+
+		qglDrawArrays (GL_TRIANGLE_STRIP, 0, surf->numglvertexes);
+
+		return;
+	}
+
+	if (gl_support_arb_vertex_buffer_object)
+	{
+		if (surf->vboffset < 0) return;
+
+		qglDrawArrays (GL_TRIANGLE_STRIP, surf->vboffset, surf->numglvertexes);
+	}
+	else
+	{
+		r_numdrawverts += surf->numglvertexes;
+		r_drawsurfaces[r_numdrawsurfaces] = surf;
+		r_numdrawsurfaces++;
 	}
 }
 
 
-void R_RenderModelSurfs_Generic (r_modelsurf_t *chain, RGETMSCHAINNEXTFUNC chainnextfunc)
+void R_EndSurfaces (void)
 {
-	R_BeginModelSurfs ();
+	// flush anything left over
+	R_FlushSurfaces ();
+	GL_BindBuffer (GL_ARRAY_BUFFER_ARB, 0);
 
-	// batch to 32-bit indexes
-	for (; chain; chain = chainnextfunc (chain))
+	if (r_lastmatrix)
 	{
-		R_CheckModelSurfs (chain->surface);
-		// R_UpdateLightmap (chain->surface->lightmaptexturenum);
-		R_TransferModelSurf (chain->surface, chain->matrix, chain->entnum);
+		qglLoadMatrixf (r_world_matrix.m16);
+		r_lastmatrix = NULL;
 	}
-
-	R_FinishModelSurfs ();
 }
 
 
@@ -641,65 +664,32 @@ void R_Takedown_Fullbright (void)
 }
 
 
-void R_EnableWorldVertexArrays (void *st1, void *st2, void *st3)
-{
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), r_baseworldvertexes->v);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
-
-	if (st1)
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (glvertex_t), st1);
-	else GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
-
-	if (st2)
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (glvertex_t), st2);
-	else GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-
-	if (st3)
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 2, GL_FLOAT, sizeof (glvertex_t), st3);
-	else GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
-}
-
-
-texture_t *lasttexture = NULL;
-gltexture_t *lastlightmap = NULL;
-float last_surfalpha = -1;
-
-void R_InvalidateExtraSurf (void)
-{
-	lasttexture = NULL;
-	lastlightmap = NULL;
-	last_surfalpha = -1;
-}
-
-
 void R_StartExtraSurfs (void)
 {
 	if (lasttexture->fullbright && r_world_tmus > 2)
 	{
 		GL_TexEnv (GL_TEXTURE2_ARB, GL_TEXTURE_2D, GL_ADD);
 		GL_BindTexture (GL_TEXTURE2_ARB, lasttexture->fullbright);
-		R_EnableWorldVertexArrays (r_baseworldvertexes->st1, r_baseworldvertexes->st2, r_baseworldvertexes->st1);
+		R_SetVertexDecl353 ();
 	}
 	else
 	{
 		GL_TexEnv (GL_TEXTURE2_ARB, GL_TEXTURE_2D, GL_NONE);
-		R_EnableWorldVertexArrays (r_baseworldvertexes->st1, r_baseworldvertexes->st2, NULL);
+		R_SetVertexDecl350 ();
 	}
 }
 
 
 void R_ExtraSurfsBegin (void)
 {
-	// only bring up 2 tmus initially because we don't know if we're going to need 3 yet
 	R_Setup_Multitexture ();
-	R_BeginModelSurfs ();
+	R_BeginSurfaces ();
 }
 
 
 void R_ExtraSurfsEnd (void)
 {
-	R_FinishModelSurfs ();
-	R_BeginModelSurfs ();
+	R_EndSurfaces ();
 
 	// need to call this because we may have had 3 tmus up
 	R_Takedown_Multitexture2 ();
@@ -709,69 +699,18 @@ void R_ExtraSurfsEnd (void)
 }
 
 
-void R_ExtraSurfFBCheck (qbool alpha)
-{
-	// because surfs must be sorted properly for this pass we need to draw one at a time when fullbrights are present
-	if (r_world_tmus < 3 && lasttexture->fullbright)
-	{
-		// draw the base accumulated surf
-		R_FinishModelSurfs ();
-
-		// switch the blending mode
-		if (!alpha) qglEnable (GL_BLEND);
-		qglBlendFunc (GL_ONE, GL_ONE);
-		Fog_StartAdditive ();
-
-		R_EnableWorldVertexArrays (r_baseworldvertexes->st1, NULL, NULL);
-
-		GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
-
-		if (alpha)
-		{
-			GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
-			qglColor4f (1, 1, 1, last_surfalpha);
-		}
-		else GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
-
-		GL_BindTexture (GL_TEXTURE0_ARB, lasttexture->fullbright);
-
-		// draw it again for fullbrights
-		R_FinishModelSurfs ();
-
-		// this is the only takedown we need here
-		Fog_StopAdditive ();
-
-		// go back to the correct blending mode
-		if (!alpha) qglDisable (GL_BLEND);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		// and back to the correct texenv
-		R_Setup_Multitexture ();
-
-		// ensure that everything is invalidated
-		R_InvalidateExtraSurf ();
-
-		// and start again
-		R_BeginModelSurfs ();
-	}
-}
-
-
 void R_RenderFenceTexture (msurface_t *surf, glmatrix *matrix, int entnum)
 {
 	if (surf->texinfo->texture != lasttexture) r_restart_surface = true;
 	if (&lightmap_textures[surf->lightmaptexturenum] != lastlightmap) r_restart_surface = true;
 	if (surf->wateralpha != last_surfalpha) r_restart_surface = true;
-	if (r_numworldindexes + surf->numglindexes >= 32768) r_restart_surface = true;
-	if (r_numworldvertexes + surf->numglvertexes >= 16384) r_restart_surface = true;
 
 	if (r_restart_surface)
 	{
+		R_FlushSurfaces ();
+
 		if (surf->wateralpha > 0.99f)
 			qglDisable (GL_BLEND);
-
-		R_FinishModelSurfs ();
-		R_BeginModelSurfs ();
 
 		GL_BindTexture (GL_TEXTURE0_ARB, surf->texinfo->texture->gltexture);
 		GL_BindTexture (GL_TEXTURE1_ARB, &lightmap_textures[surf->lightmaptexturenum]);
@@ -788,13 +727,11 @@ void R_RenderFenceTexture (msurface_t *surf, glmatrix *matrix, int entnum)
 			qglColor4f (1, 1, 1, surf->wateralpha);
 			GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 		}
+
+		r_restart_surface = false;
 	}
 
-	R_CheckModelSurfs (surf);
-	R_TransferModelSurf (surf, matrix, entnum);
-
-	// special handling for fullbrights
-	R_ExtraSurfFBCheck (surf->wateralpha < 1 ? true : false);
+	R_BatchSurface (surf, matrix, entnum);
 }
 
 
@@ -803,13 +740,10 @@ void R_RenderAlphaSurface (msurface_t *surf, glmatrix *m, int entnum)
 	if (surf->texinfo->texture != lasttexture) r_restart_surface = true;
 	if (&lightmap_textures[surf->lightmaptexturenum] != lastlightmap) r_restart_surface = true;
 	if (surf->wateralpha != last_surfalpha) r_restart_surface = true;
-	if (r_numworldindexes + surf->numglindexes >= 32768) r_restart_surface = true;
-	if (r_numworldvertexes + surf->numglvertexes >= 16384) r_restart_surface = true;
 
 	if (r_restart_surface)
 	{
-		R_FinishModelSurfs ();
-		R_BeginModelSurfs ();
+		R_FlushSurfaces ();
 
 		GL_BindTexture (GL_TEXTURE0_ARB, surf->texinfo->texture->gltexture);
 		GL_BindTexture (GL_TEXTURE1_ARB, &lightmap_textures[surf->lightmaptexturenum]);
@@ -823,13 +757,11 @@ void R_RenderAlphaSurface (msurface_t *surf, glmatrix *m, int entnum)
 		// this needs to be done after we enable the vertex arrays as they will switch off color
 		qglColor4f (1, 1, 1, surf->wateralpha);
 		GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
+
+		r_restart_surface = false;
 	}
 
-	R_CheckModelSurfs (surf);
-	R_TransferModelSurf (surf, m, entnum);
-
-	// special handling for fullbrights
-	R_ExtraSurfFBCheck (true);
+	R_BatchSurface (surf, m, entnum);
 }
 
 
@@ -840,6 +772,8 @@ void R_RenderModelSurfs_Multitexture (qbool fbpass)
 	extern gltexture_t *active_gltextures;
 	qbool stateset = false;
 	int i, lm;
+
+	R_BeginSurfaces ();
 
 	for (glt = active_gltextures; glt; glt = glt->next)
 	{
@@ -880,12 +814,12 @@ void R_RenderModelSurfs_Multitexture (qbool fbpass)
 		{
 			if (fbpass)
 			{
-				R_EnableWorldVertexArrays (r_baseworldvertexes->st1, r_baseworldvertexes->st2, r_baseworldvertexes->st1);
+				R_SetVertexDecl353 ();
 				R_Setup_Multitexture2 ();
 			}
 			else
 			{
-				R_EnableWorldVertexArrays (r_baseworldvertexes->st1, r_baseworldvertexes->st2, NULL);
+				R_SetVertexDecl350 ();
 				R_Setup_Multitexture ();
 			}
 
@@ -905,11 +839,15 @@ void R_RenderModelSurfs_Multitexture (qbool fbpass)
 
 			GL_BindTexture (GL_TEXTURE1_ARB, &lightmap_textures[lm]);
 
-			R_RenderModelSurfs_Generic (ms, R_GetLightChainNext);
+			for (; ms; ms = ms->lightchain)
+				R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
 
+			R_FlushSurfaces ();
 			lightmap_modelsurfs[lm] = NULL;
 		}
 	}
+
+	R_EndSurfaces ();
 
 	if (stateset)
 	{
@@ -927,6 +865,8 @@ void R_RenderModelSurfs_Fullbright (void)
 	extern gltexture_t *active_gltextures;
 	qbool stateset = false;
 
+	R_BeginSurfaces ();
+
 	for (glt = active_gltextures; glt; glt = glt->next)
 	{
 		if (!(ms = glt->surfchain)) continue;
@@ -941,7 +881,7 @@ void R_RenderModelSurfs_Fullbright (void)
 			GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
 			GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
 
-			R_EnableWorldVertexArrays (r_baseworldvertexes->st1, NULL, NULL);
+			R_SetVertexDecl300 ();
 			R_Setup_Fullbright ();
 			stateset = true;
 		}
@@ -949,8 +889,13 @@ void R_RenderModelSurfs_Fullbright (void)
 		// bind texture (always)
 		GL_BindTexture (GL_TEXTURE0_ARB, ms->texture->fullbright);
 
-		R_RenderModelSurfs_Generic (ms, R_GetSurfChainNext);
+		for (; ms; ms = ms->surfchain)
+			R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
+
+		R_FlushSurfaces ();
 	}
+
+	R_EndSurfaces ();
 
 	if (stateset)
 		R_Takedown_Fullbright ();
@@ -967,7 +912,9 @@ void R_RenderModelSurfs_r_fullbright_1 (void)
 	GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
 
-	R_EnableWorldVertexArrays (r_baseworldvertexes->st1, NULL, NULL);
+	R_SetVertexDecl300 ();
+
+	R_BeginSurfaces ();
 
 	for (glt = active_gltextures; glt; glt = glt->next)
 	{
@@ -979,8 +926,13 @@ void R_RenderModelSurfs_r_fullbright_1 (void)
 		// bind texture (always)
 		GL_BindTexture (GL_TEXTURE0_ARB, ms->texture->gltexture);
 
-		R_RenderModelSurfs_Generic (ms, R_GetSurfChainNext);
+		for (; ms; ms = ms->surfchain)
+			R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
+
+		R_FlushSurfaces ();
 	}
+
+	R_EndSurfaces ();
 }
 
 
@@ -990,7 +942,8 @@ void R_RenderModelSurfs_ShowTris (void)
 	r_modelsurf_t *ms;
 	extern gltexture_t *active_gltextures;
 
-	R_EnableWorldVertexArrays (NULL, NULL, NULL);
+	R_SetVertexDecl000 ();
+	R_BeginSurfaces ();
 
 	for (glt = active_gltextures; glt; glt = glt->next)
 	{
@@ -999,8 +952,11 @@ void R_RenderModelSurfs_ShowTris (void)
 		// do water later
 		if (ms->surface->flags & SURF_DRAWTURB) continue;
 
-		R_RenderModelSurfs_Generic (ms, R_GetSurfChainNext);
+		for (; ms; ms = ms->surfchain)
+			R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
 	}
+
+	R_EndSurfaces ();
 }
 
 
@@ -1031,7 +987,9 @@ void R_RenderModelSurfs_r_lightmap_1 (void)
 		}
 	}
 
-	R_EnableWorldVertexArrays (r_baseworldvertexes->st2, NULL, NULL);
+	R_SetVertexDecl500 ();
+	R_BeginSurfaces ();
+
 	GL_TexEnv (GL_TEXTURE2_ARB, GL_TEXTURE_2D, GL_NONE);
 	GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_REPLACE);
@@ -1043,11 +1001,18 @@ void R_RenderModelSurfs_r_lightmap_1 (void)
 
 		// bind lightmap (always)
 		GL_BindTexture (GL_TEXTURE0_ARB, &lightmap_textures[lm]);
+		R_BeginSurfaces ();
 
-		R_RenderModelSurfs_Generic (ms, R_GetLightChainNext);
+		for (; ms; ms = ms->lightchain)
+			R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
+
+		R_FlushSurfaces ();
 		lightmap_modelsurfs[lm] = NULL;
 	}
+
+	R_EndSurfaces ();
 }
+
 
 
 //==============================================================================
@@ -1159,11 +1124,42 @@ void R_DrawWorld (void)
 
 	if (!r_drawworld.value) return;
 
-	VectorCopy (r_refdef2.vieworg, modelorg);
+	VectorCopy (r_refdef2.vieworg, r_worldentity.modelorg);
 
-	// emit the world surfs into modelsurfs
-	R_ModelSurfsBeginFrame ();
-	R_NewRecursiveWorldNode (r_worldmodel->nodes);
+	if (r_recachesurfaces)
+	{
+		r_num_modelsurfs = 0;
+
+		// emit the world surfs into modelsurfs
+		R_RecursiveWorldNode (r_worldmodel->nodes, 15);
+
+		r_firstentitysurface = r_num_modelsurfs;
+		r_recachesurfaces = false;
+	}
+	else
+	{
+		// begin entities on the first modelsurf after the world
+		r_num_modelsurfs = r_firstentitysurface;
+
+		// bring everything else up to date
+		for (i = 0; i < r_worldmodel->numleafs; i++)
+		{
+			mleaf_t *leaf = &r_worldmodel->leafs[i + 1];
+
+			if (leaf->visframe == r_visframecount && leaf->efrags)
+				R_StoreEfrags (&leaf->efrags);
+		}
+
+		for (i = 0; i < r_num_modelsurfs; i++)
+		{
+			r_modelsurf_t *ms = r_modelsurfs[i];
+
+			if (ms->surface->flags & SURF_DRAWSKY) r_skysurfaces = true;
+
+			// the world never does alternate anims
+			ms->texture = R_TextureAnimation (ms->surface->texinfo->texture, 0);
+		}
+	}
 
 	// push the dlights here to keep framecounts consistent
 	R_PushDlights (r_worldmodel->nodes);

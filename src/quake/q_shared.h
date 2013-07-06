@@ -56,6 +56,8 @@ typedef enum {false, true} qbool;
 #define NULL ((void *)0)
 #endif
 
+typedef int (*sortfunc_t) (const void *, const void *);
+
 #define PAD(x,y) (((x)+(y)-1) & ~((y)-1))
 
 #ifdef _WIN32

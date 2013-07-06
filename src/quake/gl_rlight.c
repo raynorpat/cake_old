@@ -31,10 +31,6 @@ void r_light_shutdown(void)
 
 void r_light_newmap(void)
 {
-	int i;
-
-	for (i = 0; i < 256; i++)
-		d_lightstylevalue[i] = 264; // normal light value
 }
 
 void R_Light_Init(void)
@@ -160,14 +156,14 @@ void R_CoronasBegin (void)
 	R_RenderCoronaVerts ();
 
 	// now we set up our data streams
-	GL_SetIndices (0, r_coronaindexes);
+	GL_SetIndices (r_coronaindexes);
 
 	// ati throws a hairy fit with a 3-component color array
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_corona_t), r_coronaverts->xyz);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_corona_t), r_coronaverts->rgb);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_corona_t), r_coronaverts->xyz);
+	GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_corona_t), r_coronaverts->rgb);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 }
 
 
@@ -199,6 +195,37 @@ void R_DrawCoronas (void)
 }
 
 
+int light_valuetable[256];
+
+void R_SetDefaultLightStyles (void)
+{
+	int i;
+
+	// correct lightscaling so that 'm' is 256, not 264
+	for (i = 0; i < 256; i++)
+	{
+		// make it explicit that yeah, it's a *signed* char we want to use here
+		// so that values > 127 will behave as expected
+		float fv = (float) ((signed char) i - 'a') * 22;
+
+		fv *= 256.0f;
+		fv /= 264.0f;
+
+		// in general a mod should never provide values for these that are outside of the 'a'..'z' range,
+		// but the argument could be made that ID Quake/QC does/did nothing to prevent it, so it's legal
+		if (fv < 0)
+			light_valuetable[i] = (int) (fv - 0.5f);
+		else
+			light_valuetable[i] = (int) (fv + 0.5f);
+	}
+
+	// normal light value - making this consistent with a value of 'm' in R_AnimateLight
+	// will prevent the upload of lightmaps when a surface is first seen
+	for (i = 0; i < 256; i++)
+		d_lightstylevalue[i] = light_valuetable['m'];
+}
+
+
 /*
 ==================
 R_AnimateLight
@@ -206,23 +233,21 @@ R_AnimateLight
 */
 void R_AnimateLight (void)
 {
-	int			i,j,k;
+	int			i, j;
 
 	// light animations
 	// 'm' is normal light, 'a' is no light, 'z' is double bright
 	i = (int)(r_refdef2.time*10);
+
 	for (j=0 ; j<MAX_LIGHTSTYLES ; j++)
 	{
 		if (!r_refdef2.lightstyles[j].length)
 		{
-			d_lightstylevalue[j] = 256;
+			d_lightstylevalue[j] = light_valuetable[(int) 'm'];
 			continue;
 		}
 
-		k = i % r_refdef2.lightstyles[j].length;
-		k = r_refdef2.lightstyles[j].map[k] - 'a';
-
-		d_lightstylevalue[j] = k * 22;
+		d_lightstylevalue[j] = light_valuetable[(int) r_refdef2.lightstyles[j].map[i % r_refdef2.lightstyles[j].length]];
 	}	
 }
 
@@ -251,7 +276,6 @@ void R_MarkLights (dlight_t *light, int num, mnode_t *node)
 loc0:;
 	while (1)
 	{
-		if (node->visframe != r_visframecount) return;
 		if (node->contents < 0) return;
 
 		splitplane = node->plane;
@@ -278,9 +302,6 @@ loc0:;
 
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
-		// not visible
-		if (surf->visframe != r_framecount) continue;
-
 		// no lights on these
 		if (surf->flags & SURF_DRAWTURB) continue;
 		if (surf->flags & SURF_DRAWSKY) continue;
@@ -440,11 +461,14 @@ loc0:;
 
 				for (maps = 0; maps < MAX_SURFACE_STYLES && surf->styles[maps] != 255; maps++)
 				{
-					scale = (float) d_lightstylevalue[surf->styles[maps]] * 1.0 / 256.0;
+					// keep this consistent with BSP lighting
+					scale = (float) d_lightstylevalue[surf->styles[maps]];
+
 					r00 += (float) lightmap[      0] * scale;g00 += (float) lightmap[      1] * scale;b00 += (float) lightmap[2] * scale;
 					r01 += (float) lightmap[      3] * scale;g01 += (float) lightmap[      4] * scale;b01 += (float) lightmap[5] * scale;
 					r10 += (float) lightmap[line3+0] * scale;g10 += (float) lightmap[line3+1] * scale;b10 += (float) lightmap[line3+2] * scale;
 					r11 += (float) lightmap[line3+3] * scale;g11 += (float) lightmap[line3+4] * scale;b11 += (float) lightmap[line3+5] * scale;
+
 					lightmap += ((surf->extents[0]>>4)+1) * ((surf->extents[1]>>4)+1)*3; // LordHavoc: *3 for colored lighting
 				}
 
@@ -467,46 +491,80 @@ loc0:;
 R_LightPoint
 =============
 */
+void R_DynamicLightPoint (float *point, float *lightcolor, byte *hit)
+{
+	int i;
+	float rad;
+	float minlight;
+	float brightness;
+	float fdist;
+	vec3_t dist;
+
+	for (i = 0; i < r_refdef2.numDlights; i++)
+	{
+		if (hit[i]) continue;
+
+		VectorSubtract (point, r_refdef2.dlights[i].origin, dist);
+		rad = r_refdef2.dlights[i].radius;
+		fdist = fabs (VectorLength (dist));
+		rad -= fdist;
+		minlight = r_refdef2.dlights[i].minlight;
+
+		if (rad < minlight)
+			continue;
+
+		minlight = rad - minlight;
+		brightness = (rad - fdist);
+
+		if (fdist < minlight)
+		{
+			// variable dlight scale - cool!!!
+			lightcolor[0] += (brightness * r_refdef2.dlights[i].rgb[0]) * r_dynamic.value;
+			lightcolor[1] += (brightness * r_refdef2.dlights[i].rgb[1]) * r_dynamic.value;
+			lightcolor[2] += (brightness * r_refdef2.dlights[i].rgb[2]) * r_dynamic.value;
+		}
+
+		hit[i] = 1;
+	}
+}
+
 int R_LightPoint (entity_t *e, float *lightcolor)
 {
-	vec3_t		dist;
-	float		add;
-	int			i;
 	vec3_t		end;
-	
+	float		*start;
+
 	if (!r_worldmodel->lightdata)
 	{
-		lightcolor[0] = lightcolor[1] = lightcolor[2] = 255;
+		// keep this consistent with BSP lighting
+		lightcolor[0] = lightcolor[1] = lightcolor[2] = 255 * 256;
 		return 255;
 	}
 
-	end[0] = e->origin[0];
-	end[1] = e->origin[1];
-	end[2] = e->origin[2] - 8192;
+	// should this just use trueorigin for everything???
+	if (e->model->type == mod_brush)
+		start = e->trueorigin;
+	else
+		start = e->origin;
+
+	end[0] = start[0];
+	end[1] = start[1];
+	end[2] = start[2] - 8192;
 
 	lightcolor[0] = lightcolor[1] = lightcolor[2] = 0;
 
-	RecursiveLightPoint (lightcolor, r_worldmodel->nodes, e->origin, end);
+	RecursiveLightPoint (lightcolor, r_worldmodel->nodes, start, end);
 
 	// add dlights
 	// mh - dynamic lights should only be added to mdls if r_dynamic is on
 	if (r_dynamic.value)
 	{
-		// variable dlight scale - cool!!!
-		float dlscale = (1.0f / 255.0f) * r_dynamic.value;
+		byte hit[MAX_DLIGHTS];
 
-		for (i = 0; i < r_refdef2.numDlights; i++)
-		{
-			VectorSubtract (e->origin, r_refdef2.dlights[i].origin, dist);
-			add = r_refdef2.dlights[i].radius - VectorLength (dist);
+		// entity is not hit by any lights yet
+		memset (hit, 0, MAX_DLIGHTS);
 
-			if (add > 0)
-			{
-				lightcolor[0] += (add * r_refdef2.dlights[i].rgb[0]) * dlscale;
-				lightcolor[1] += (add * r_refdef2.dlights[i].rgb[1]) * dlscale;
-				lightcolor[2] += (add * r_refdef2.dlights[i].rgb[2]) * dlscale;
-			}
-		}
+		// also do the center
+		R_DynamicLightPoint (start, lightcolor, hit);
 	}
 
 	return ((lightcolor[0] + lightcolor[1] + lightcolor[2]) * (1.0f / 3.0f));

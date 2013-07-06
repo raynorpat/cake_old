@@ -27,8 +27,8 @@ void R_InitializeSkySphere (void);
 extern	model_t	*loadmodel;
 
 gltexture_t	*solidskytexture, *alphaskytexture;
-gltexture_t *skybox_textures[6];
 char skybox_name[256] = {0};
+extern GLuint r_surfacevbo;
 
 qbool sky_initialized = false;
 
@@ -93,31 +93,141 @@ void Sky_LoadTexture (texture_t *mt, byte *data)
 }
 
 
+// ==============================================================================
+//
+//  LOAD SKYBOX AS A CUBEMAP - DO NOT MESS WITH THIS; IT WORKS ON ATI NOW
+//
+// ==============================================================================
+
+GLuint skyCubeTexture = 0;
+
+void Sky_ClearSkybox (void)
+{
+	// purge old texture
+	if (skyCubeTexture)
+	{
+		qglDeleteTextures (1, &skyCubeTexture);
+		skyCubeTexture = 0;
+	}
+
+	skybox_name[0] = 0;
+}
+
+
+void Sky_ReloadSkybox (void)
+{
+	char name[256];
+
+	// copy out the skybox name and invalidate it to force a reload
+	strcpy (name, skybox_name);
+	Sky_ClearSkybox ();
+	Sky_LoadCubeMap (name);
+}
+
+
 /*
 ==================
-Sky_LoadSkyBox
+Sky_LoadCubeMap
 ==================
 */
 char *suf[6] = {"rt", "bk", "lf", "ft", "up", "dn"};
+int loadorder[6] = {0, 2, 1, 3, 4, 5};
 
-void Sky_LoadSkyBox (char *name)
+/*
+GLenum cubefaces[6] =
 {
-	int		i, mark, width, height;
-	char	filename[MAX_OSPATH];
-	byte	*data;
-	qbool nonefound = true;
+	GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+	GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+	GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+	GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+	GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
+	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
+};
+*/
 
-	if (strcmp (skybox_name, name) == 0)
-		return; // no change
+void D3D_FlipTexels (unsigned int *texels, int width, int height)
+{
+	int x, y;
 
-	// purge old textures
-	for (i = 0; i < 6; i++)
+	for (x = 0; x < width; x++)
 	{
-		if (skybox_textures[i] && skybox_textures[i] != notexture)
-			TexMgr_FreeTexture (skybox_textures[i]);
+		for (y = 0; y < (height / 2); y++)
+		{
+			int pos1 = y * width + x;
+			int pos2 = (height - 1 - y) * width + x;
 
-		skybox_textures[i] = NULL;
+			unsigned int temp = texels[pos1];
+			texels[pos1] = texels[pos2];
+			texels[pos2] = temp;
+		}
 	}
+}
+
+
+void D3D_MirrorTexels (unsigned int *texels, int width, int height)
+{
+	int x, y;
+
+	for (x = 0; x < (width / 2); x++)
+	{
+		for (y = 0; y < height; y++)
+		{
+			int pos1 = y * width + x;
+			int pos2 = y * width + (width - 1 - x);
+
+			unsigned int temp = texels[pos1];
+			texels[pos1] = texels[pos2];
+			texels[pos2] = temp;
+		}
+	}
+}
+
+
+void D3D_RotateTexelsInPlace (unsigned int *texels, int size)
+{
+	int i, j;
+
+	for (i = 0; i < size; i++)
+	{
+		for (j = i; j < size; j++)
+		{
+			int pos1 = i * size + j;
+			int pos2 = j * size + i;
+
+			unsigned int temp = texels[pos1];
+
+			texels[pos1] = texels[pos2];
+			texels[pos2] = temp;
+		}
+	}
+}
+
+
+void GL_Resample32BitTexture (unsigned *in, int inwidth, int inheight, unsigned *out, int outwidth, int outheight);
+
+void Sky_LoadCubeMap (char *name)
+{
+#if 0
+	int		i, mark, width[6], height[6];
+	char	filename[MAX_OSPATH];
+	byte	*data[6];
+	qbool nonefound = true;
+	int largest;
+
+	// so that I can call Sky_LoadCubeMap (NULL) to flush a texture.
+	if (!name)
+	{
+		// purge old texture
+		Sky_ClearSkybox ();
+		return;
+	}
+
+	// no change
+	if (strcmp (skybox_name, name) == 0)
+		return;
+
+	// purge old texture
+	Sky_ClearSkybox ();
 
 	// turn off skybox if sky is set to ""
 	if (name[0] == 0)
@@ -126,44 +236,124 @@ void Sky_LoadSkyBox (char *name)
 		return;
 	}
 
+	mark = Hunk_LowMark ();
+
+	// skybox faces must all be square and the same dimension so track the largest
+	largest = 0;
+
 	// load textures
 	for (i=0 ; i<6 ; i++)
 	{
-		mark = Hunk_LowMark ();
 		sprintf (filename, "gfx/env/%s%s", name, suf[i]);
-		data = Image_LoadImage (filename, &width, &height);
+		data[i] = Image_LoadImage (filename, &width[i], &height[i]);
 
-		if (data)
+		if (data[i])
 		{
-			skybox_textures[i] = TexMgr_LoadImage (r_worldmodel, filename, width, height, SRC_RGBA, data, filename, 0, TEXPREF_NONE);
+			// skybox faces must all be square and the same dimension so track the largest
+			if (width[i] > largest) largest = width[i];
+			if (height[i] > largest) largest = height[i];
+		}
+		else width[i] = height[i] = 0;
+	}
+
+	// fixme - this could get a mite cleaner
+	if (largest > 0)
+	{
+		// now let's see what we got
+		byte *cubebuffer = NULL;
+
+		glBindTexture (GL_TEXTURE_2D, 0);
+		glDisable (GL_TEXTURE_2D);
+		glEnable (GL_TEXTURE_CUBE_MAP);
+
+		glGenTextures (1, &skyCubeTexture);
+		glBindTexture (GL_TEXTURE_CUBE_MAP, skyCubeTexture);
+
+		glTexParameteri (GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri (GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri (GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+		glTexParameteri (GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri (GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+		// ATI strikes again - cubemaps should be loaded in a specific order
+		for (i = 0; i < 6; i++)
+		{
+			if (!data[loadorder[i]])
+			{
+				if (!cubebuffer) cubebuffer = (byte *) Hunk_Alloc (largest * largest * 4);
+
+				memset (cubebuffer, 0, largest * largest * 4);
+				data[loadorder[i]] = cubebuffer;
+				width[loadorder[i]] = largest;
+				height[loadorder[i]] = largest;
+			}
+
+			if (width[loadorder[i]] != largest || height[loadorder[i]] != largest)
+			{
+				if (!cubebuffer) cubebuffer = (byte *) Hunk_Alloc (largest * largest * 4);
+
+				// upsize to cube buffer and set back
+				GL_Resample32BitTexture ((unsigned *) data[loadorder[i]], width[loadorder[i]], height[loadorder[i]], (unsigned *) cubebuffer, largest, largest);
+
+				data[loadorder[i]] = cubebuffer;
+				width[loadorder[i]] = largest;
+				height[loadorder[i]] = largest;
+			}
+
+			switch (loadorder[i])
+			{
+			case 0:
+				D3D_RotateTexelsInPlace ((unsigned int *) data[0], width[0]);
+				break;
+
+			case 1:
+				D3D_FlipTexels ((unsigned int *) data[1], width[1], height[1]);
+				break;
+
+			case 2:
+				D3D_RotateTexelsInPlace ((unsigned int *) data[2], width[2]);
+				D3D_MirrorTexels ((unsigned int *) data[2], width[2], height[2]);
+				D3D_FlipTexels ((unsigned int *) data[2], width[2], height[2]);
+				break;
+
+			case 3:
+				D3D_MirrorTexels ((unsigned int *) data[3], width[3], height[3]);
+				break;
+
+			case 4:
+				D3D_RotateTexelsInPlace ((unsigned int *) data[4], width[4]);
+				break;
+
+			case 5:
+				D3D_RotateTexelsInPlace ((unsigned int *) data[5], width[5]);
+				break;
+			}
+
+			// standard face
+			glTexImage2D (cubefaces[i], 0, GL_RGBA8, largest, largest, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data[loadorder[i]]);
+
 			nonefound = false;
 		}
-		else
-		{
-			Com_Printf ("Couldn't load %s\n", filename);
-			skybox_textures[i] = notexture;
-		}
 
-		Hunk_FreeToLowMark (mark);
+		glBindTexture (GL_TEXTURE_CUBE_MAP, 0);
+		glDisable (GL_TEXTURE_CUBE_MAP);
+		glEnable (GL_TEXTURE_2D);
+		GL_BindTexture (GL_TEXTURE0, NULL);
 	}
+
+	Hunk_FreeToLowMark (mark);
 
 	if (nonefound) // go back to scrolling sky if skybox is totally missing
 	{
-		for (i = 0; i < 6; i++)
-		{
-			if (skybox_textures[i] && skybox_textures[i] != notexture)
-				TexMgr_FreeTexture (skybox_textures[i]);
-
-			skybox_textures[i] = NULL;
-		}
-
+		Sky_ClearSkybox ();
 		Com_Printf ("Couldn't load %s\n", name);
-		skybox_name[0] = 0;
 		return;
 	}
 
 	strcpy (skybox_name, name);
 	Com_DPrintf ("loaded skybox %s OK\n", name);
+#endif
 }
 
 
@@ -188,11 +378,7 @@ void Sky_NewMap (void)
 	int		i;
 
 	// initially no sky
-	skybox_name[0] = 0;
-
-	// clear textures too
-	for (i = 0; i < 6; i++)
-		skybox_textures[i] = NULL;
+	Sky_ClearSkybox ();
 
 	// reload the sphere
 	R_InitializeSkySphere ();
@@ -234,7 +420,7 @@ void Sky_NewMap (void)
 			if (!strcmp (sbkeys[i], key))
 			{
 				skybox_name[0] = 0;
-				Sky_LoadSkyBox (value);
+				Sky_LoadCubeMap (value);
 			}
 		}
 	}
@@ -255,7 +441,7 @@ void Sky_SkyCommand_f (void)
 		break;
 
 	case 2:
-		Sky_LoadSkyBox (Cmd_Argv (1));
+		Sky_LoadCubeMap (Cmd_Argv (1));
 		break;
 
 	default:
@@ -391,13 +577,13 @@ void Sky_RenderLayers (void)
 	GL_ScaleMatrix (&skymatrix, 65536, 65536, 65536);
 	qglMultMatrixf (skymatrix.m16);
 
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (dpskyvert_t), r_dpskyverts->xyz);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (dpskyvert_t), r_dpskyverts->st);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (dpskyvert_t), r_dpskyverts->st);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (dpskyvert_t), r_dpskyverts->xyz);
+	GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (dpskyvert_t), r_dpskyverts->st);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 2, GL_FLOAT, sizeof (dpskyvert_t), r_dpskyverts->st);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
-	GL_SetIndices (0, r_dpskyindexes);
+	GL_SetIndices (r_dpskyindexes);
 	GL_DrawIndexedPrimitive (GL_TRIANGLES, SKYSPHERE_NUMINDEXES, SKYSPHERE_NUMVERTS);
 
 	GL_TexEnv (GL_TEXTURE1_ARB, GL_TEXTURE_2D, GL_NONE);
@@ -422,313 +608,78 @@ void Sky_RenderLayers (void)
 //
 //==============================================================================
 
-float skymins[2][6], skymaxs[2][6];
-
-int	st_to_vec[6][3] =
+void Sky_DrawCubeMap (r_modelsurf_t **mslist, int numms)
 {
-	{3, -1, 2},
-	{-3, 1, 2},
-	{1, 3, 2},
-	{-1, -3, 2},
- 	{-2, -1, 3},		// straight up
- 	{2, -1, -3}		// straight down
-};
-
-
-void Sky_EmitSkyBoxVertex (float *dest, float s, float t, int axis)
-{
-	vec3_t b;
-	int j, k;
-	float w, h;
-
-	// because we're using infinite projection we can just use a REALLY large far clip
-	b[0] = s * 65536.0f / sqrt (3.0);
-	b[1] = t * 65536.0f / sqrt (3.0);
-	b[2] = 65536.0f / sqrt (3.0);
-
-	for (j = 0; j < 3; j++)
-	{
-		k = st_to_vec[axis][j];
-
-		if (k < 0)
-			dest[j] = -b[-k - 1];
-		else dest[j] = b[k - 1];
-
-		dest[j] += r_origin[j];
-	}
-
-	// convert from range [-1, 1] to [0, 1]
-	dest[3] = (s + 1) * 0.5;
-	dest[4] = (t + 1) * 0.5;
-
-	// avoid bilerp seam
-	w = skybox_textures[skytexorder[axis]]->width;
-	h = skybox_textures[skytexorder[axis]]->height;
-
-	dest[3] = dest[3] * (w - 1) / w + 0.5 / w;
-	dest[4] = dest[4] * (h - 1) / h + 0.5 / h;
-
-	dest[4] = 1.0 - dest[4];
-}
-
-
-void Sky_RenderSkybox (void)
-{
+#if 0
 	int i;
-	float skyquad[5 * 4];
-	qbool stateset = false;
-
-	for (i = 0; i < 6; i++)
-	{
-		if (!skybox_textures[i]) continue;
-		if (skymins[0][i] >= skymaxs[0][i] || skymins[1][i] >= skymaxs[1][i]) continue;
-
-		GL_BindTexture (GL_TEXTURE0_ARB, skybox_textures[skytexorder[i]]);
-
-#if 1 // FIXME: this is to avoid tjunctions until i can do it the right way
-		skymins[0][i] = -1;
-		skymins[1][i] = -1;
-		skymaxs[0][i] = 1;
-		skymaxs[1][i] = 1;
-#endif
-
-		if (!stateset)
-		{
-			GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (float) * 5, &skyquad[0]);
-			GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (float) * 5, &skyquad[3]);
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
-			GL_SetIndices (0, r_quad_indexes);
-
-			stateset = true;
-		}
-
-		Sky_EmitSkyBoxVertex (&skyquad[0], skymins[0][i], skymins[1][i], i);
-		Sky_EmitSkyBoxVertex (&skyquad[5], skymins[0][i], skymaxs[1][i], i);
-		Sky_EmitSkyBoxVertex (&skyquad[10], skymaxs[0][i], skymaxs[1][i], i);
-		Sky_EmitSkyBoxVertex (&skyquad[15], skymaxs[0][i], skymins[1][i], i);
-
-		GL_DrawIndexedPrimitive (GL_TRIANGLES, 6, 4);
-	}
-}
-
-
-#define MAX_CLIP_VERTS 64
-
-int	vec_to_st[6][3] =
-{
-	{-2, 3, 1},
-	{2, 3, -1},
-	{1, 3, 2},
-	{-1, 3, -2},
-	{-2, -1, 3},
-	{-2, 1, -3}
-};
-
-
-vec3_t	skyclip[6] =
-{
-	{1, 1, 0},
-	{1, -1, 0},
-	{0, -1, 1},
-	{0, 1, 1},
-	{1, 0, 1},
-	{-1, 0, 1}
-};
-
-
-void Sky_ProjectPoly (int nump, vec3_t vecs)
-{
-	int		i, j;
-	vec3_t	v, av;
-	float	s, t, dv;
-	int		axis;
-	float	*vp;
-
-	// decide which face it maps to
-	VectorCopy (vec3_origin, v);
-
-	for (i = 0, vp = vecs; i < nump; i++, vp += 3)
-		VectorAdd (vp, v, v);
-
-	av[0] = fabs (v[0]);
-	av[1] = fabs (v[1]);
-	av[2] = fabs (v[2]);
-
-	if (av[0] > av[1] && av[0] > av[2])
-	{
-		if (v[0] < 0)
-			axis = 1;
-		else axis = 0;
-	}
-	else if (av[1] > av[2] && av[1] > av[0])
-	{
-		if (v[1] < 0)
-			axis = 3;
-		else axis = 2;
-	}
-	else
-	{
-		if (v[2] < 0)
-			axis = 5;
-		else axis = 4;
-	}
-
-	// project new texture coords
-	for (i = 0; i < nump; i++, vecs += 3)
-	{
-		j = vec_to_st[axis][2];
-
-		if (j > 0)
-			dv = vecs[j - 1];
-		else dv = -vecs[-j - 1];
-
-		j = vec_to_st[axis][0];
-
-		if (j < 0)
-			s = -vecs[-j - 1] / dv;
-		else s = vecs[j - 1] / dv;
-
-		j = vec_to_st[axis][1];
-
-		if (j < 0)
-			t = -vecs[-j - 1] / dv;
-		else t = vecs[j - 1] / dv;
-
-		if (s < skymins[0][axis]) skymins[0][axis] = s;
-		if (t < skymins[1][axis]) skymins[1][axis] = t;
-		if (s > skymaxs[0][axis]) skymaxs[0][axis] = s;
-		if (t > skymaxs[1][axis]) skymaxs[1][axis] = t;
-	}
-}
-
-
-void Sky_ClipPoly (int nump, vec3_t vecs, int stage)
-{
-	float	*norm;
-	float	*v;
-	qbool	front, back;
-	float	d, e;
-	float	dists[MAX_CLIP_VERTS];
-	int		sides[MAX_CLIP_VERTS];
-	vec3_t	newv[2][MAX_CLIP_VERTS];
-	int		newc[2];
-	int		i, j;
-
-	if (nump > MAX_CLIP_VERTS - 2)
-		Sys_Error ("Sky_ClipPoly: MAX_CLIP_VERTS");
-
-	if (stage == 6) // fully clipped
-	{
-		Sky_ProjectPoly (nump, vecs);
-		return;
-	}
-
-	front = back = false;
-	norm = skyclip[stage];
-
-	for (i = 0, v = vecs; i < nump; i++, v += 3)
-	{
-		d = DotProduct (v, norm);
-
-		if (d > ON_EPSILON)
-		{
-			front = true;
-			sides[i] = SIDE_FRONT;
-		}
-		else if (d < ON_EPSILON)
-		{
-			back = true;
-			sides[i] = SIDE_BACK;
-		}
-		else sides[i] = SIDE_ON;
-
-		dists[i] = d;
-	}
-
-	if (!front || !back)
-	{
-		// not clipped
-		Sky_ClipPoly (nump, vecs, stage + 1);
-		return;
-	}
-
-	// clip it
-	sides[i] = sides[0];
-	dists[i] = dists[0];
-	VectorCopy (vecs, (vecs + (i * 3)));
-	newc[0] = newc[1] = 0;
-
-	for (i = 0, v = vecs; i < nump; i++, v += 3)
-	{
-		switch (sides[i])
-		{
-		case SIDE_FRONT:
-			VectorCopy (v, newv[0][newc[0]]);
-			newc[0]++;
-			break;
-
-		case SIDE_BACK:
-			VectorCopy (v, newv[1][newc[1]]);
-			newc[1]++;
-			break;
-
-		case SIDE_ON:
-			VectorCopy (v, newv[0][newc[0]]);
-			newc[0]++;
-			VectorCopy (v, newv[1][newc[1]]);
-			newc[1]++;
-			break;
-		}
-
-		if (sides[i] == SIDE_ON || sides[i + 1] == SIDE_ON || sides[i + 1] == sides[i])
-			continue;
-
-		d = dists[i] / (dists[i] - dists[i + 1]);
-
-		for (j = 0; j < 3; j++)
-		{
-			e = v[j] + d * (v[j + 3] - v[j]);
-			newv[0][newc[0]][j] = e;
-			newv[1][newc[1]][j] = e;
-		}
-
-		newc[0]++;
-		newc[1]++;
-	}
-
-	// continue
-	Sky_ClipPoly (newc[0], newv[0][0], stage + 1);
-	Sky_ClipPoly (newc[1], newv[1][0], stage + 1);
-}
-
-
-void Sky_UpdateBounds (r_modelsurf_t **mslist, int numms)
-{
-	int i, j;
 	msurface_t *surf;
 	r_modelsurf_t *ms;
-	vec3_t verts[MAX_CLIP_VERTS];
+	qbool stateset = false;
 
-	// reset bounds; ensure that this is large enough for our infinite projection
-	for (i = 0; i < 6; i++)
-	{
-		skymins[0][i] = skymins[1][i] = 99999999;
-		skymaxs[0][i] = skymaxs[1][i] = -99999999;
-	}
-
+	// cubemapped sky doesn't need depth clipping or other hackery, is always perfectly positioned, and never has bugs
 	for (i = 0; i < numms; i++)
 	{
 		ms = mslist[i];
 
 		if (!((surf = ms->surface)->flags & SURF_DRAWSKY)) continue;
 
-		for (j = 0; j < surf->numglvertexes; j++)
-			VectorSubtract (surf->glvertexes[j].v, r_origin, verts[j]);
+		if (!stateset)
+		{
+			if (gl_support_arb_vertex_buffer_object)
+			{
+				GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
 
-		Sky_ClipPoly (surf->numglvertexes, verts[0], 0);
+				GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+				GL_SetStreamSource (GLSTREAM_TEXCOORD0, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+			}
+			else
+			{
+				glvertex_t *base = (glvertex_t *) scratchbuf;
+
+				GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), base->v);
+				GL_SetStreamSource (GLSTREAM_TEXCOORD0, 3, GL_FLOAT, sizeof (glvertex_t), base->v);
+			}
+
+			GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+
+			R_BeginSurfaces ();
+
+			// texmgr is fragile and can't handle cubemaps so we must do it manually
+			qglBindTexture (GL_TEXTURE_2D, 0);
+			qglDisable (GL_TEXTURE_2D);
+			qglEnable (GL_TEXTURE_CUBE_MAP);
+			qglBindTexture (GL_TEXTURE_CUBE_MAP, skyCubeTexture);
+
+			qglMatrixMode (GL_TEXTURE);
+			qglLoadIdentity ();
+			qglTranslatef (-r_origin[0], -r_origin[1], -r_origin[2]);
+			qglMatrixMode (GL_MODELVIEW);
+
+			stateset = true;
+		}
+
+		R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
 	}
+
+	if (stateset)
+	{
+		R_EndSurfaces ();
+
+		qglMatrixMode (GL_TEXTURE);
+		qglLoadIdentity ();
+		qglMatrixMode (GL_MODELVIEW);
+
+		// texmgr is fragile and can't handle cubemaps so we must do it manually
+		qglBindTexture (GL_TEXTURE_CUBE_MAP, 0);
+		qglDisable (GL_TEXTURE_CUBE_MAP);
+		qglEnable (GL_TEXTURE_2D);
+
+		// ensure that we bind a 2D texture here
+		GL_BindTexture (GL_TEXTURE0_ARB, NULL);
+	}
+#endif
 }
 
 
@@ -858,15 +809,11 @@ void Sky_FogEnd (void)
 
 void R_RenderModelSurfsSkyPass (r_modelsurf_t **mslist, int numms, int skytype)
 {
-	int i, j;
+	int i;
 	r_modelsurf_t *ms;
 	qbool stateset = false;
 
-	int numglindexes = 0;
-	int numglvertexes = 0;
-	unsigned short *glindexes = (unsigned short *) scratchbuf;
-	float *glvertexes = (float *) (glindexes + 32768);
-	qbool r_restart_sky = false;
+	R_BeginSurfaces ();
 
 	for (i = 0; i < numms; i++)
 	{
@@ -876,22 +823,40 @@ void R_RenderModelSurfsSkyPass (r_modelsurf_t **mslist, int numms, int skytype)
 
 		if (!stateset)
 		{
-			GL_SetIndices (0, scratchbuf);
-
-			if (skytype == SKY_FOG_LAYER || skytype == SKY_DEPTHCLIP || skytype == SKY_SHOWTRIS || skytype == SKY_GLSL)
+			if (gl_support_arb_vertex_buffer_object)
 			{
-				GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, 0, glvertexes);
-				GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+				GL_BindBuffer (GL_ARRAY_BUFFER_ARB, r_surfacevbo);
+
+				if (skytype == SKY_FOG_LAYER || skytype == SKY_DEPTHCLIP || skytype == SKY_SHOWTRIS || skytype == SKY_GLSL)
+				{
+					GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+					GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+				}
+				else
+				{
+					GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+					GL_SetStreamSource (GLSTREAM_TEXCOORD0, 3, GL_FLOAT, sizeof (glvertex_t), (void *) (0));
+				}
 			}
 			else
 			{
-				GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, 0, glvertexes);
-				GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 3, GL_FLOAT, 0, glvertexes);
+				glvertex_t *base = (glvertex_t *) scratchbuf;
+
+				if (skytype == SKY_FOG_LAYER || skytype == SKY_DEPTHCLIP || skytype == SKY_SHOWTRIS || skytype == SKY_GLSL)
+				{
+					GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), base->v);
+					GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+				}
+				else
+				{
+					GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (glvertex_t), base->v);
+					GL_SetStreamSource (GLSTREAM_TEXCOORD0, 3, GL_FLOAT, sizeof (glvertex_t), base->v);
+				}
 			}
 
-			GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
 			if (skytype == SKY_FOG_LAYER)
 				Sky_FogBegin ();
@@ -905,39 +870,10 @@ void R_RenderModelSurfsSkyPass (r_modelsurf_t **mslist, int numms, int skytype)
 			stateset = true;
 		}
 
-		if (numglindexes + ms->surface->numglindexes >= 32768) r_restart_sky = true;
-		if (numglvertexes + ms->surface->numglvertexes >= 16384) r_restart_sky = true;
-
-		if (r_restart_sky)
-		{
-			GL_DrawIndexedPrimitive (GL_TRIANGLES, numglindexes, numglvertexes);
-
-			numglindexes = 0;
-			numglvertexes = 0;
-			glindexes = (unsigned short *) scratchbuf;
-			glvertexes = (float *) (glindexes + 32768);
-			r_restart_sky = false;
-		}
-
-		// regenerate the vertexes, transforming if required
-		if (ms->matrix)
-			GL_RegenerateVertexes (ms->surface->model, ms->surface, ms->matrix);
-
-		glindexes = R_TransferIndexes (ms->surface->glindexes, glindexes, ms->surface->numglindexes, numglvertexes);
-
-		for (j = 0; j < ms->surface->numglvertexes; j++, glvertexes += 3)
-		{
-			glvertexes[0] = ms->surface->glvertexes[j].v[0];
-			glvertexes[1] = ms->surface->glvertexes[j].v[1];
-			glvertexes[2] = ms->surface->glvertexes[j].v[2];
-		}
-
-		numglindexes += ms->surface->numglindexes;
-		numglvertexes += ms->surface->numglvertexes;
+		R_BatchSurface (ms->surface, ms->matrix, ms->entnum);
 	}
 
-	if (numglindexes)
-		GL_DrawIndexedPrimitive (GL_TRIANGLES, numglindexes, numglvertexes);
+	R_EndSurfaces ();
 
 	if (stateset)
 	{
@@ -948,11 +884,7 @@ void R_RenderModelSurfsSkyPass (r_modelsurf_t **mslist, int numms, int skytype)
 		else if (skytype == SKY_DEPTHCLIP)
 		{
 			Sky_DepthClipEnd ();
-
-			if (skybox_name[0])
-				Sky_RenderSkybox ();
-			else Sky_RenderLayers ();
-
+			Sky_RenderLayers ();
 			Sky_DepthClipEnd2 ();
 		}
 		else if (skytype == SKY_GLSL)
@@ -967,8 +899,8 @@ void R_RenderModelSurfsSky (r_modelsurf_t **mslist, int numms)
 
 	if (skybox_name[0])
 	{
-		Sky_UpdateBounds (mslist, numms);
-		R_RenderModelSurfsSkyPass (mslist, numms, SKY_DEPTHCLIP);
+		// we have working skybox cubemap code now
+		Sky_DrawCubeMap (mslist, numms);
 	}
 //	else if (gl_support_shader_objects)
 //	{
@@ -987,3 +919,4 @@ glsl_sky:;
 
 	Fog_EnableGFog ();
 }
+

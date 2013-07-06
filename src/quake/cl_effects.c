@@ -55,6 +55,10 @@ particle_t *R_NewParticle (particle_type_t *pt)
 		pt->particles = p;
 		pt->numparticles++;
 
+		// set some default properties
+		p->alpha = 1;
+		p->alphadec = 0;
+
 		return p;
 	}
 	else
@@ -763,6 +767,11 @@ void CL_LinkParticlesForType (particle_type_t *pt)
 		p->org[0] += p->vel[0] * frametime;
 		p->org[1] += p->vel[1] * frametime;
 		p->org[2] += p->vel[2] * frametime;
+
+		p->alpha -= p->alphadec * frametime;
+
+		if (p->alpha <= 0)
+			p->die = -1;
 
 		switch (p->type)
 		{

@@ -283,7 +283,6 @@ void R_DrawAliasBatches (entity_t **ents, int numents, void *meshbuffer);
 void R_SetupAliasModel (entity_t *e);
 void R_DrawAlphaBModel (entity_t *ent);
 void R_InvalidateLiquid (void);
-void R_InvalidateExtraSurf (void);
 void R_RenderAlphaSurface (msurface_t *surf, glmatrix *m, int entnum);
 void R_RenderLiquidSurface (msurface_t *surf, glmatrix *m);
 
@@ -298,15 +297,7 @@ void R_DrawAlphaList (void)
 		return;
 
 	if (r_numalphalist > 1)
-	{
-		qsort
-		(
-			r_alphalist,
-			r_numalphalist,
-			sizeof (alphalist_t *),
-			R_AlphaSortFunc
-		);
-	}
+		qsort (r_alphalist, r_numalphalist, sizeof (alphalist_t *), R_AlphaSortFunc);
 
 	qglEnable (GL_BLEND);
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -320,7 +311,6 @@ void R_DrawAlphaList (void)
 	// invalidate all cached states
 	R_InvalidateSprite ();
 	R_InvalidateLiquid ();
-	R_InvalidateExtraSurf ();
 
 	for (i = 0; i < r_numalphalist; i++)
 	{
@@ -335,7 +325,6 @@ void R_DrawAlphaList (void)
 			// invalidate all cached states
 			R_InvalidateSprite ();
 			R_InvalidateLiquid ();
-			R_InvalidateExtraSurf ();
 
 			// callbacks for state takedown (if needed)
 			if (prev->takedownfunc)
@@ -547,6 +536,8 @@ R_NewMap
 ===============
 */
 void CL_WipeParticles (void);
+extern qbool r_recachesurfaces;
+extern char	mod_worldname[256];
 
 void R_NewMap (struct model_s *worldmodel)
 {
@@ -560,6 +551,8 @@ void R_NewMap (struct model_s *worldmodel)
 	CL_WipeParticles ();
 
 	R_Modules_NewMap();
+
+	R_SetDefaultLightStyles ();
 
 	// clear down stuff from the previous map
 	R_ModelSurfsBeginMap ();
@@ -592,6 +585,17 @@ void R_NewMap (struct model_s *worldmodel)
 	R_FlushTranslations ();
 
 	R_InitVertexBuffers ();
+
+	// switch off all view blending
+	v_blend[0] = v_blend[1] = v_blend[2] = v_blend[3] = 0;
+
+	// force all surfs to recache the first time they're seen
+	r_recachesurfaces = true;
+
+	// for the next map
+	mod_worldname[0] = 0;
+
+	R_BuildBrushBuffers ();
 }
 
 

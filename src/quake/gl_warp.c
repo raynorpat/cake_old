@@ -759,12 +759,12 @@ void R_LiquidBegin (void)
 	lavafog = Fog_GetDensity () * r_lavafog.value;
 	currentfog = Fog_GetDensity ();
 
-	GL_SetIndices (0, scratchbuf);
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_warpvertexes->xyz);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_warpvertexes->color);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_warpvertexes->st);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetIndices (scratchbuf);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_warpvertexes->xyz);
+	GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_warpvertexes->color);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_warpvertexes->st);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 }
 
 
@@ -798,7 +798,7 @@ void R_DrawAccumulatedWarpSurfs (void)
 
 			R_ShowTrisBegin ();
 
-			GL_SetStreamSource (0, GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_COLOR, 0, GL_NONE, 0, NULL);
 			GL_DrawIndexedPrimitive (GL_TRIANGLES, r_numwarpindexes, r_numwarpvertexes);
 
 			R_ShowTrisEnd ();

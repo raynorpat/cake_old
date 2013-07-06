@@ -88,9 +88,9 @@ void R_SetupAliasFrame (entity_t *e, aliashdr_t *paliashdr, int frame, aliasstat
 	}
 
 	// set up values
-	if (r_lerpmodels.value && ! (e->model->flags & MOD_NOLERP && r_lerpmodels.value != 2))
+	if (r_lerpmodels.value && !((e->model->flags & MOD_NOLERP) && r_lerpmodels.value != 2))
 	{
-		if (e->lerpflags & LERP_FINISH && numposes == 1)
+		if ((e->lerpflags & LERP_FINISH) && numposes == 1)
 			state->blend = clamp (0, (r_refdef2.time - e->lerpstart) / (e->lerpfinish - e->lerpstart), 1);
 		else
 			state->blend = clamp (0, (r_refdef2.time - e->lerpstart) / e->lerptime, 1);
@@ -127,7 +127,7 @@ void R_SetupEntityTransform (entity_t *e, aliasstate_t *state)
 		VectorCopy (e->origin, e->currentorigin);
 		VectorCopy (e->angles, e->previousangles);
 		VectorCopy (e->angles, e->currentangles);
-		e->lerpflags -= LERP_RESETMOVE;
+		e->lerpflags &= ~LERP_RESETMOVE;
 	}
 	else if (!VectorCompare (e->origin, e->currentorigin) || !VectorCompare (e->angles, e->currentangles)) // origin/angles changed, start new lerp
 	{
@@ -139,7 +139,7 @@ void R_SetupEntityTransform (entity_t *e, aliasstate_t *state)
 	}
 
 	// set up values
-	if (r_lerpmove.value && !(e->renderfx & RF_WEAPONMODEL) && e->lerpflags & LERP_MOVESTEP)
+	if (r_lerpmove.value && !(e->renderfx & RF_WEAPONMODEL) && (e->lerpflags & LERP_MOVESTEP))
 	{
 		if (e->lerpflags & LERP_FINISH)
 			blend = clamp (0, (r_refdef2.time - e->movelerpstart) / (e->lerpfinish - e->movelerpstart), 1);
@@ -187,94 +187,50 @@ void R_MinimumLighting (float *lightcolor, float minimum)
 }
 
 
-void R_ClampLighting (float *ambientlight, float *shadelight)
-{
-	// correct rgb to intensity scaling factors
-	float ntsc[] = {0.3f, 0.59f, 0.11f};
-
-	// convert light values to intensity values so that we can preserve the final correct colour balance
-	float ambientintensity = DotProduct (ambientlight, ntsc);
-	float shadeintensity = DotProduct (shadelight, ntsc);
-
-	if (ambientintensity > 0 && shadeintensity > 0)
-	{
-		// scale down now before we modify the intensities
-		VectorScale (ambientlight, (1.0f / ambientintensity), ambientlight);
-		VectorScale (shadelight, (1.0f / shadeintensity), shadelight);
-
-		// clamp lighting so that it doesn't overbright as much
-		if (ambientintensity > 128.0f)
-			ambientintensity = 128.0f;
-
-		if (ambientintensity + shadeintensity > 192.0f)
-			shadeintensity = 192.0f - ambientintensity;
-
-		// now scale them back up to the new values preserving colour balance
-		VectorScale (ambientlight, ambientintensity, ambientlight);
-		VectorScale (shadelight, shadeintensity, shadelight);
-	}
-}
-
-
 /*
 =================
 R_SetupAliasLighting
 =================
 */
-void R_SetupAliasLighting (entity_t	*e, float *ambientlight, float *shadelight)
+void R_SetupAliasLighting (entity_t	*e, float *shadelight)
 {
 	R_LightPoint (e, shadelight);
-
-	VectorCopy (shadelight, ambientlight);
 	VectorCopy (lightspot, e->aliasstate.lightspot);
+
+	// if we're overbright we scale down by half so that the clamp doesn't flatten the light as much
+	if (overbright) VectorScale (shadelight, 0.5f, shadelight);
+
+	// scale consistently with BSP lighting
+	shadelight[0] *= (1.0f / 128.0f);
+	shadelight[1] *= (1.0f / 128.0f);
+	shadelight[2] *= (1.0f / 128.0f);
+
+	// and now we clamp
+	shadelight[0] = shadelight[0] > 255.0f ? 255.0f : shadelight[0];
+	shadelight[1] = shadelight[1] > 255.0f ? 255.0f : shadelight[1];
+	shadelight[2] = shadelight[2] > 255.0f ? 255.0f : shadelight[2];
 
 	// minimum light value on gun (24)
 	if (e->renderfx & RF_WEAPONMODEL)
-	{
 		R_MinimumLighting (shadelight, 72.0f);
-		R_MinimumLighting (ambientlight, 72.0f);
-	}
-
-	// if we're overbright we scale down by half so that the clamp doesn't flatten the light as much
-	if (overbright)
-	{
-		VectorScale (shadelight, 0.5f, shadelight);
-		VectorScale (ambientlight, 0.5f, ambientlight);
-	}
-
-	// clamp lighting so that it doesn't overbright so much
-	R_ClampLighting (ambientlight, shadelight);
 
 	// minimum light value on players (8)
 	if (e->model->modhint == MOD_PLAYER || e->renderfx & RF_PLAYERMODEL)
-	{
 		R_MinimumLighting (shadelight, 24.0f);
-		R_MinimumLighting (ambientlight, 24.0f);
-	}
 
 	// hack up the brightness when fullbrights but no overbrights (256)
 	if (gl_fullbrights.value && !gl_overbright.value)
 	{
 		if (e->model->flags & MOD_FBRIGHTHACK)
 		{
-			shadelight[0] = ambientlight[0] = 256.0f;
-			shadelight[1] = ambientlight[1] = 256.0f;
-			shadelight[2] = ambientlight[2] = 256.0f;
+			shadelight[0] = 255.0f;
+			shadelight[1] = 255.0f;
+			shadelight[2] = 255.0f;
 		}
 	}
 
-	// take to final scale - alpha will be stored in ambientlight[3] separately
-	// hack - the gun model comes out too dark with this lighting so we need to boost it a little
-	if (e->renderfx & RF_WEAPONMODEL)
-	{
-		VectorScale (shadelight, 1.0f / 128.0f, shadelight);
-		VectorScale (ambientlight, 1.0f / 128.0f, ambientlight);
-	}
-	else
-	{
-		VectorScale (shadelight, 1.0f / 200.0f, shadelight);
-		VectorScale (ambientlight, 1.0f / 200.0f, ambientlight);
-	}
+	// take to final scale - alpha will be stored in shadelight[3] separately
+	VectorScale (shadelight, 1.0f / 255.0f, shadelight);
 }
 
 
@@ -354,7 +310,7 @@ void R_DrawAliasShadow (entity_t *ent, aliashdr_t *hdr, aliasstate_t *state, flo
 		}
 	}
 
-	GL_SetIndices (0, ((byte *) hdr + hdr->indexes));
+	GL_SetIndices (((byte *) hdr + hdr->indexes));
 	GL_DrawIndexedPrimitive (GL_TRIANGLES, hdr->numindexes, hdr->numverts);
 }
 
@@ -399,11 +355,11 @@ void R_DrawAliasShadows (entity_t **ents, int numents, void *meshbuffer)
 					}
 					*/
 
-					GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (float) * 4, mesh);
-					GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (float) * 4, &mesh[3]);
-					GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
-					GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-					GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+					GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (float) * 4, mesh);
+					GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (float) * 4, &mesh[3]);
+					GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+					GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+					GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
 					stateset = true;
 				}
@@ -445,15 +401,13 @@ void R_DrawAliasShadows (entity_t **ents, int numents, void *meshbuffer)
 	}
 }
 
+void R_BBoxForEnt (entity_t *e);
 
 void R_SetupAliasModel (entity_t *e)
 {
 	aliashdr_t	*paliashdr;
 	int			anim;
 	aliasstate_t	*state = &e->aliasstate;
-	vec3_t mins, maxs;
-
-	memset (state, 0, sizeof (aliasstate_t));
 
 	// initially not visible
 	e->visframe = -1;
@@ -462,17 +416,14 @@ void R_SetupAliasModel (entity_t *e)
 	paliashdr = (aliashdr_t *) Mod_Extradata (e->model);
 	R_SetupAliasFrame (e, paliashdr, e->frame, state);
 	R_SetupEntityTransform (e, state);
-
-	// we get blinky with per-frame so use the whole model bbox instead
-	VectorAdd (state->origin, e->model->mins, mins);
-	VectorAdd (state->origin, e->model->maxs, maxs);
+	R_BBoxForEnt (e);
 
 	// cull it (the viewmodel is never culled)
 	if (r_shadows.value > 0.01f)
 	{
 		if (!(e->renderfx & RF_WEAPONMODEL))
 		{
-			if (R_CullBox (mins, maxs))
+			if (R_CullBox (e->mins, e->maxs))
 				e->visframe = -1;
 			else
 				e->visframe = r_framecount;
@@ -482,7 +433,7 @@ void R_SetupAliasModel (entity_t *e)
 	{
 		if (!(e->renderfx & RF_WEAPONMODEL))
 		{
-			if (R_CullBox (mins, maxs))
+			if (R_CullBox (e->mins, e->maxs))
 				return;
 		}
 
@@ -493,10 +444,10 @@ void R_SetupAliasModel (entity_t *e)
 	// set up lighting
 	overbright = gl_overbright.value;
 	rs_aliaspolys += paliashdr->numtris;
-	R_SetupAliasLighting (e, state->ambientlight, state->shadelight);
+	R_SetupAliasLighting (e, state->shadelight);
 
 	// store out the alpha value
-	state->shadelight[3] = state->ambientlight[3] = ((float) e->alpha / 255.0f);
+	state->shadelight[3] = ((float) e->alpha / 255.0f);
 
 	// set up textures
 	anim = (int) (cl.time * 10) & 3;
@@ -591,24 +542,24 @@ void R_DrawAliasModel (entity_t *ent, aliashdr_t *hdr, aliasstate_t *state, qboo
 		blend = iblend = 0; // avoid bogus compiler warning
 	}
 
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_aliasmesh_t), r_aliasmesh->xyz);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_FLOAT, sizeof (r_aliasmesh_t), r_aliasmesh->rgba);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_aliasmesh_t), r_aliasmesh->xyz);
+	GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_FLOAT, sizeof (r_aliasmesh_t), r_aliasmesh->rgba);
 
 	if (showtris)
 	{
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 0, GL_NONE, 0, NULL);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
 	}
 	else
 	{
-		GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, 0, r_aliasst);
+		GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, 0, r_aliasst);
 
 		if (state->fb)
-			GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 2, GL_FLOAT, 0, r_aliasst);
-		else GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+			GL_SetStreamSource (GLSTREAM_TEXCOORD1, 2, GL_FLOAT, 0, r_aliasst);
+		else GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
 	}
 
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
 	if (lerping)
 	{
@@ -622,7 +573,7 @@ void R_DrawAliasModel (entity_t *ent, aliashdr_t *hdr, aliasstate_t *state, qboo
 			lerpnormal[1] = r_avertexnormals[trivert1->lightnormalindex][1] * iblend + r_avertexnormals[trivert2->lightnormalindex][1] * blend;
 			lerpnormal[2] = r_avertexnormals[trivert1->lightnormalindex][2] * iblend + r_avertexnormals[trivert2->lightnormalindex][2] * blend;
 
-			mesh->light = DotProduct (lerpnormal, r_plightvec);
+			mesh->light = DotProduct (lerpnormal, r_plightvec) * -0.5f + 1.0f;
 
 			r_aliasmesh->xyz[0] = trivert1->v[0] * iblend + trivert2->v[0] * blend;
 			r_aliasmesh->xyz[1] = trivert1->v[1] * iblend + trivert2->v[1] * blend;
@@ -635,7 +586,7 @@ void R_DrawAliasModel (entity_t *ent, aliashdr_t *hdr, aliasstate_t *state, qboo
 		{
 			trivert1 = &verts1[mesh->vertindex];
 
-			mesh->light = DotProduct (r_avertexnormals[trivert1->lightnormalindex], r_plightvec);
+			mesh->light = DotProduct (r_avertexnormals[trivert1->lightnormalindex], r_plightvec) * -0.5f + 1.0f;
 
 			r_aliasmesh->xyz[0] = trivert1->v[0];
 			r_aliasmesh->xyz[1] = trivert1->v[1];
@@ -665,23 +616,16 @@ void R_DrawAliasModel (entity_t *ent, aliashdr_t *hdr, aliasstate_t *state, qboo
 			r_aliasst[0] = mesh->st[0];
 			r_aliasst[1] = mesh->st[1];
 
-			r_aliasmesh->rgba[0] = state->ambientlight[0];
-			r_aliasmesh->rgba[1] = state->ambientlight[1];
-			r_aliasmesh->rgba[2] = state->ambientlight[2];
-			r_aliasmesh->rgba[3] = state->ambientlight[3];
-
-			if (mesh->light < 0)
-			{
-				r_aliasmesh->rgba[0] -= mesh->light * state->shadelight[0];
-				r_aliasmesh->rgba[1] -= mesh->light * state->shadelight[1];
-				r_aliasmesh->rgba[2] -= mesh->light * state->shadelight[2];
-			}
+			r_aliasmesh->rgba[0] = state->shadelight[0] * mesh->light;
+			r_aliasmesh->rgba[1] = state->shadelight[1] * mesh->light;
+			r_aliasmesh->rgba[2] = state->shadelight[2] * mesh->light;
+			r_aliasmesh->rgba[3] = state->shadelight[3];
 		}
 	}
 
 	// for testing of light shading
 	// glDisable (GL_TEXTURE_2D);
-	GL_SetIndices (0, ((byte *) hdr + hdr->indexes));
+	GL_SetIndices (((byte *) hdr + hdr->indexes));
 	GL_DrawIndexedPrimitive (GL_TRIANGLES, hdr->numindexes, hdr->numverts);
 	// glEnable (GL_TEXTURE_2D);
 
@@ -813,7 +757,7 @@ void R_DrawAliasModels (void)
 		return;
 
 	// sort the models by texture so that we can batch the bastards
-	qsort (ents, numalias, sizeof (entity_t *), (int (*) (const void *, const void *)) R_DrawAliasModels_Sort);
+	qsort (ents, numalias, sizeof (entity_t *), (sortfunc_t) R_DrawAliasModels_Sort);
 
 	R_DrawAliasBatches (ents, numalias, (void *) (ents + numalias));
 	R_DrawAliasShadows (ents, numalias, (void *) (ents + numalias));

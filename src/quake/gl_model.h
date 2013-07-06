@@ -37,6 +37,8 @@ m*_t structures are in-memory
 
 BRUSH MODELS
 
+In memory representations expand short to int
+
 ==============================================================================
 */
 
@@ -59,6 +61,21 @@ typedef struct
 {
 	vec3_t		position;
 } mvertex_t;
+
+typedef struct
+{
+	vec3_t		dir;
+} mnormal_t;
+
+typedef struct
+{
+	vec4_t		dir;
+} mtangent_t;
+
+typedef struct
+{
+	vec2_t	st;
+} mtexcoord_t;
 
 typedef struct texture_s
 {
@@ -90,7 +107,7 @@ typedef struct texture_s
 
 typedef struct
 {
-	unsigned short	v[2];
+	unsigned int	v[2];
 	unsigned int	cachededgeoffset;
 } medge_t;
 
@@ -103,9 +120,17 @@ typedef struct
 
 typedef struct glvertex_s
 {
-	float v[3];
-	float st1[2];
-	float st2[2];
+	union
+	{
+		struct
+		{
+			float v[3];
+			float st1[2];
+			float st2[2];
+		};
+
+		float verts[7];
+	};
 } glvertex_t;
 
 
@@ -120,14 +145,13 @@ typedef struct msurface_s
 {
 	int			surfnum;
 	int			visframe;		// should be drawn when node is crossed
+	int			clipflags;
 	float		mins[3];		// for frustum culling
 	float		maxs[3];		// for frustum culling
 
 	float		*matrix;
 	float		midpoint[3];
 	float		dist;
-
-	qbool		intersect;		// true if the surface intersects the frustum
 
 	mplane_t	*plane;
 	int			flags;
@@ -136,9 +160,12 @@ typedef struct msurface_s
 	int			numedges;		// are backwards edges
 
 	glvertex_t	*glvertexes;
+	int			firstglvertex;
 	int			numglvertexes;
+	int			vboffset;
 
 	unsigned short *glindexes;
+	int			firstglindex;
 	int			numglindexes;
 
 	float		subdividesize;
@@ -182,15 +209,6 @@ typedef struct msurface_s
 } msurface_t;
 
 
-#define INSIDE_FRUSTUM		1
-#define OUTSIDE_FRUSTUM		2
-#define INTERSECT_FRUSTUM	3
-
-#define FULLY_INSIDE_FRUSTUM		0x01010101
-#define FULLY_OUTSIDE_FRUSTUM		0x10101010
-#define FULLY_INTERSECT_FRUSTUM		0x11111111
-
-
 typedef struct mnode_s
 {
 // common with leaf
@@ -201,18 +219,12 @@ typedef struct mnode_s
 
 	struct mnode_s	*parent;
 
-	union
-	{
-		int			bops;
-		byte		sides[4];
-	};
-
 // node specific
 	mplane_t	*plane;
 	struct mnode_s	*children[2];
 
-	unsigned short		firstsurface;
-	unsigned short		numsurfaces;
+	unsigned int		firstsurface;
+	unsigned int		numsurfaces;
 } mnode_t;
 
 typedef struct mleaf_s
@@ -224,12 +236,6 @@ typedef struct mleaf_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
-
-	union
-	{
-		int			bops;
-		byte		sides[4];
-	};
 
 // leaf specific
 	byte		*compressed_vis;
@@ -290,14 +296,17 @@ Alias models are position independent, so the cache manager can move them.
 ==============================================================================
 */
 
+typedef struct aliasbbox_s
+{
+	float				mins[3];
+	float				maxs[3];
+} aliasbbox_t;
+
 typedef struct
 {
 	int					firstpose;
 	int					numposes;
 	float				interval;
-
-	float				mins[3];
-	float				maxs[3];
 
 	int					frame;
 	char				name[16];
@@ -305,8 +314,6 @@ typedef struct
 
 typedef struct
 {
-	trivertx_t			bboxmin;
-	trivertx_t			bboxmax;
 	int					frame;
 } maliasgroupframedesc_t;
 
@@ -366,6 +373,8 @@ typedef struct aliashdr_s
 	intptr_t	firstindex;
 	intptr_t	firstvertex;
 
+	intptr_t	bboxes;
+
 	struct gltexture_s	*gltextures[MAX_SKINS][4];
 	struct gltexture_s	*fbtextures[MAX_SKINS][4];
 	int         texels[MAX_SKINS];   // only for player skins
@@ -413,8 +422,6 @@ typedef struct model_s
 
 	// volume occupied by the model graphics
 	vec3_t		mins, maxs;
-	vec3_t		ymins, ymaxs; // bounds for entities with nonzero yaw
-	vec3_t		rmins, rmaxs; // bounds for entities with nonzero pitch or roll
 
 	// brush model
 	int			firstmodelsurface, nummodelsurfaces;
@@ -465,7 +472,12 @@ typedef struct model_s
 	unsigned short *glindexes;
 	int			numglindexes;
 
+	// bbox for the model if it's a brush model
+	vec3_t		bbmins;
+	vec3_t		bbmaxs;
+
 	// additional model data
+	// !!!!! DO NOT place any struct members after this as the extra data may immediately follow it in memory !!!!!
 	cache_user_t	cache;		// only access through Mod_Extradata
 } model_t;
 

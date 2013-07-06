@@ -40,6 +40,9 @@ typedef struct mplane_s
 	byte	type;			// for texture axis selection and fast side tests
 	byte	signbits;		// signx + signy<<1 + signz<<1
 	byte	pad[2];
+	int		cacheframe;
+	struct entity_s *cacheent;
+	float cachedist;
 } mplane_t;
 
 typedef struct mclipnode_s

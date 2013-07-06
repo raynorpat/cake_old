@@ -28,7 +28,6 @@ float texcoordfactor = 0.5f;
 R_DrawParticles
 ===============
 */
-extern unsigned int r_quadindexbuffer;
 extern unsigned int r_parttexcoordbuffer;
 
 
@@ -46,11 +45,11 @@ void R_ParticlesBegin (void)
 
 	r_num_quads = 0;
 
-	GL_SetStreamSource (0, GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
-	GL_SetStreamSource (0, GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
-	GL_SetStreamSource (0, GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_POSITION, 3, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->xyz);
+	GL_SetStreamSource (GLSTREAM_COLOR, 4, GL_UNSIGNED_BYTE, sizeof (r_defaultquad_t), r_default_quads->color);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD0, 2, GL_FLOAT, sizeof (r_defaultquad_t), r_default_quads->st);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD1, 0, GL_NONE, 0, NULL);
+	GL_SetStreamSource (GLSTREAM_TEXCOORD2, 0, GL_NONE, 0, NULL);
 
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 	qglDepthMask (GL_TRUE);
@@ -62,7 +61,7 @@ void R_ParticlesEnd (void)
 	// draw anything left over
 	if (r_num_quads)
 	{
-		GL_SetIndices (0, r_quad_indexes);
+		GL_SetIndices (r_quad_indexes);
 		GL_DrawIndexedPrimitive (GL_TRIANGLES, r_num_quads * 6, r_num_quads * 4);
 
 		r_num_quads = 0;
@@ -102,12 +101,13 @@ void R_DrawParticlesForType (particle_type_t *pt)
 
 	for (p = pt->particles; p; p = p->next, rpq += 4, r_num_quads++)
 	{
-		// don't crash
+		// don't crash (255 is alpha)
 		if (p->color < 0 || p->color > 254) continue;
+		if (p->alpha < 0) continue;
 
 		if (r_num_quads >= r_max_quads)
 		{
-			GL_SetIndices (0, r_quad_indexes);
+			GL_SetIndices (r_quad_indexes);
 			GL_DrawIndexedPrimitive (GL_TRIANGLES, r_num_quads * 6, r_num_quads * 4);
 
 			rpq = r_default_quads;
@@ -130,7 +130,7 @@ void R_DrawParticlesForType (particle_type_t *pt)
 
 		// set correct particle colour
 		rgba = d_8to24table_rgba[(int) p->color];
-		((byte *) &rgba)[3] = 255; //BYTE_CLAMPF (p->alpha);
+		((byte *) &rgba)[3] = BYTE_CLAMPF (p->alpha);
 
 		rpq[0].rgba = rpq[1].rgba = rpq[2].rgba = rpq[3].rgba = rgba;
 	

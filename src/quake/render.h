@@ -72,7 +72,6 @@ typedef struct aliasstate_s
 	struct gltexture_s *fb;
 
 	float shadelight[4];
-	float ambientlight[4];
 	vec3_t lightspot;
 
 	short pose1;
@@ -88,6 +87,14 @@ typedef struct entity_s
 {
 	// need to store the entity matrix for bmodel transforms
 	glmatrix				matrix;
+	vec3_t					modelorg;
+
+	// actual bbox that will be used for rendering the entity (which may be adjusted for per-frame)
+	vec3_t					mins;
+	vec3_t					maxs;
+
+	// true origin relative to the bbox
+	vec3_t					trueorigin;
 
 	// entity number allocated
 	int						entnum;
@@ -141,6 +148,8 @@ typedef struct particle_s
 	float		ramp;
 	float		die;
 	ptype_t		type;
+	float		alpha;
+	float		alphadec;
 } particle_t;
 
 // this is needed outside of r_part now...
