@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "server.h"
 #include "sv_world.h"
 
+#include <time.h>
 
 #define	RETURN_EDICT(e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(e))
 #define	RETURN_STRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(s))
@@ -2438,6 +2439,27 @@ static void PF_cvar_string (void)
 
 
 /*
+=========
+PF_strftime
+
+DP_QC_STRFTIME
+string strftime(float uselocaltime, string[, string ...])
+=========
+*/
+void PF_strftime (void)
+{
+	char	*format;
+	time_t	ltime;
+
+	time (&ltime);
+	format	= G_STRING (OFS_PARM0);
+	strftime (pr_string_temp, 128, format, localtime (&ltime));
+
+	G_INT (OFS_RETURN) = pr_string_temp - pr_strings;
+}
+
+
+/*
 =================
 PF_strlen
 
@@ -2617,6 +2639,7 @@ static void PF_checkextension (void)
 		"DP_QC_RANDOMVEC",
 		"DP_QC_SINCOSSQRTPOW",
 		"DP_QC_TRACEBOX",
+		"DP_QC_STRFTIME",
 		"QSG_CVARSTRING",
 		"ZQ_CLIENTCOMMAND",
 		"ZQ_INPUTBUTTONS",
@@ -2905,31 +2928,32 @@ PF_multicast,		// void(vector where, float set) multicast = #82
 
 static struct { int num; builtin_t func; } ext_builtins[] =
 {
-{84, PF_tokenize},		// float(string s) tokenize							= #84;
-{85, PF_argc},			// float() argc										= #85;
-{86, PF_argv},			// string(float n) argv								= #86;
+{84, PF_tokenize},		// float(string s) tokenize									= #84;
+{85, PF_argc},			// float() argc												= #85;
+{86, PF_argv},			// string(float n) argv										= #86;
 
 {90, PF_tracebox},		// void (vector v1, vector mins, vector maxs, vector v2, float nomonsters, entity ignore) tracebox = #90;
-{91, PF_randomvec},		// vector() randomvec								= #91;
-////
-{94, PF_min},			// float(float a, float b, ...) min					= #94;
-{95, PF_max},			// float(float a, float b, ...) max					= #95;
-{96, PF_bound},			// float(float min, float value, float max) bound	= #96;
-{97, PF_pow},			// float(float x, float y) pow						= #97;
-////
-{99, PF_checkextension},// float(string name) checkextension				= #99;
-////
-{103, PF_cvar_string},	// string(string varname) cvar_string				= #103;
-////
-{114, PF_strlen},		// float(string s) strlen							= #114;
-{115, PF_strcat},		// string(string s1, string s2, ...) strcat			= #115;
-{116, PF_substr},		// string(string s, float start, float count) substr = #116;
-{117, PF_stov},			// vector(string s) stov							= #117;
-{118, PF_strzone},		// string(string s) strzone							= #118;
-{119, PF_strunzone},	// void(string s) strunzone							= #119;
-{448, PF_cvar_string},	// string(string varname) cvar_string				= #448;
-{530, PF_soundtoclient},	// void(entity client, entity e, float chan, string samp, float vol, float atten) soundtoclient = #530;
-{531, PF_setpause},		// void(float pause) setpause						= #531;
+{91, PF_randomvec},		// vector() randomvec										= #91;
+
+{94, PF_min},			// float(float a, float b, ...) min							= #94;
+{95, PF_max},			// float(float a, float b, ...) max							= #95;
+{96, PF_bound},			// float(float min, float value, float max) bound			= #96;
+{97, PF_pow},			// float(float x, float y) pow								= #97;
+
+{99, PF_checkextension},// float(string name) checkextension						= #99;
+
+{103, PF_cvar_string},	// string(string varname) cvar_string						= #103;
+
+{114, PF_strlen},		// float(string s) strlen									= #114;
+{115, PF_strcat},		// string(string s1, string s2, ...) strcat					= #115;
+{116, PF_substr},		// string(string s, float start, float count) substr		= #116;
+{117, PF_stov},			// vector(string s) stov									= #117;
+{118, PF_strzone},		// string(string s) strzone									= #118;
+{119, PF_strunzone},	// void(string s) strunzone									= #119;
+{448, PF_cvar_string},	// string(string varname) cvar_string						= #448;
+{478, PF_strftime},		// string(float uselocaltime, string[, string ...]) strftime = #478
+{530, PF_soundtoclient}, // void(entity client, entity e, float chan, string samp, float vol, float atten) soundtoclient = #530;
+{531, PF_setpause},		// void(float pause) setpause								= #531;
 
 // Experimental and/or deprecated:
 {0x5a08, PF_soundtoclient},
