@@ -18,8 +18,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // net_wins.c
-
 #include "common.h"
+#include "thread.h"
 
 #include <windows.h>
 
@@ -30,6 +30,8 @@ netadr_t	net_local_adr;	// FIXME: make this work!
 sizebuf_t	net_message;
 
 byte		net_message_buffer[MAX_BIG_MSGLEN];
+
+void		*net_mutex = NULL;
 
 WSADATA		winsockdata;
 
@@ -203,6 +205,9 @@ qbool NET_GetLoopPacket (netsrc_t sock)
 	if ((int)(loop->send - loop->get) <= 0)
 		return false;
 
+	if (net_mutex)
+		Thread_LockMutex(net_mutex);
+
 	i = loop->get & (MAX_LOOPBACK-1);
 	loop->get++;
 
@@ -210,10 +215,12 @@ qbool NET_GetLoopPacket (netsrc_t sock)
 	net_message.cursize = loop->msgs[i].datalen;
 	memset (&net_from, 0, sizeof(net_from));
 	net_from.type = NA_LOOPBACK;
+
+	if (net_mutex)
+		Thread_UnlockMutex(net_mutex);
+
 	return true;
-
 }
-
 
 void NET_SendLoopPacket (netsrc_t sock, int length, void *data)
 {
@@ -228,8 +235,14 @@ void NET_SendLoopPacket (netsrc_t sock, int length, void *data)
 	if (length > sizeof(loop->msgs[i].data))
 		Sys_Error ("NET_SendLoopPacket: length > MAX_BIG_MSGLEN");
 
+	if (net_mutex)
+		Thread_LockMutex(net_mutex);
+
 	memcpy (loop->msgs[i].data, data, length);
 	loop->msgs[i].datalen = length;
+
+	if (net_mutex)
+		Thread_UnlockMutex(net_mutex);
 }
 
 
@@ -451,12 +464,6 @@ void NET_Sleep (int msec)
 		i = ip_sockets[NS_SERVER];
 	}
 
-/*	if (ipx_sockets[NS_SERVER] != -1) {
-		FD_SET(ipx_sockets[NS_SERVER], &fdset); // network socket
-		if (ipx_sockets[NS_SERVER] > i)
-			i = ipx_sockets[NS_SERVER];
-	}
-*/
 	timeout.tv_sec = msec/1000;
 	timeout.tv_usec = (msec%1000)*1000;
 	select (i+1, &fdset, NULL, NULL, &timeout);
@@ -475,16 +482,16 @@ void NET_Init (void)
 
 	wVersionRequested = MAKEWORD(1, 1); 
 	r = WSAStartup (wVersionRequested, &winsockdata);
-
 	if (r)
 		Sys_Error ("Winsock initialization failed.");
 
-	//
 	// init the message buffer
-	//
 	SZ_Init (&net_message, net_message_buffer, sizeof(net_message_buffer));
 
-	Com_DPrintf ("Winsock initialized.\n");
+	if (Thread_HasThreads())
+		net_mutex = Thread_CreateMutex();
+
+	Com_DPrintf ("Network initialized.\n");
 }
 
 /*
@@ -496,6 +503,9 @@ void NET_Shutdown (void)
 {
 	NET_ClientConfig (false);
 	NET_ServerConfig (false);
+	if (net_mutex)
+		Thread_DestroyMutex(net_mutex);
+	net_mutex = NULL;
 	WSACleanup ();
 }
 
