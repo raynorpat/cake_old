@@ -30,7 +30,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // Used when returning a string
 // Let us hope it's large enough (no crashes, but result may be truncated)
 // Well, QW had 128...
-static char	pr_string_temp[512];
+#define STRINGTEMP_LENGTH 1024
+static char	pr_string_temp[STRINGTEMP_LENGTH];
 
 /*
 ===============================================================================
@@ -2448,13 +2449,45 @@ string strftime(float uselocaltime, string[, string ...])
 */
 void PF_strftime (void)
 {
-	char	*format;
-	time_t	ltime;
+	time_t t;
+#if _MSC_VER >= 1400
+	struct tm tm;
+	int tmresult;
+#else
+	struct tm *tm;
+#endif
+	static char fmt[STRINGTEMP_LENGTH];
 
-	time (&ltime);
-	format	= G_STRING (OFS_PARM0);
-	strftime (pr_string_temp, 128, format, localtime (&ltime));
+	PF_VarString (1);
 
+	t = time (NULL);
+
+#if _MSC_VER >= 1400
+	if (G_FLOAT(OFS_PARM0))
+		tmresult = localtime_s(&tm, &t);
+	else
+		tmresult = gmtime_s(&tm, &t);
+
+	if (!tmresult)
+#else
+	if (G_FLOAT(OFS_PARM0))
+		tm = localtime(&t);
+	else
+		tm = gmtime(&t);
+
+	if (!tm)
+#endif
+	{
+		G_INT (OFS_RETURN) = 0;
+		return;
+	}
+
+#if _MSC_VER >= 1400
+	strftime(pr_string_temp, sizeof(pr_string_temp), fmt, &tm);
+#else
+	strftime(pr_string_temp, sizeof(pr_string_temp), fmt, tm);
+#endif
+	
 	G_INT (OFS_RETURN) = pr_string_temp - pr_strings;
 }
 
