@@ -214,7 +214,11 @@ int RecursiveHullTrace (hulltrace_local_t *htl, int num, float p1f, float p2f, c
 	hull_t *hull = htl->hull;
 	trace_t *trace = &htl->trace;
 
+	if (num < CONTENTS_CLIP)
+		num += 65536;
+
 start:
+	// check for empty
 	if (num < 0) {
 		// this is a leaf node
 		htl->leafcount++;
@@ -232,6 +236,8 @@ start:
 	}
 
 	// FIXME, check at load time
+	if (num < hull->firstclipnode)
+		num += 65536;
 	if (num < hull->firstclipnode || num > hull->lastclipnode)
 		Sys_Error ("RecursiveHullTrace: bad node number");
 
