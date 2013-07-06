@@ -60,9 +60,10 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 	vec3_t		hullmins, hullmaxs;
 	hull_t		*hull;
 
-// decide which clipping hull to use, based on the size
+	// decide which clipping hull to use, based on the size
 	if (ent->v.solid == SOLID_BSP)
-	{	// explicit hulls in the BSP model
+	{
+		// explicit hulls in the BSP model
 		if (ent->v.movetype != MOVETYPE_PUSH)
 			Host_Error ("SOLID_BSP without MOVETYPE_PUSH");
 
@@ -71,9 +72,10 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 
 		model = sv.models[(int)ent->v.modelindex];
 		if (!model)
-			Host_Error ("SOLID_BSP with a non-bsp model");
+			goto dont_crash;
 
 		VectorSubtract (maxs, mins, size);
+
 		if (size[0] < 3)
 			hull = &model->hulls[0];
 		else if (size[0] <= 32)
@@ -81,13 +83,14 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 		else
 			hull = &model->hulls[2];
 
-// calculate an offset value to center the origin
+		// calculate an offset value to center the origin
 		VectorSubtract (hull->clip_mins, mins, offset);
 		VectorAdd (offset, ent->v.origin, offset);
 	}
 	else
-	{	// create a temp hull from bounding box sizes
-
+	{
+dont_crash:;
+		// create a temp hull from bounding box sizes
 		VectorSubtract (ent->v.mins, maxs, hullmins);
 		VectorSubtract (ent->v.maxs, mins, hullmaxs);
 		hull = CM_HullForBox (hullmins, hullmaxs);
@@ -209,6 +212,7 @@ void SV_UnlinkEdict (edict_t *ent)
 {
 	if (!ent->area.prev)
 		return;		// not linked in anywhere
+
 	RemoveLink (&ent->area);
 	ent->area.prev = ent->area.next = NULL;
 }
@@ -350,7 +354,7 @@ void SV_LinkEdict (edict_t *ent, qbool touch_triggers)
 		return;
 
 // set the abs box
-	VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);	
+	VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);
 	VectorAdd (ent->v.origin, ent->v.maxs, ent->v.absmax);
 
 //
@@ -538,8 +542,8 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end);
 		else
 			trace = SV_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end);
-		if (trace.allsolid || trace.startsolid ||
-		trace.fraction < clip->trace.fraction)
+
+		if (trace.allsolid || trace.startsolid || trace.fraction < clip->trace.fraction)
 		{
 			trace.e.ent = touch;
 		 	if (clip->trace.startsolid)
@@ -599,7 +603,7 @@ trace_t SV_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
 // clip to world
-	clip.trace = SV_ClipMoveToEntity ( sv.edicts, start, mins, maxs, end );
+	clip.trace = SV_ClipMoveToEntity (sv.edicts, start, mins, maxs, end);
 
 	clip.start = start;
 	clip.end = end;
@@ -630,7 +634,3 @@ trace_t SV_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, 
 
 	return clip.trace;
 }
-
-//=============================================================================
-
-/* vi: set noet ts=4 sts=4 ai sw=4: */
