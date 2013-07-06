@@ -62,28 +62,6 @@ END
 // remains consistent on all systems.
 IDI_APPICON             ICON    DISCARDABLE     "quake.ico"
 
-/////////////////////////////////////////////////////////////////////////////
-//
-// Dialog
-//
-
-IDD_DIALOG1 DIALOGEX 0, 0, 124, 27
-STYLE DS_MODALFRAME | DS_SETFOREGROUND | DS_3DLOOK | DS_CENTER | WS_POPUP | 
-    WS_VISIBLE
-EXSTYLE WS_EX_TOOLWINDOW | WS_EX_CLIENTEDGE
-FONT 16, "Times New Roman", 0, 0, 0x1
-BEGIN
-    CONTROL         115,IDC_STATIC,"Static",SS_BITMAP | SS_REALSIZEIMAGE,0,0,
-                    124,28
-END
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Bitmap
-//
-
-IDB_ZQBITMAP            BITMAP  DISCARDABLE     "quake.bmp"
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 

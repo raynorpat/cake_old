@@ -3,8 +3,6 @@
 // Used by winquake.rc
 //
 #define IDI_APPICON                     1
-#define IDD_DIALOG1                     108
-#define IDB_ZQBITMAP                    115
 
 // Next default values for new objects
 // 

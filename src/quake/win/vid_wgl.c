@@ -90,7 +90,6 @@ static HICON	hIcon;
 HWND			mainwindow;
 
 extern HINSTANCE global_hInstance;
-extern HWND		hwnd_dialog; // startup screen handle
 
 static HDC		baseDC;
 static HGLRC	baseRC;
@@ -706,12 +705,6 @@ int VID_InitMode (int fullscreen, int width, int height, int refreshrate)
 	}
 
 	memset(&gdevmode, 0, sizeof(gdevmode));
-
-	if (hwnd_dialog)
-	{
-		DestroyWindow (hwnd_dialog);
-		hwnd_dialog = NULL;
-	}
 
 	vid_isfullscreen = false;
 	if (fullscreen)

@@ -78,8 +78,6 @@ void Sys_Error (char *error, ...)
 	char		text[1024];
 
 #ifndef SERVERONLY	// FIXME
-	extern HWND	hwnd_dialog;
-
 	Host_Shutdown ();
 #endif
 
@@ -91,10 +89,6 @@ void Sys_Error (char *error, ...)
 #ifdef SERVERONLY
 	printf ("ERROR: %s\n", text);
 #else
-	if (hwnd_dialog) {
-		DestroyWindow (hwnd_dialog);
-		hwnd_dialog = NULL;
-	}
 	MessageBox(NULL, text, "Error", 0 /* MB_OK */ );
 
 	if (qwclsemaphore)
@@ -396,7 +390,6 @@ WinMain
 */
 #ifndef SERVERONLY
 HINSTANCE	global_hInstance;
-HWND		hwnd_dialog;	// startup dialog box
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -421,27 +414,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		SetConsoleCtrlHandler (HandlerRoutine, TRUE);
 		hinput = GetStdHandle (STD_INPUT_HANDLE);
 		houtput = GetStdHandle (STD_OUTPUT_HANDLE);
-	}
-	else
-	{
-		hwnd_dialog = CreateDialog (hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, NULL);
-		if (hwnd_dialog)
-		{
-			if (GetWindowRect (hwnd_dialog, &rect))
-			{
-				if (rect.left > (rect.top * 2))
-				{
-					SetWindowPos (hwnd_dialog, 0,
-						(rect.left / 2) - ((rect.right - rect.left) / 2),
-						rect.top, 0, 0,
-						SWP_NOZORDER | SWP_NOSIZE);
-				}
-			}
-
-			ShowWindow (hwnd_dialog, SW_SHOWDEFAULT);
-			UpdateWindow (hwnd_dialog);
-			SetForegroundWindow (hwnd_dialog);
-		}
 	}
 
 	tevent = CreateEvent (NULL, FALSE, FALSE, NULL);
