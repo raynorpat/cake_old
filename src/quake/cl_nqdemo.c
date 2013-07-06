@@ -784,6 +784,7 @@ void NQD_LinkEntities (void)
 					R_ColorLightningLight (dl);
 				}
 			
+				// muzzleflash
 				R_ColorDLight (dl, 255, 255, 255);
 			}
 		}

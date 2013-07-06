@@ -602,7 +602,6 @@ void CL_LinkPacketEntities (void)
 			// not in previous message
 			cent->framelerp_start = 0;
 		} else if (cent->current.frame != cent->previous.frame) {
-//			Com_Printf ("%i -> %i\n", cent->current.frame, cent->previous.frame);
 			cent->framelerp_start = cl.time;
 			cent->oldframe = cent->previous.frame;
 		}
@@ -610,15 +609,12 @@ void CL_LinkPacketEntities (void)
 			ent.oldframe = cent->oldframe;
 			ent.backlerp = 1 - (cl.time - cent->framelerp_start)*10;
 			ent.backlerp = bound (0, ent.backlerp, 1);
-//			if (ent.backlerp < 1)
-//				Com_Printf ("backlerp %f\n", ent.backlerp);
 		}
 
+		// set model flags
 		modelflags = R_ModelFlags (model);
 
-		//
 		// calculate angles
-		//
 		if (modelflags & MF_ROTATE)	{
 			// rotate binary objects locally
 			ent.angles[0] = 0;
@@ -656,9 +652,7 @@ void CL_LinkPacketEntities (void)
 			LerpAngles (old, cur, f, ent.angles);
 		}
 
-		//
 		// calculate origin
-		//
 		if (cl.modelinfos[state->modelindex] == mi_monster && cl_lerp_monsters.value) {
 			// monster origin interpolation
 			if (cent->prevframe != cl_entframecount - 1) {
