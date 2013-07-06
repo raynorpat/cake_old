@@ -278,10 +278,10 @@ void M_Main_Layout (int f_inmenu)
 
 /*
 ================
-M_DrawTitle_Layout
+M_DrawBanner
 ================
 */
-void M_DrawTitle_Layout (char *str)
+void M_DrawBanner (char *str)
 {
 	int thiswidth = strlen(str) * BIGMENU_TITLE_SCALE * BIGLETTER_WIDTH;
 
@@ -291,6 +291,27 @@ void M_DrawTitle_Layout (char *str)
 	Draw_BigString((320 - thiswidth) / 2, 4, str, BIGMENU_TITLE_SCALE, BIGMENU_LETTER_SPACING);
 }
 
+/*
+================
+M_DrawPlaque
+================
+*/
+void M_DrawPlaque (void)
+{
+	M_DrawPic (16, BIGMENU_TOP, R_CachePic ("gfx/qplaque.lmp"));
+}
+
+/*
+================
+M_DrawBigCursor
+================
+*/
+void M_DrawBigCursor (int cursor, int height)
+{
+	int f = (int) (curtime * 10) % 6;
+
+	M_DrawPic (54, BIGMENU_TOP + cursor * height, R_CachePic (va ("gfx/menudot%i.lmp", f + 1)));
+}
 
 //=============================================================================
 
@@ -383,24 +404,23 @@ void M_Main_Draw (void)
 {
 	int itemheight;
 	int x, y, w = 0, h = 0;
-	int f = (int) (curtime * 10) % 6;
 
 	M_Main_Layout (true);
 
-	// side logo plaque
-	M_DrawPic (16, BIGMENU_TOP, R_CachePic("gfx/qplaque.lmp"));
+	// menu heading
+	M_DrawBanner ("Main");
 
-	// the main menu heading
-	M_DrawTitle_Layout("Main");
+	// side plaque
+	M_DrawPlaque ();
 
 	// main menu items
 	x = BIGMENU_LEFT;
 	y = BIGMENU_TOP;
-	M_BigMenu_DrawItems(mainmenu_items, BIGMENU_ITEMS_COUNT(mainmenu_items), x, y, &w, &h);
+	M_BigMenu_DrawItems (mainmenu_items, BIGMENU_ITEMS_COUNT(mainmenu_items), x, y, &w, &h);
 	itemheight = h / BIGMENU_ITEMS_COUNT(mainmenu_items);
 
 	// rotating menu dot
-	M_DrawPic (54, BIGMENU_TOP + m_main_cursor * itemheight, R_CachePic(va("gfx/menudot%i.lmp", f+1)) );
+	M_DrawBigCursor (m_main_cursor, itemheight);
 }
 
 void M_Main_Key (int key)
@@ -515,7 +535,7 @@ void M_Options_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Options");
+	M_DrawBanner("Options");
 
 	M_PrintWhite (16, 32, "    Customize controls");
 	M_PrintWhite (16, 40, "         Go to console");
@@ -713,7 +733,7 @@ void M_Keys_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Customize Keys");
+	M_DrawBanner("Customize Keys");
 
 	if (bind_grab)
 		M_Print (12, 32, "Press a key or button for this action");
@@ -848,7 +868,7 @@ void M_Fps_Draw (void)
 {
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Effects");
+	M_DrawBanner("Effects");
 
 	M_Print (16, 32, "            Explosions");
 	M_Print (220, 32, cl_explosion.value==0 ? "normal" :
@@ -1125,7 +1145,7 @@ void M_Video_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Video Options");
+	M_DrawBanner("Video Options");
 
 	t = 0;
 
@@ -1301,7 +1321,7 @@ void M_Help_Draw (void)
 
 	if (help_page == HELP_MOVEMENT)
 	{
-		M_DrawTitle_Layout("Help");
+		M_DrawBanner("Help");
 
 		y = 52;
 		M_PrintWhite (16, y, "BASIC MOVEMENT"); y += 8;
@@ -1326,7 +1346,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_SWIMMING)
 	{
-		M_DrawTitle_Layout("Help");
+		M_DrawBanner("Help");
 
 		y = 52;
 		M_Print (16, y,	    "  It is very important to get");  y += 8;
@@ -1348,7 +1368,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_HAZARDS)
 	{
-		M_DrawTitle_Layout("Help");
+		M_DrawBanner("Help");
 
 		y = 52;
 		M_Print (16, y,	    "  To swim in a certain direction,");  y += 8;
@@ -1370,7 +1390,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_BUTTONS)
 	{
-		M_DrawTitle_Layout("Help");
+		M_DrawBanner("Help");
 
 		y = 52;
 		M_Print (16, y,	    "  If a door needs a key, get the");  y += 8;
@@ -1393,7 +1413,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_SECRETS)
 	{
-		M_DrawTitle_Layout("Help");
+		M_DrawBanner("Help");
 
 		y = 52;
 		M_PrintWhite (16, y, "SHOOTING BUTTONS AND SECRET WALLS"); y += 8;
@@ -1413,7 +1433,7 @@ void M_Help_Draw (void)
 	}
 	else if (help_page == HELP_ORDERING)
 	{
-		M_DrawTitle_Layout("Ordering");
+		M_DrawBanner("Ordering");
 
 		y = 52;
 		M_Print	(16,y, "All four episodes can be"); y += 8;
@@ -1575,71 +1595,7 @@ void M_Quit_Draw (void)
 //=============================================================================
 /* SINGLE PLAYER MENU */
 
-#define	SINGLEPLAYER_ITEMS	4
-
-#define	GAME_NEW			0
-#define	GAME_LOAD			1
-#define	GAME_SAVE			2
-
-int game_cursor_table[] = {BUTTON_START,
-	   					   BUTTON_START + BUTTON_HEIGHT,
-						   BUTTON_START + BUTTON_HEIGHT*2};
-
-int	m_singleplayer_cursor;
-int	dim_load, dim_save;
-
 extern	cvar_t	maxclients, teamplay, deathmatch, coop, skill, fraglimit, timelimit;
-
-void M_Menu_SinglePlayer_f (void)
-{
-	M_EnterMenu (m_singleplayer);
-}
-
-void M_SinglePlayer_Draw (void)
-{
-	char	*names[] =
-	{
-		"New game",
-		"Load",
-		"Save",
-		0
-	};
-
-	M_Main_Layout (false);
-
-	M_DrawTitle_Layout("Singleplayer");
-
-	dim_load = false;
-	dim_save = false;
-
-	//HACK: dim "save"/"load" if we can't choose 'em!
-	if (cl.maxclients != 1 || deathmatch.value || coop.value)
-	{
-		dim_load = true;
-		dim_save = true;
-	}
-	
-	if (!com_serveractive || cl.intermission)
-		dim_save = true;
-
-	M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_NEW], names[0]);
-	
-	if (dim_load)
-		M_Print (BUTTON_MENU_X, game_cursor_table[GAME_LOAD], names[1]);
-	else
-		M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_LOAD], names[1]);
-
-	if (dim_save)
-		M_Print (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
-	else
-		M_PrintWhite (BUTTON_MENU_X, game_cursor_table[GAME_SAVE], names[2]);
-
-	if ((m_singleplayer_cursor == 1 && dim_load == true) || (m_singleplayer_cursor == 2 && dim_save == true))
-		m_singleplayer_cursor = 0;
-
-	// cursor
-	M_DrawChar (BUTTON_MENU_X - 10, game_cursor_table[m_singleplayer_cursor], 12+((int)(curtime * 4)&1));
-}
 
 static void StartNewGame (void)
 {
@@ -1654,9 +1610,41 @@ static void StartNewGame (void)
 	Cbuf_AddText ("map start\n");
 }
 
+bigmenu_items_t spmenu_items[] = {
+	{"New Game", StartNewGame},
+	{"Load", M_Menu_Load_f},
+	{"Save", M_Menu_Save_f}
+};
+#define SINGLEPLAYER_ITEMS (BIGMENU_ITEMS_COUNT(spmenu_items))
+
+int	m_singleplayer_cursor;
+
+void M_Menu_SinglePlayer_f (void)
+{
+	M_EnterMenu (m_singleplayer);
+}
+
+void M_SinglePlayer_Draw (void)
+{
+	int x, y, w, h, itemheight;
+
+	M_Main_Layout (true);
+
+	M_DrawBanner ("Singleplayer");
+	M_DrawPlaque ();
+
+	// singleplayer menu items
+	x = BIGMENU_LEFT;
+	y = BIGMENU_TOP;
+	M_BigMenu_DrawItems (spmenu_items, BIGMENU_ITEMS_COUNT(spmenu_items), x, y, &w, &h);
+	itemheight = h / BIGMENU_ITEMS_COUNT(spmenu_items);
+
+	// rotating menu dot
+	M_DrawBigCursor (m_singleplayer_cursor, itemheight);
+}
+
 void M_SinglePlayer_Key (int key)
 {
-again:
 	switch (key)
 	{
 	case K_BACKSPACE:
@@ -1678,29 +1666,9 @@ again:
 		break;
 
 	case K_ENTER:
-		switch (m_singleplayer_cursor)
-		{
-		case GAME_NEW:
-			StartNewGame ();
-			break;
-
-		case GAME_LOAD:
-			if (dim_load == true)
-				m_entersound = false;
-			M_Menu_Load_f ();
-			break;
-
-		case GAME_SAVE:
-			if (dim_save == true)
-				m_entersound = false;
-			M_Menu_Save_f ();
-			break;
-		}
+		m_entersound = true;
+		spmenu_items[m_singleplayer_cursor].enter_handler();
 	}
-	if (m_singleplayer_cursor == GAME_LOAD && dim_load == true)
-		goto again;
-	if (m_singleplayer_cursor == GAME_SAVE && dim_save == true)
-		goto again;
 }
 
 
@@ -1753,13 +1721,6 @@ void M_ScanSaves (void)
 #ifndef CLIENTONLY
 void M_Menu_Load_f (void)
 {
-	dim_load = false;
-	if (cl.maxclients != 1 || deathmatch.value || coop.value)
-		dim_load = true;
-	
-	if (dim_load == true)
-		return;
-
 	M_EnterMenu (m_load);
 	M_ScanSaves ();
 }
@@ -1767,16 +1728,6 @@ void M_Menu_Load_f (void)
 
 void M_Menu_Save_f (void)
 {
-	dim_save = false;
-	if (cl.maxclients != 1 || deathmatch.value || coop.value)
-		dim_save = true;
-	
-	if (!com_serveractive || cl.intermission)
-		dim_save = true;
-
-	if (dim_save == true)
-		return;
-
 	M_EnterMenu (m_save);
 	M_ScanSaves ();
 }
@@ -1789,7 +1740,7 @@ void M_Load_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Load");
+	M_DrawBanner("Load");
 
 	for (i = 0; i < MAX_SAVEGAMES; i++)
 		M_Print (16, 32 + BUTTON_HEIGHT * i, m_filenames[i]);
@@ -1805,7 +1756,7 @@ void M_Save_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Save");
+	M_DrawBanner("Save");
 
 	for (i = 0; i < MAX_SAVEGAMES ; i++)
 		M_Print (16, 32 + BUTTON_HEIGHT * i, m_filenames[i]);
@@ -1898,7 +1849,13 @@ void M_Save_Key (int key)
 
 int	m_multiplayer_cursor;
 
-#define	MULTIPLAYER_ITEMS	4
+bigmenu_items_t mpmenu_items[] = {
+	{"Join Game", M_Menu_ServerList_f},
+	{"Create Game", M_Menu_GameOptions_f},
+	{"Demos", M_Menu_Demos_f},
+	{"Player Setup", M_Menu_Setup_f}
+};
+#define MULTIPLAYER_ITEMS (BIGMENU_ITEMS_COUNT(mpmenu_items))
 
 void M_Menu_MultiPlayer_f (void)
 {
@@ -1907,26 +1864,21 @@ void M_Menu_MultiPlayer_f (void)
 
 void M_MultiPlayer_Draw (void)
 {
-	char	*names[] =
-	{
-		"Join game",
-		"Create game",
-		"Demos",
-		"Player setup",
-		0
-	};
+	int x, y, w, h, itemheight;
 
-	M_Main_Layout (false);
+	M_Main_Layout (true);
 
-	M_DrawTitle_Layout("Multiplayer");
+	M_DrawBanner ("Multiplayer");
+	M_DrawPlaque ();
 
-	M_PrintWhite (BUTTON_MENU_X, BUTTON_START, names[0]);
-	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + BUTTON_HEIGHT, names[1]);
-	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + (BUTTON_HEIGHT * 2), names[2]);
-	M_PrintWhite (BUTTON_MENU_X, BUTTON_START + (BUTTON_HEIGHT * 3), names[3]);
+	// multiplayer menu items
+	x = BIGMENU_LEFT;
+	y = BIGMENU_TOP;
+	M_BigMenu_DrawItems (mpmenu_items, BIGMENU_ITEMS_COUNT(mpmenu_items), x, y, &w, &h);
+	itemheight = h / BIGMENU_ITEMS_COUNT(mpmenu_items);
 
 	// cursor
-	M_DrawChar (BUTTON_MENU_X - 10, BUTTON_START + (m_multiplayer_cursor * BUTTON_HEIGHT), 12 + ((int)(curtime * 4)&1));
+	M_DrawBigCursor (m_multiplayer_cursor, itemheight);
 }
 
 void M_MultiPlayer_Key (int key)
@@ -1965,24 +1917,7 @@ void M_MultiPlayer_Key (int key)
 
 	case K_ENTER:
 		m_entersound = true;
-		switch (m_multiplayer_cursor)
-		{
-		case 0:
-			M_Menu_ServerList_f ();
-			break;
-
-		case 1:
-			M_Menu_GameOptions_f ();
-			break;
-
-		case 2:
-			M_Menu_Demos_f ();
-			break;
-
-		case 3:
-			M_Menu_Setup_f ();
-			break;
-		}
+		mpmenu_items[m_multiplayer_cursor].enter_handler();
 	}
 }
 
@@ -2254,7 +2189,7 @@ void M_Demos_Draw (void) {
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Demos");
+	M_DrawBanner("Demos");
 
 	Q_strncpyz(demoname_scroll, demo_currentdir[0] ? demo_currentdir : "/", sizeof(demoname_scroll));
 	M_PrintWhite (16, 16, demoname_scroll);
@@ -2332,7 +2267,7 @@ void M_Demos_Key (int key) {
 		m_topmenu = m_none;	// intentional fallthrough
 	case K_ESCAPE:
 		Q_strncpyz(demo_prevdemo, demolist[demo_cursor + demo_base]->name, sizeof(demo_prevdemo));
-		M_LeaveMenu (m_main);
+		M_LeaveMenu (m_multiplayer);
 		break;
 
 	case K_UPARROW:
@@ -2558,7 +2493,7 @@ void M_GameOptions_Draw (void)
 {
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Game Options");
+	M_DrawBanner("Game Options");
 
 	M_DrawTextBox (152, 32, 10, 1);
 	M_Print (160, 40, "begin game");
@@ -2843,7 +2778,7 @@ void M_ServerList_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Server Listings");
+	M_DrawBanner("Server Listings");
 
 	if (!(slist[0].server)) {
 		M_DrawTextBox(60,80,23,4);
@@ -3031,7 +2966,7 @@ void M_Menu_SEdit_f (void) {
 void M_SEdit_Draw (void) {
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Edit Server");
+	M_DrawBanner("Edit Server");
 
 	M_DrawTextBox(SERV_X,SERV_Y,23,1);
 	M_DrawTextBox(DESC_X,DESC_Y,23,1);
@@ -3149,7 +3084,7 @@ void M_Setup_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Player Setup");
+	M_DrawBanner("Player Setup");
 
 	M_Print (64, 40, "Your name");
 	M_DrawTextBox (160, 32, 16, 1);
@@ -3440,7 +3375,7 @@ void M_Mods_Draw (void)
 
 	M_Main_Layout (false);
 
-	M_DrawTitle_Layout("Mods");
+	M_DrawBanner("Mods");
 
 	M_PrintWhite(0 + 32, 32, s_available);
 	M_PrintWhite(224, 32, s_enabled);
