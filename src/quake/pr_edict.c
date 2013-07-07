@@ -38,7 +38,7 @@ struct pr_ext_enabled_s	pr_ext_enabled;
 #define NQ_PROGHEADER_CRC 5927
 
 #ifdef WITH_NQPROGS
-qbool pr_nqprogs;
+qbool pr_nqprogs = false;
 int pr_fieldoffsetpatch[106];
 int pr_globaloffsetpatch[62];
 static int pr_globaloffsetpatch_nq[62] = {0,0,0,0,0,666,-4,-4,8,8,
@@ -1019,89 +1019,29 @@ PR_LoadProgs
 void PR_LoadProgs (void)
 {
 	int	i;
-	char	num[32];
-	static int lumpsize[6] = { sizeof(dstatement_t), sizeof(ddef_t),
-		sizeof(ddef_t), sizeof(dfunction_t), 4, 4 };
+	char num[32];
+	qbool check;
+	static int lumpsize[6] = { sizeof(dstatement_t), sizeof(ddef_t), sizeof(ddef_t), sizeof(dfunction_t), 4, 4 };
 	fs_offset_t	filesize = 0;
 	char	*progsname;
 
 	progs = NULL;
 
 	// decide whether to load qwprogs.dat, progs.dat or spprogs.dat
-
-#ifdef WITH_NQPROGS
-	if (Cvar_FindVar("sv_forcenqprogs"))
-		goto use_progs;
-#endif
-
-	if (!deathmatch.value)
-	{
-		if (Q_stricmp(fs_gamedir, "qw") && strcmp(fs_gamedir, ""))
-		{
-			// if we're using a custom mod, anything
-			// in gamedir is preferred to stock *progs.dat
-			qbool check;
-			check = FS_FileExists ("spprogs.dat");
-			if (check)
-				goto use_spprogs;
-#ifdef WITH_NQPROGS
-			check = FS_FileExists ("progs.dat");
-			if (check)
-				goto use_progs;
-#endif
-			check = FS_FileExists ("qwprogs.dat");
-			if (check)
-				goto use_qwprogs;
-		}
-
-use_spprogs:
-		progs = (dprograms_t *) FS_LoadFile ("spprogs.dat", false, &filesize);
-		progsname = "spprogs.dat";
-		pr_nqprogs = false;
-
-		if (!progs) {
-#ifdef WITH_NQPROGS
-use_progs:
-			progs = (dprograms_t *)FS_LoadFile ("progs.dat", false, &filesize);
-			progsname = "progs.dat";
-			pr_nqprogs = true;
-		}
-#endif
-		if (!progs) {
-use_qwprogs:
-			progs = (dprograms_t *)FS_LoadFile ("qwprogs.dat", false, &filesize);
+	check = FS_FileExists ("progs.dat");
+	if (check) {
+		progs = (dprograms_t *)FS_LoadFile ("progs.dat", false, &filesize);
+		progsname = "progs.dat";
+		pr_nqprogs = true;
+	} else {
+		check = FS_FileExists ("spprogs.dat");
+		if (check) {
+			progs = (dprograms_t *)FS_LoadFile ("spprogs.dat", false, &filesize);
+			progsname = "spprogs.dat";
+		} else {
+			progs = (dprograms_t *) FS_LoadFile ("qwprogs.dat", false, &filesize);
 			progsname = "qwprogs.dat";
-			pr_nqprogs = false;
 		}
-	}
-	else	// deathmatch
-	{
-		if (Q_stricmp(fs_gamedir, "qw") && strcmp(fs_gamedir, ""))
-		{
-			qbool check;
-			check = FS_FileExists ("qwprogs.dat");
-			if (check)
-				goto dm_use_qwprogs;
-#ifdef WITH_NQPROGS
-			check = FS_FileExists ("progs.dat");
-			if (check)
-				goto dm_use_progs;
-#endif
-		}
-
-dm_use_qwprogs:
-		progs = (dprograms_t *) FS_LoadFile ("qwprogs.dat", false, &filesize);
-		progsname = "qwprogs.dat";
-		pr_nqprogs = false;
-
-		if (!progs) {
-#ifdef WITH_NQPROGS
-dm_use_progs:
-			progs = (dprograms_t *)FS_LoadFile ("progs.dat", false, &filesize);
-			progsname = "progs.dat";
-			pr_nqprogs = true;
-		}
-#endif
 	}
 
 	if (!progs)
@@ -1156,12 +1096,12 @@ dm_use_progs:
 
 	for (i=0 ; i<progs->numfunctions; i++)
 	{
-	pr_functions[i].first_statement = LittleLong (pr_functions[i].first_statement);
-	pr_functions[i].parm_start = LittleLong (pr_functions[i].parm_start);
-	pr_functions[i].s_name = LittleLong (pr_functions[i].s_name);
-	pr_functions[i].s_file = LittleLong (pr_functions[i].s_file);
-	pr_functions[i].numparms = LittleLong (pr_functions[i].numparms);
-	pr_functions[i].locals = LittleLong (pr_functions[i].locals);
+		pr_functions[i].first_statement = LittleLong (pr_functions[i].first_statement);
+		pr_functions[i].parm_start = LittleLong (pr_functions[i].parm_start);
+		pr_functions[i].s_name = LittleLong (pr_functions[i].s_name);
+		pr_functions[i].s_file = LittleLong (pr_functions[i].s_file);
+		pr_functions[i].numparms = LittleLong (pr_functions[i].numparms);
+		pr_functions[i].locals = LittleLong (pr_functions[i].locals);
 	}	
 
 	for (i=0 ; i<progs->numglobaldefs ; i++)

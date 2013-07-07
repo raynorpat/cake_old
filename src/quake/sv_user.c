@@ -763,7 +763,7 @@ static void Cmd_Download_f (void)
 	for (p = name; *p; p++)
 		*p = (char)tolower(*p);
 
-	sv_client->download = FS_Open (name, "rb", false, false);
+	sv_client->download = FS_Open (name, "wb", false, false);
 	sv_client->downloadsize = FS_FileSize (sv_client->download);
 	sv_client->downloadcount = 0;
 
