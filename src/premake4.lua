@@ -3,7 +3,7 @@ solution "Cake"
 -- common project settings
 	configurations { "Debug", "Release" }
 	platforms { "Native", "Universal" }
-	flags { "ExtraWarnings", "FloatFast" }
+	flags { "FloatFast" }
 	location "build"
 	targetdir = "../.."
 	
@@ -50,7 +50,8 @@ solution "Cake"
 
 		configuration { "Windows" }
 			flags { "WinMain" }
-			files { "qe3/*.h", "qcc/*.c", "qe3/win_qe3.rc" }
+			links { "opengl32", "glu32", "comctl32" }
+			files { "qe3/*.h", "qe3/*.c", "qe3/win_qe3.rc" }
 
 -- Cake project
 	project "Cake"
