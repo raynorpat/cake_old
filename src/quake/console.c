@@ -832,7 +832,8 @@ void Con_DrawInput (void)
 		text += 1 + key_linepos - con_linewidth;
 
 	// draw input string
-	R_DrawString(0, vid_conheight.value - 16, text);
+	Draw_ColoredString(0, vid_conheight.value - 16, text, con_linewidth, 1.0, 1.0, 1.0, 1.0);
+	//R_DrawString(0, vid_conheight.value - 16, text);
 }
 
 
@@ -872,7 +873,8 @@ void Con_DrawNotify (void)
 			continue;
 		text = con_text + (i % con_totallines)*con_linewidth;
 
-		R_DrawString (0, y, text);
+		Draw_ColoredString(0, y, text, con_linewidth, 1.0, 1.0, 1.0, 1.0);
+		//R_DrawString (0, y, text);
 		y += 8;
 	}
 
@@ -885,13 +887,15 @@ void Con_DrawNotify (void)
 		
 		while (strlen(temptext) >= (size_t) con_linewidth)
 		{
-			R_DrawString (0, y, temptext);
+			Draw_ColoredString(0, y, temptext, con_linewidth, 1.0, 1.0, 1.0, 1.0);
+			//R_DrawString (0, y, temptext);
 			strcpy(temptext, &temptext[con_linewidth]);
 			y += 8;
 		}
 		if (strlen(temptext) > 0)
 		{
-			R_DrawString (0, y, temptext);
+			Draw_ColoredString(0, y, temptext, 0, 1.0, 1.0, 1.0, 1.0);
+			//R_DrawString (0, y, temptext);
 			y += 8;
 		}
 	}
@@ -939,7 +943,8 @@ void Con_DrawConsole (int lines)
 		j = max(i - con_backscroll, 0);
 		text = con_text + (j % con_totallines) * con_linewidth;
 
-		R_DrawString (0, y, text);
+		Draw_ColoredString( 0, y, text, con_linewidth, 1.0, 1.0, 1.0, 1.0 );
+		//R_DrawString (0, y, text);
 	}
 
 	// draw the input prompt, user text, and cursor if desired

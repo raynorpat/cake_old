@@ -223,9 +223,9 @@ void R_SetPalette (unsigned char *palette);
 
 // 2D drawing functions
 void R_DrawChar (int x, int y, int num);
-void R_DrawColoredChar (int x, int y, int num, unsigned int color);
+void R_DrawColoredChar (int x, int y, int num, byte *color);
 void R_DrawString (int x, int y, const char *str);
-void R_DrawColoredString (int x, int y, const char *str, unsigned int color);
+void R_DrawColoredString (int x, int y, const char *str, byte *color);
 void R_DrawPic (int x, int y, qpic_t *pic);
 void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha);
 void R_DrawSubPic (int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height, float scale);

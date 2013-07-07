@@ -22,6 +22,68 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#define BYTE_CLAMPF(a) ((a)>1?255:((a)<0?0:(a) * 255.0f))
+
+#define STRING_COLORS_COUNT	(sizeof(g_color_table) / sizeof(vec4_t))
+
+static void Draw_GetTextColor(float color[4], int colorindex, float r, float g, float b, float a)
+{
+	Vector4Copy(g_color_table[colorindex], color);
+	Vector4Set(color, color[0] * r, color[1] * g, color[2] * b, color[3] * a);
+}
+
+// color is read and changed in the end
+void Draw_ColoredString (float x, float y, const char *text, int maxlen, float basered, float basegreen, float baseblue, float basealpha)
+{
+	vec_t *color;
+	int i, len;
+	int colorindex;
+
+	// default to white
+	colorindex = 7;
+	color = g_color_table[colorindex];
+	Draw_GetTextColor(color, colorindex, basered, basegreen, baseblue, basealpha);
+
+	if (maxlen < 1)
+		maxlen = 1 << 30;
+
+	for (i = 0; i < maxlen && text[i]; i++, x += 8)
+	{
+		if (text[i] == ' ')
+			continue;
+		if (text[i] == Q_COLOR_ESCAPE && i + 1 < maxlen)
+		{
+			if (text[i + 1] == Q_COLOR_ESCAPE)
+			{
+				i++;
+				if (text[i] == ' ')
+					continue;
+			}
+			else if (text[i+1] >= '0' && text[i+1] <= '9')
+			{
+				colorindex = text[i+1] - '0';
+				Draw_GetTextColor(color, colorindex, basered, basegreen, baseblue, basealpha);
+				i++;
+				x -= 8;
+				continue;
+			}
+		}
+
+		// display the text
+		{
+			// set color
+			byte bcolor[4] = {255, 255, 255, 255};
+			bcolor[0] = BYTE_CLAMPF (basered * color[0]);
+			bcolor[1] = BYTE_CLAMPF (basegreen * color[1]);
+			bcolor[2] = BYTE_CLAMPF (baseblue * color[2]);
+			bcolor[3] = BYTE_CLAMPF (basealpha * color[3]);
+
+			// draw the string
+			R_DrawColoredChar(x, y, text[i], bcolor);
+		}
+	}
+}
+
 
 /*
 ================

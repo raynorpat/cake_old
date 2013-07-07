@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	BIGMENU_LETTER_SPACING		-2
 #define BIGMENU_VERTICAL_PADDING	2
 
+void Draw_ColoredString (float x, float y, const char *text, int maxlen, float basered, float basegreen, float baseblue, float basealpha);
 void Draw_Alt_String (int x, int y, const char *str);
 void Draw_TextBox (int x, int y, int width, int lines);
 void Draw_BigString (int x, int y, char *str, float scale, int gap);
