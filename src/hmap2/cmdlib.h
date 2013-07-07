@@ -12,6 +12,10 @@
 #include <stdarg.h>
 //#include <unistd.h>
 
+#if _MSC_VER
+# pragma warning(disable : 4996)
+#endif
+
 #ifndef __BYTEBOOL__
 #define __BYTEBOOL__
 typedef enum {false, true} qboolean;
