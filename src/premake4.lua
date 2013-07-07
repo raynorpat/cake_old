@@ -32,6 +32,14 @@ solution "Cake"
 		targetdir = "../qc"
 		includedirs { "qcc" }
 		files { "qcc/*.h", "qcc/*.cpp" }
+		
+-- hmap2 project
+	project "hmap2"
+		kind "ConsoleApp"
+		language "C"
+		targetdir = "../hmap2"
+		includedirs { "hmap2" }
+		files { "hmap2/*.h", "hmap2/*.c" }
 
 -- QE3 project
 	project "QE3"
@@ -56,8 +64,7 @@ solution "Cake"
 			files { "quake/win/*.h", "quake/win/*.c", "quake/win/quake.rc" }
 			
 		configuration {"MacOSX"}
-			files { "quake/osx/*.h", "quake/osx/*.c" }
+			files { "quake/osx/*.h", "quake/osx/*.c", "quake/osx/*.m" }
 		
 		configuration {"not Windows", "not MacOSX"}
 			files { "quake/linux/*.h", "quake/linux/*.c" }
-
