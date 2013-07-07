@@ -579,6 +579,7 @@ void R_DrawChar (int x, int y, int num)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
+	
 	Draw_CharacterQuad (x, y, (char) num, (byte *) &rgba);
 }
 
@@ -602,8 +603,16 @@ void R_DrawColoredChar (int x, int y, int num, byte *color)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
+
+	qglEnable (GL_BLEND);
+	qglBlendFunc (GL_ONE, GL_ONE);
+
 	Draw_CharacterQuad (x, y, (char) num, color);
+	
 	Draw_EndBatching ();
+
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDisable (GL_BLEND);
 }
 
 
@@ -648,6 +657,9 @@ void R_DrawColoredString (int x, int y, const char *str, byte *color)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
+
+	qglEnable (GL_BLEND);
+	qglBlendFunc (GL_ONE, GL_ONE);
 	
 	while (*str)
 	{
@@ -659,6 +671,9 @@ void R_DrawColoredString (int x, int y, const char *str, byte *color)
 	}
 
 	Draw_EndBatching ();
+
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDisable (GL_BLEND);
 }
 
 
