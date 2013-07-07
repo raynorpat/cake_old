@@ -99,8 +99,6 @@ qbool		scr_initialized;		// ready to draw
 qpic_t		*scr_net;
 qpic_t		*scr_turtle;
 
-int			clearconsole;
-
 viddef_t	vid;				// global video state
 
 vrect_t		scr_vrect;
@@ -627,16 +625,6 @@ void SCR_RunConsole (void)
 
 /*
 ==================
-SCR_SetUpToDrawConsole
-==================
-*/
-void SCR_SetUpToDrawConsole (void)
-{
-	con_notifylines = 0;
-}
-
-/*
-==================
 SCR_DrawConsole
 ==================
 */
@@ -670,8 +658,6 @@ void SCR_DrawConsole (void)
 	// draw console text
 	if (key_dest != key_menu)
 		Con_DrawConsole (scr_con_current);
-
-	clearconsole = 0;
 }
 
 
@@ -718,8 +704,6 @@ void SCR_UpdateScreen (void)
 		}
 
 		// Do 3D drawing first, followed by 2D, and then finally a finish command
-		SCR_SetUpToDrawConsole ();
-	
 		V_RenderView ();
 
 		GL_Set2D ();

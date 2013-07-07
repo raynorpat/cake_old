@@ -32,8 +32,8 @@
 #include <time.h>
 
 
-cvar_t	cl_parseSay = {"cl_parseSay", "1"};
-cvar_t	cl_parseFunChars = {"cl_parseFunChars", "1"};
+cvar_t	cl_parseSay = {"cl_parseSay", "0"};
+cvar_t	cl_parseFunChars = {"cl_parseFunChars", "0"};
 cvar_t	cl_triggers = {"cl_triggers", "0"};
 cvar_t	tp_forceTriggers = {"tp_forceTriggers", "0"};
 cvar_t	tp_loadlocs = {"tp_loadlocs", "1"};

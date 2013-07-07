@@ -224,9 +224,7 @@ void CL_PrintQStatReply (char *s)
 	Com_Printf ("\n");
 	//Com_Printf ("-------------------------------------\n");
 
-	con_ormask = 128;
 	Com_Printf ("qstat %s:\n", NET_AdrToString(net_from));
-	con_ormask = 0;
 
 	// count players
 	numplayers = -1;
@@ -260,9 +258,7 @@ void CL_PrintQStatReply (char *s)
 
 	if (p)
 	{
-		con_ormask = 128;
 		Com_Printf ("\nping time frags name\n");
-		con_ormask = 0;
 		//Com_Printf ("-------------------------------------\n");
 
 		while (p)
@@ -372,8 +368,6 @@ CL_Download_f
 */
 void CL_Download_f (void)
 {
-	char *p, *q;
-
 	if (cls.state == ca_disconnected)
 	{
 		Com_Printf ("Must be connected.\n");
@@ -386,20 +380,9 @@ void CL_Download_f (void)
 		return;
 	}
 
-	Q_snprintf (cls.downloadname, sizeof(cls.downloadname), "%s/%s", cls.gamedir, Cmd_Argv(1));
-
-	p = cls.downloadname;
-	for (;;) {
-		if ((q = strchr(p, '/')) != NULL) {
-			*q = 0;
-			Sys_mkdir(cls.downloadname);
-			*q = '/';
-			p = q + 1;
-		} else
-			break;
-	}
-
+	Q_snprintf (cls.downloadname, sizeof(cls.downloadname), "%s", Cmd_Argv(1));
 	strcpy(cls.downloadtempname, cls.downloadname);
+
 	cls.download = FS_Open (cls.downloadname, "wb", false, false);
 	cls.downloadtype = dl_single;
 

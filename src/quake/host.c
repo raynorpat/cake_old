@@ -206,7 +206,7 @@ void Host_Init (int argc, char **argv)
 	Thread_Init ();
 
 	// initialize various cvars/cmds that could not be initialized earlier
-	FS_Init_Commands();
+	FS_Init_Commands ();
 
 	// detect gamemode from commandline options or executable name
 	COM_InitGameType();
