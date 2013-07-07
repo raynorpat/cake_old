@@ -608,7 +608,7 @@ void R_DrawColoredChar (int x, int y, int num, unsigned int color)
 
 /*
 ================
-Draw_String
+R_DrawString
 ================
 */
 void R_DrawString (int x, int y, const char *str)
@@ -626,6 +626,32 @@ void R_DrawString (int x, int y, const char *str)
 	{
 		if (*str != 32) // don't waste verts on spaces
 			Draw_CharacterQuad (x, y, *str, (byte *) &rgba);
+
+		str++;
+		x += 8;
+	}
+}
+
+
+/*
+================
+R_DrawColoredString
+================
+*/
+void R_DrawColoredString (int x, int y, const char *str, unsigned int color)
+{
+	glpic_t *gl;
+
+	if (y <= -8)
+		return;			// totally off screen
+
+	gl = (glpic_t *) charset->data;
+	Draw_TestState (gl->gltexture);
+	
+	while (*str)
+	{
+		if (*str != 32) // don't waste verts on spaces
+			Draw_CharacterQuad (x, y, *str, (byte *) &color);
 
 		str++;
 		x += 8;

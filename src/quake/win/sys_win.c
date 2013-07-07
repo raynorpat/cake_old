@@ -39,8 +39,8 @@ static HANDLE	hinput, houtput;
 
 #ifdef SERVERONLY
 cvar_t	sys_sleep = {"sys_sleep", "8"};
-cvar_t	sys_nostdout = {"sys_nostdout","0"};
 #endif
+cvar_t	sys_nostdout = {"sys_nostdout", "0"};
 
 
 /*
@@ -98,21 +98,12 @@ void Sys_Error (char *error, ...)
 	exit (1);
 }
 
-void Sys_Printf (char *fmt, ...)
+void Sys_PrintToTerminal(const char *text)
 {
-	va_list		argptr;
-	char		text[1024];
-	DWORD		dummy;
-
-	if (!dedicated)
-		return;
-
-	va_start (argptr,fmt);
-	_vsnprintf (text, sizeof(text) - 1, fmt, argptr);
-	text[sizeof(text) - 1] = '\0';
-	va_end (argptr);
-
-	WriteFile (houtput, text, strlen(text), &dummy, NULL);
+	DWORD dummy;
+	extern HANDLE houtput;
+	if (dedicated)
+		WriteFile(houtput, text, strlen (text), &dummy, NULL);
 }
 
 void Sys_Quit (void)
@@ -321,9 +312,9 @@ is marked
 */
 void Sys_Init (void)
 {
+	Cvar_Register (&sys_nostdout);
 #ifdef SERVERONLY
 	Cvar_Register (&sys_sleep);
-	Cvar_Register (&sys_nostdout);
 
 	if (COM_CheckParm ("-nopriority"))
 	{

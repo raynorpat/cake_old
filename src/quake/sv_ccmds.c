@@ -28,7 +28,6 @@ int		fp_messages=4, fp_persecond=4, fp_secondsdead=10;
 cvar_t	sv_floodprotmsg = {"floodprotmsg", ""};
 
 extern cvar_t cl_warncmd;
-extern redirect_t sv_redirected;
 
 
 /*
@@ -261,8 +260,7 @@ void SV_Status_f (void)
 
 #ifndef SERVERONLY
 	// some mods use a "status" alias for their own needs, sigh
-	if (!sv_redirected && !Q_stricmp(Cmd_Argv(0), "status")
-		&& CL_ClientState() && Cmd_FindAlias("status")) {
+	if (!Q_stricmp(Cmd_Argv(0), "status") && CL_ClientState() && Cmd_FindAlias("status")) {
 		Cmd_ExecuteString (Cmd_AliasString("status"), false);
 		return;
 	}
@@ -280,83 +278,43 @@ void SV_Status_f (void)
 	Com_Printf ("packets/frame    : %5.2f (%d)\n", pak, num_prstr);
 	
 // min fps lat drp
-	if (sv_redirected != RD_NONE) {
-		// most remote clients are 40 columns
-		//           0123456789012345678901234567890123456789
-		Com_Printf ("name               userid frags\n");
-        Com_Printf ("  address          rate ping drop\n");
-		Com_Printf ("  ---------------- ---- ---- -----\n");
-		for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
-		{
-			if (!cl->state)
-				continue;
+	Com_Printf ("frags userid address         name            rate ping drop  qport\n");
+	Com_Printf ("----- ------ --------------- --------------- ---- ---- ----- -----\n");
+	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	{
+		if (!cl->state)
+			continue;
+		Com_Printf ("%5i %6i ", (int)cl->edict->v.frags,  cl->userid);
 
-			Com_Printf ("%-16.16s  ", cl->name);
-
-			Com_Printf ("%6i %5i", cl->userid, (int)cl->edict->v.frags);
-			if (cl->spectator)
-				Com_Printf (" (s)\n");
-			else			
-				Com_Printf ("\n");
-
-			s = NET_BaseAdrToString ( cl->netchan.remote_address);
-			Com_Printf ("  %-16.16s", s);
-			if (cl->state == cs_connected)
-			{
-				Com_Printf ("CONNECTING\n");
-				continue;
-			}
-			if (cl->state == cs_zombie)
-			{
-				Com_Printf ("ZOMBIE\n");
-				continue;
-			}
-			Com_Printf ("%4i %4i %5.2f\n"
-				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl)
-				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence);
-		}
-	} else {
-		Com_Printf ("frags userid address         name            rate ping drop  qport\n");
-		Com_Printf ("----- ------ --------------- --------------- ---- ---- ----- -----\n");
-		for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
-		{
-			if (!cl->state)
-				continue;
-			Com_Printf ("%5i %6i ", (int)cl->edict->v.frags,  cl->userid);
-
-			s = NET_BaseAdrToString ( cl->netchan.remote_address);
-			Com_Printf ("%s", s);
-			l = 16 - strlen(s);
-			for (j=0 ; j<l ; j++)
-				Com_Printf (" ");
+		s = NET_BaseAdrToString ( cl->netchan.remote_address);
+		Com_Printf ("%s", s);
+		l = 16 - strlen(s);
+		for (j=0 ; j<l ; j++)
+			Com_Printf (" ");
 			
-			Com_Printf ("%s", cl->name);
-			l = 16 - strlen(cl->name);
-			for (j=0 ; j<l ; j++)
-				Com_Printf (" ");
-			if (cl->state == cs_connected)
-			{
-				Com_Printf ("CONNECTING\n");
-				continue;
-			}
-			if (cl->state == cs_zombie)
-			{
-				Com_Printf ("ZOMBIE\n");
-				continue;
-			}
-			Com_Printf ("%4i %4i %3.1f %4i"
-				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl)
-				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence
-				, cl->netchan.qport);
-			if (cl->spectator)
-				Com_Printf (" (s)\n");
-			else			
-				Com_Printf ("\n");
-
-				
+		Com_Printf ("%s", cl->name);
+		l = 16 - strlen(cl->name);
+		for (j=0 ; j<l ; j++)
+			Com_Printf (" ");
+		if (cl->state == cs_connected)
+		{
+			Com_Printf ("CONNECTING\n");
+			continue;
 		}
+		if (cl->state == cs_zombie)
+		{
+			Com_Printf ("ZOMBIE\n");
+			continue;
+		}
+		Com_Printf ("%4i %4i %3.1f %4i"
+			, (int)(1000*cl->netchan.frame_rate)
+			, (int)SV_CalcPing (cl)
+			, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence
+			, cl->netchan.qport);
+		if (cl->spectator)
+			Com_Printf (" (s)\n");
+		else			
+			Com_Printf ("\n");		
 	}
 	Com_Printf ("\n");
 }

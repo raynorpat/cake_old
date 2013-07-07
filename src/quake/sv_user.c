@@ -768,7 +768,7 @@ static void Cmd_Download_f (void)
 	sv_client->downloadcount = 0;
 
 	if (!sv_client->download) {
-		Sys_Printf ("Couldn't download %s to %s\n", name, sv_client->name);
+		Com_Printf ("Couldn't download %s to %s\n", name, sv_client->name);
 		goto deny_download;
 	}
 
@@ -781,7 +781,7 @@ static void Cmd_Download_f (void)
 
 	// all checks passed, start downloading
 	Cmd_NextDL_f ();
-	Sys_Printf ("Downloading %s to %s\n", name, sv_client->name);
+	Com_Printf ("Downloading %s to %s\n", name, sv_client->name);
 	return;
 
 deny_download:
@@ -863,8 +863,6 @@ static void SV_Say (qbool team)
 
 	strcat(text, p);
 	strcat(text, "\n");
-
-	Sys_Printf ("%s", text);
 
 	mvdrecording = sv.mvdrecording;
 	sv.mvdrecording = false;	// so that the SV_ClientPrintf doesn't send to all players.
@@ -1031,7 +1029,6 @@ The client is going to disconnect, so remove the connection immediately
 */
 static void Cmd_Drop_f (void)
 {
-	SV_EndRedirect ();
 	if (!sv_client->spectator)
 		SV_BroadcastPrintf (PRINT_HIGH, "%s dropped\n", sv_client->name);
 	SV_DropClient (sv_client);	
@@ -1093,10 +1090,8 @@ static void Cmd_SetInfo_f (void)
 	char oldval[MAX_INFO_STRING];
 
 	if (Cmd_Argc() == 1) {
-		SV_BeginRedirect (RD_CLIENT);
 		Com_Printf ("User info settings:\n");
 		Info_Print (sv_client->userinfo);
-		SV_EndRedirect ();
 		return;
 	}
 
@@ -1110,11 +1105,7 @@ static void Cmd_SetInfo_f (void)
 
 	strcpy(oldval, Info_ValueForKey(sv_client->userinfo, Cmd_Argv(1)));
 
-	// redirect output so that "Info string length exceeded" goes to the client,
-	// not to the server console
-	SV_BeginRedirect (RD_CLIENT);
 	Info_SetValueForKey (sv_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
-	SV_EndRedirect ();
 
 // name is extracted below in ExtractFromUserInfo
 //	strlcpy (sv_client->name, Info_ValueForKey (sv_client->userinfo, "name")
@@ -1150,10 +1141,8 @@ static void Cmd_Info_f (void)
 	char oldval[MAX_INFO_STRING];
 
 	if (Cmd_Argc() == 1) {
-		SV_BeginRedirect (RD_CLIENT);
 		Com_Printf ("User info settings:\n");
 		Info_Print (sv_client->userinfo);
-		SV_EndRedirect ();
 		return;
 	}
 
@@ -1177,12 +1166,7 @@ static void Cmd_Info_f (void)
 
 	strcpy(oldval, Info_ValueForKey(sv_client->userinfo, Cmd_Argv(1)));
 
-	// redirect output so that "Info string length exceeded" goes to the client,
-	// not to the server console
-	SV_BeginRedirect (RD_CLIENT);
 	Info_SetValueForKey (sv_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
-	SV_EndRedirect ();
-
 	if (!strcmp(Info_ValueForKey(sv_client->userinfo, Cmd_Argv(1)), oldval))
 		return; // key hasn't changed
 
@@ -1207,9 +1191,7 @@ Dumps the serverinfo info string
 */
 static void Cmd_Serverinfo_f (void)
 {
-	SV_BeginRedirect (RD_CLIENT);
 	Info_Print (svs.info);
-	SV_EndRedirect ();
 }
 
 void SetUpClientEdict (client_t *cl, edict_t *ent)

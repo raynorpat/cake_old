@@ -54,7 +54,7 @@ int Sys_remove (char *path);
 void Sys_Error (char *error, ...);
 // an error will cause the entire program to exit
 
-void Sys_Printf (char *fmt, ...);
+void Sys_PrintToTerminal(const char *text);
 // send text to the console
 
 double Sys_DoubleTime (void);

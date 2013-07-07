@@ -24,18 +24,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console
 //
 
+extern int		con_totallines;
+extern int		con_vislines;
+extern int		con_backscroll;
 extern int		con_x;
-extern int		con_ormask;
+
 extern qbool	con_initialized;
-extern int		con_notifylines;	// scan lines to clear for notify lines
 
 void Con_CheckResize (void);
 void Con_Init (void);
 void Con_DrawConsole (int lines);
-void Con_Print (char *txt);
-void Con_Scroll (int count);
-void Con_ScrollToTop (void);
-void Con_ScrollToBottom (void);
+void Con_Print (const char *txt);
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);

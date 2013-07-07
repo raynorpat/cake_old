@@ -28,74 +28,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t sv_phs;
 
-
-/*
-=============================================================================
-
-Com_Printf redirection
-
-=============================================================================
-*/
-
-redirect_t	sv_redirected;
-static char	sv_outputbuf[MAX_MSGLEN - 1];
-
-/*
-==================
-SV_FlushRedirect
-==================
-*/
-void SV_FlushRedirect (void)
-{
-	if (sv_redirected == RD_PACKET)
-	{
-		// send even if sv_outputbuf is empty
-		Netchan_OutOfBandPrint (NS_SERVER, net_from, "%c%s", A2C_PRINT,
-			sv_outputbuf);
-	}
-	else if (sv_redirected == RD_CLIENT)
-	{
-		if (!sv_outputbuf[0])
-			return;
-		ClientReliableWrite_Begin (sv_client, svc_print);
-		ClientReliableWrite_Byte (PRINT_HIGH);
-		ClientReliableWrite_String (sv_outputbuf);
-		ClientReliableWrite_End ();
-	}
-
-	// clear it
-	sv_outputbuf[0] = 0;
-}
-
-void SV_RedirectedPrint (char *msg)
-{
-	if (strlen (msg) + strlen(sv_outputbuf) >= sizeof(sv_outputbuf))
-		SV_FlushRedirect ();
-	strcat (sv_outputbuf, msg);
-}
-
-/*
-==================
-SV_BeginRedirect
-
-Send Com_Printf data to the remote client instead of the console
-==================
-*/
-void SV_BeginRedirect (redirect_t rd)
-{
-	sv_redirected = rd;
-	sv_outputbuf[0] = 0;
-	Com_BeginRedirect (SV_RedirectedPrint);
-}
-
-void SV_EndRedirect (void)
-{
-	SV_FlushRedirect ();
-	sv_redirected = RD_NONE;
-	Com_EndRedirect ();
-}
-
-
 /*
 =============================================================================
 
@@ -129,12 +61,7 @@ void SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
 		return;
 	
 	va_start (argptr, fmt);
-#ifdef _WIN32
-	_vsnprintf (string, sizeof(string) - 1, fmt, argptr);
-	string[sizeof(string) - 1] = '\0';
-#else
-	vsnprintf (string, sizeof(string), fmt, argptr);
-#endif // _WIN32
+	Q_vsnprintf (string, sizeof(string), fmt, argptr);
 	va_end (argptr);
 
 	if (sv.mvdrecording)
@@ -170,8 +97,6 @@ void SV_BroadcastPrintf (int level, char *fmt, ...)
 	vsnprintf (string, sizeof(string), fmt, argptr);
 #endif // _WIN32
 	va_end (argptr);
-
-	Sys_Printf ("%s", string);	// print to the console
 
 	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
 	{

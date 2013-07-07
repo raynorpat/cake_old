@@ -539,10 +539,6 @@ void SV_SetMoveVars(void);
 //
 // sv_send.c
 //
-typedef enum {RD_NONE, RD_CLIENT, RD_PACKET} redirect_t;
-void SV_BeginRedirect (redirect_t rd);
-void SV_EndRedirect (void);
-
 void SV_Multicast (vec3_t origin, int to);
 void SV_StartParticle (vec3_t org, vec3_t dir, int color, int count,
 						int replacement_te, int replacement_count);
