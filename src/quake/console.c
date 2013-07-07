@@ -532,8 +532,6 @@ void Con_DrawNotify (void)
 			continue;
 		text = con.text + (i % con_totallines)*con_linewidth;
 
-		clearnotify = 0;
-		scr_copytop = 1;
 
 		for (x = 0 ; x < con_linewidth ; x++)
 			R_DrawChar ((x+1)<<3, v, text[x]);
@@ -545,8 +543,6 @@ void Con_DrawNotify (void)
 	{
 		char	temp[MAXCMDLINE+1];
 
-		clearnotify = 0;
-		scr_copytop = 1;
 
 		if (chat_team) {
 			R_DrawString (8, v, "say_team:");

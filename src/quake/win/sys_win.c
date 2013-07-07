@@ -394,7 +394,6 @@ HINSTANCE	global_hInstance;
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	double			time, oldtime, newtime;
-	RECT			rect;
 
 	global_hInstance = hInstance;
 

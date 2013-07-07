@@ -809,8 +809,6 @@ void Sbar_Draw (void)
 	if (!sb_drawmain && !sb_drawinventory)
 		return;		// nothing to do
 
-	scr_copyeverything = 1;
-
 	RB_SetCanvas (CANVAS_SBAR);
 	
 	// inventory

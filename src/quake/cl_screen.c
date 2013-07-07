@@ -76,10 +76,6 @@ console is:
 */
 
 
-// only the refresh window will be updated unless these variables are flagged 
-int			scr_copytop;
-int			scr_copyeverything;
-
 float		scr_con_current;
 float		scr_conlines;		// lines of console to display
 
@@ -104,7 +100,6 @@ qpic_t		*scr_net;
 qpic_t		*scr_turtle;
 
 int			clearconsole;
-int			clearnotify;
 
 viddef_t	vid;				// global video state
 
@@ -198,7 +193,6 @@ void SCR_DrawCenterString (void)
 
 void SCR_CheckDrawCenterString (void)
 {
-	scr_copytop = 1;
 	if (scr_center_lines > scr_erase_lines)
 		scr_erase_lines = scr_center_lines;
 
@@ -678,7 +672,6 @@ void SCR_DrawConsole (void)
 		Con_DrawConsole (scr_con_current);
 
 	clearconsole = 0;
-	scr_copyeverything = 1;
 }
 
 
@@ -708,9 +701,6 @@ void SCR_UpdateScreen (void)
 	// unbind everything to start the frame with a clean slate
 	GL_UnbindBuffers ();
 	GL_UnbindTextures ();
-
-	scr_copytop = 0;
-	scr_copyeverything = 0;
 
 	SCR_CalcRefdef ();
 

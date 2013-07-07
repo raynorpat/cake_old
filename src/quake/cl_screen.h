@@ -31,13 +31,7 @@ void SCR_RunConsole (void);
 extern	float	scr_con_current;
 extern	float	scr_conlines;		// lines of console to display
 
-extern	int		clearnotify;	// set to 0 whenever notify text is drawn
-
 extern	cvar_t	scr_viewsize;
-
-// only the refresh window will be updated unless these variables are flagged 
-extern	int		scr_copytop;
-extern	int		scr_copyeverything;
 
 #endif /* _CL_SCREEN_H_ */
 
