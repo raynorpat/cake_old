@@ -38,6 +38,8 @@ int			host_hunklevel;
 
 jmp_buf 	host_abort;
 
+char		engineversion[128];
+
 
 /*
 ================
@@ -188,6 +190,8 @@ Host_Init
 */
 void Host_Init (int argc, char **argv)
 {
+	const char* os;
+
 	COM_InitArgv (argc, argv);
 
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
@@ -225,6 +229,12 @@ void Host_Init (int argc, char **argv)
 	PM_Init ();
 	Host_InitLocal ();
 
+	// construct a version string for the corner of the console
+	os = QUAKE_OS_NAME;
+	Q_snprintf (engineversion, sizeof (engineversion), "%s %s %s", gamename, os, buildstring);
+	Com_Printf("%s\n", engineversion);
+
+	// initialize client and server
 	SV_Init ();
 	CL_Init ();
 
