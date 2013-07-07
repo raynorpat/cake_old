@@ -691,7 +691,7 @@ void VID_CheckExtensions(void)
 	gl_support_texture_combine = GL_CheckExtension("GL_ARB_texture_env_combine", NULL, "-notexcombine", false) || GL_CheckExtension("GL_EXT_texture_env_combine", NULL, "-notexcombine", false);
 	gl_support_texture_add = GL_CheckExtension("GL_ARB_texture_env_add", NULL, "-notexadd", false) || GL_CheckExtension("GL_EXT_texture_env_add", NULL, "-notexadd", false);
 	gl_support_texture_npot = GL_CheckExtension("GL_ARB_texture_non_power_of_two", NULL, "-nonpottex", false) && (gl_maxtexturesize >= 8192);
-	gl_support_arb_vertex_buffer_object = GL_CheckExtension("gl_support_arb_vertex_buffer_object", vbofuncs, "-novbo", false);
+//	gl_support_arb_vertex_buffer_object = GL_CheckExtension("gl_support_arb_vertex_buffer_object", vbofuncs, "-novbo", false);
 //	if ((gl_support_shader_objects = GL_CheckExtension("GL_ARB_shader_objects", shaderobjectsfuncs, "-noshaderobjects", false)))
 //		if ((gl_support_shading_language_100 = GL_CheckExtension("GL_ARB_shading_language_100", NULL, "-noshadinglanguage100", false)))
 //			if ((gl_support_vertex_shader = GL_CheckExtension("GL_ARB_vertex_shader", vertexshaderfuncs, "-novertexshader", false)))
