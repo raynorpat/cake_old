@@ -25,9 +25,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 typedef struct
 {
 	vec3_t		origin;
+	vec3_t      angles;
 	cmodel_t	*model;		// only for bsp models
 	vec3_t		mins, maxs;	// only for non-bsp models
 	int			info;		// for client or server to identify
+	int         solid;		// if model is solid or not
 } physent_t;
 
 

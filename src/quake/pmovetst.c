@@ -116,7 +116,7 @@ trace_t PM_PlayerTrace (playermove_t *pm, vec3_t start, vec3_t end)
 	physent_t	*pe;
 	vec3_t		mins, maxs, tracemins, tracemaxs;
 
-// fill in a default trace
+	// fill in a default trace
 	memset (&total, 0, sizeof(trace_t));
 	total.fraction = 1;
 	total.e.entnum = -1;
@@ -128,7 +128,7 @@ trace_t PM_PlayerTrace (playermove_t *pm, vec3_t start, vec3_t end)
 	{
 		pe = &pm->physents[i];
 
-	// get the clipping hull
+		// get the clipping hull
 		if (pe->model)
 		{
 			hull = &pm->physents[i].model->hulls[1];
@@ -154,8 +154,51 @@ trace_t PM_PlayerTrace (playermove_t *pm, vec3_t start, vec3_t end)
 		VectorSubtract (start, offset, start_l);
 		VectorSubtract (end, offset, end_l);
 
+		// rotate start and end into the models frame of reference
+		if (pe->solid == 4 /*SOLID_BSP*/ && (pe->angles[0] || pe->angles[1] || pe->angles[2]))
+		{
+			vec3_t   forward, right, up;
+			vec3_t   temp;
+
+			AngleVectors (pe->angles, forward, right, up);
+
+			VectorCopy (start_l, temp);
+			start_l[0] = DotProduct (temp, forward);
+			start_l[1] = -DotProduct (temp, right);
+			start_l[2] = DotProduct (temp, up);
+
+			VectorCopy (end_l, temp);
+			end_l[0] = DotProduct (temp, forward);
+			end_l[1] = -DotProduct (temp, right);
+			end_l[2] = DotProduct (temp, up);
+		}
+
 		// trace a line through the apropriate clipping hull
 		trace = CM_HullTrace (hull, start_l, end_l);
+
+		// rotate endpos back to world frame of reference
+		if (pe->solid == 4 /*SOLID_BSP*/ && (pe->angles[0] || pe->angles[1] || pe->angles[2]))
+		{
+			vec3_t   a;
+			vec3_t   forward, right, up;
+			vec3_t   temp;
+
+			if (trace.fraction != 1)
+			{
+				VectorSubtract (vec3_origin, pe->angles, a);
+				AngleVectors (a, forward, right, up);
+
+				VectorCopy (trace.endpos, temp);
+				trace.endpos[0] = DotProduct (temp, forward);
+				trace.endpos[1] = -DotProduct (temp, right);
+				trace.endpos[2] = DotProduct (temp, up);
+
+				VectorCopy (trace.plane.normal, temp);
+				trace.plane.normal[0] = DotProduct (temp, forward);
+				trace.plane.normal[1] = -DotProduct (temp, right);
+				trace.plane.normal[2] = DotProduct (temp, up);
+			}
+		}
 
 		// fix trace up by the offset
 		VectorAdd (trace.endpos, offset, trace.endpos);
@@ -171,7 +214,6 @@ trace_t PM_PlayerTrace (playermove_t *pm, vec3_t start, vec3_t end)
 			total = trace;
 			total.e.entnum = i;
 		}
-
 	}
 
 	return total;

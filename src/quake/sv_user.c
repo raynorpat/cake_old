@@ -1694,6 +1694,8 @@ static void AddLinksToPmove ( areanode_t *node )
 				pe->model = sv.models[(int)(check->v.modelindex)];
 				if (!pe->model)
 					Host_Error ("SOLID_BSP with a non-bsp model");
+				VectorCopy (check->v.angles, pe->angles);
+				pe->solid = SOLID_BSP;
 			}
 			else
 			{

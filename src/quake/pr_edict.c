@@ -38,7 +38,7 @@ struct pr_ext_enabled_s	pr_ext_enabled;
 #define NQ_PROGHEADER_CRC 5927
 
 #ifdef WITH_NQPROGS
-qbool pr_nqprogs = false;
+qbool pr_nqprogs;
 int pr_fieldoffsetpatch[106];
 int pr_globaloffsetpatch[62];
 static int pr_globaloffsetpatch_nq[62] = {0,0,0,0,0,666,-4,-4,8,8,
@@ -1034,6 +1034,7 @@ void PR_LoadProgs (void)
 		progsname = "progs.dat";
 		pr_nqprogs = true;
 	} else {
+		pr_nqprogs = false;
 		check = FS_FileExists ("spprogs.dat");
 		if (check) {
 			progs = (dprograms_t *)FS_LoadFile ("spprogs.dat", false, &filesize);

@@ -353,14 +353,31 @@ void SV_LinkEdict (edict_t *ent, qbool touch_triggers)
 	if (!ent->inuse)
 		return;
 
-// set the abs box
-	VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);
-	VectorAdd (ent->v.origin, ent->v.maxs, ent->v.absmax);
+	// set the abs box
+	if (ent->v.solid == SOLID_BSP && (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]))
+	{
+		// expand for rotation
+		float      max, v;
+		int         i;
 
-//
-// to make items easier to pick up and allow them to be grabbed off
-// of shelves, the abs sizes are expanded
-//
+		max = DotProduct(ent->v.mins, ent->v.mins);
+		v = DotProduct(ent->v.maxs, ent->v.maxs);
+
+		if (max < v)
+			max = v;
+		max = sqrt(max);
+
+		for (i=0 ; i<3 ; i++) {
+			ent->v.absmin[i] = ent->v.origin[i] - max;
+			ent->v.absmax[i] = ent->v.origin[i] + max;
+		}
+	} else {
+		VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);
+		VectorAdd (ent->v.origin, ent->v.maxs, ent->v.absmax);
+	}
+
+	// to make items easier to pick up and allow them to be grabbed off
+	// of shelves, the abs sizes are expanded
 	if ((int)ent->v.flags & FL_ITEM)
 	{
 		ent->v.absmin[0] -= 15;
@@ -369,7 +386,8 @@ void SV_LinkEdict (edict_t *ent, qbool touch_triggers)
 		ent->v.absmax[1] += 15;
 	}
 	else
-	{	// because movement is clipped an epsilon away from an actual edge,
+	{
+		// because movement is clipped an epsilon away from an actual edge,
 		// we must fully check even when bounding boxes don't quite touch
 		ent->v.absmin[0] -= 1;
 		ent->v.absmin[1] -= 1;
@@ -379,7 +397,7 @@ void SV_LinkEdict (edict_t *ent, qbool touch_triggers)
 		ent->v.absmax[2] += 1;
 	}
 	
-// link to PVS leafs
+	// link to PVS leafs
 	if (ent->v.modelindex)
 		SV_LinkToLeafs (ent);
 	else
@@ -388,7 +406,7 @@ void SV_LinkEdict (edict_t *ent, qbool touch_triggers)
 	if (ent->v.solid == SOLID_NOT)
 		return;
 
-// find the first node that the ent's box crosses
+	// find the first node that the ent's box crosses
 	node = sv_areanodes;
 	while (1)
 	{
@@ -399,17 +417,16 @@ void SV_LinkEdict (edict_t *ent, qbool touch_triggers)
 		else if (ent->v.absmax[node->axis] < node->dist)
 			node = node->children[1];
 		else
-			break;		// crosses the node
+			break; // crosses the node
 	}
 	
-// link it in	
-
+	// link it in
 	if (ent->v.solid == SOLID_TRIGGER)
 		InsertLinkBefore (&ent->area, &node->trigger_edicts);
 	else
 		InsertLinkBefore (&ent->area, &node->solid_edicts);
 	
-// if touch_triggers, touch all entities at this node and decend for more
+	// if touch_triggers, touch all entities at this node and decend for more
 	if (touch_triggers)
 		SV_TouchLinks ( ent, sv_areanodes );
 }
@@ -476,19 +493,62 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 	vec3_t		start_l, end_l;
 	hull_t		*hull;
 
-// get the clipping hull
+	// get the clipping hull
 	hull = SV_HullForEntity (ent, mins, maxs, offset);
 
 	VectorSubtract (start, offset, start_l);
 	VectorSubtract (end, offset, end_l);
 
-// trace a line through the apropriate clipping hull
+   // rotate start and end into the models frame of reference
+   if (ent->v.solid == SOLID_BSP && (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]))
+   {
+		vec3_t   forward, right, up;
+		vec3_t   temp;
+
+		AngleVectors (ent->v.angles, forward, right, up);
+
+		VectorCopy (start_l, temp);
+		start_l[0] = DotProduct (temp, forward);
+		start_l[1] = -DotProduct (temp, right);
+		start_l[2] = DotProduct (temp, up);
+
+		VectorCopy (end_l, temp);
+		end_l[0] = DotProduct (temp, forward);
+		end_l[1] = -DotProduct (temp, right);
+		end_l[2] = DotProduct (temp, up);
+   }
+
+	// trace a line through the apropriate clipping hull
 	trace = CM_HullTrace (hull, start_l, end_l);
 
-// fix trace up by the offset
+	// rotate endpos back to world frame of reference
+	if (ent->v.solid == SOLID_BSP && (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]))
+	{
+		vec3_t   a;
+		vec3_t   forward, right, up;
+		vec3_t   temp;
+
+		if (trace.fraction != 1)
+		{
+			VectorSubtract (vec3_origin, ent->v.angles, a);
+			AngleVectors (a, forward, right, up);
+
+			VectorCopy (trace.endpos, temp);
+			trace.endpos[0] = DotProduct (temp, forward);
+			trace.endpos[1] = -DotProduct (temp, right);
+			trace.endpos[2] = DotProduct (temp, up);
+
+			VectorCopy (trace.plane.normal, temp);
+			trace.plane.normal[0] = DotProduct (temp, forward);
+			trace.plane.normal[1] = -DotProduct (temp, right);
+			trace.plane.normal[2] = DotProduct (temp, up);
+		}
+	}
+
+	// fix trace up by the offset
 	VectorAdd (trace.endpos, offset, trace.endpos);
 
-// did we clip the move?
+	// did we clip the move?
 	if (trace.fraction < 1 || trace.startsolid )
 		trace.e.ent = ent;
 
