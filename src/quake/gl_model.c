@@ -94,7 +94,7 @@ void *Mod_Extradata (model_t *mod)
 	Mod_LoadModel (mod, true);
 
 	if (!mod->cache.data)
-		Sys_Error ("Mod_Extradata: caching failed");
+		Host_Error ("Mod_Extradata: caching failed");
 
 	return mod->cache.data;
 }
@@ -111,7 +111,7 @@ mleaf_t *Mod_PointInLeaf (vec3_t p, model_t *model)
 	mplane_t	*plane;
 	
 	if (!model || !model->nodes)
-		Sys_Error ("Mod_PointInLeaf: bad model");
+		Host_Error ("Mod_PointInLeaf: bad model");
 
 	node = model->nodes;
 
@@ -219,7 +219,7 @@ model_t *Mod_FindName (char *name)
 	model_t	*mod;
 	
 	if (!name[0])
-		Sys_Error ("Mod_FindName: NULL name");
+		Host_Error ("Mod_FindName: NULL name");
 		
 //
 // search the currently loaded models
@@ -231,7 +231,7 @@ model_t *Mod_FindName (char *name)
 	if (i == mod_numknown)
 	{
 		if (mod_numknown == MAX_MOD_KNOWN)
-			Sys_Error ("mod_numknown == MAX_MOD_KNOWN");
+			Host_Error ("mod_numknown == MAX_MOD_KNOWN");
 
 		strcpy (mod->name, name);
 		mod->needload = true;
@@ -2053,7 +2053,7 @@ void Mod_LoadAliasModel (model_t *mod, void *buffer)
 		if (frametype == ALIAS_SINGLE)
 			pframetype = (daliasframetype_t *) Mod_LoadAliasFrame (pframetype + 1, &pheader->frames[i]);
 		else pframetype = (daliasframetype_t *) Mod_LoadAliasGroup (pframetype + 1, &pheader->frames[i]);
-		}
+	}
 
 	for (i = 0; i < 3; i++)
 	{
@@ -2266,9 +2266,7 @@ void Mod_LoadSpriteModel (model_t *mod, void *buffer)
 	mod->mins[2] = -psprite->maxheight/2;
 	mod->maxs[2] = psprite->maxheight/2;
 
-//
 // load the frames
-//
 	if (numframes < 1)
 		Host_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
 
