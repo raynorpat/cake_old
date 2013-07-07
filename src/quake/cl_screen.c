@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 background clear
 rendering
-turtle/net/ram icons
+turtle/net icons
 sbar
 centerprint / slow centerprint
 notify lines
@@ -41,37 +41,12 @@ loading plaque
 console
 menu
 
-required background clears
-required update regions
-
-
-syncronous draw mode or async
-One off screen buffer, with updates either copied or xblited
-Need to double buffer?
-
-
-async draw will require the refresh area to be cleared, because it will be
-xblited, but sync draw can just ignore it.
-
-sync
-draw
-
-CenterPrint ()
-SlowPrint ()
-Screen_Update ();
-Com_Printf ();
-
-net 
-turn off messages option
-
 the refresh is always rendered, unless the console is full screen
-
 
 console is:
 	notify lines
 	half
 	full
-	
 
 */
 
@@ -133,7 +108,7 @@ void SCR_CenterPrint (char *str)
 	scr_centertime_off = scr_centertime.value;
 	scr_centertime_start = cl.time;
 
-// count the number of lines for centering
+	// count the number of lines for centering
 	scr_center_lines = 1;
 	while (*str)
 	{
@@ -597,26 +572,23 @@ void SCR_RunConsole (void)
 
 	// decide on the height of the console
 	if (cls.state != ca_active && !cl.intermission)	{
-		scr_conlines = vid.height;		// full screen
+		scr_conlines = vid.height; // full screen
 		scr_con_current = scr_conlines;
-	}
-	else if (key_dest == key_console) {
+	} else if (key_dest == key_console) {
 		scr_conlines = vid.height * scr_consize.value;
 		if (scr_conlines < 30)
 			scr_conlines = 30;
 		if (scr_conlines > vid.height - 10)
 			scr_conlines = vid.height - 10;
-	}
-	else {
-		scr_conlines = 0;				// none visible
+	} else {
+		scr_conlines = 0; // none visible
 	}
 
 	// scroll it up or down
 	if (scr_con_current > scr_conlines) {
 		scr_con_current -= scr_conspeed.value*cls.trueframetime*vid.height/320;
 		scr_con_current = max (scr_con_current, scr_conlines);
-	}
-	else if (scr_con_current < scr_conlines) {
+	} else if (scr_con_current < scr_conlines) {
 		scr_con_current += scr_conspeed.value*cls.trueframetime*vid.height/320;
 		scr_con_current = min (scr_con_current, scr_conlines);
 	}
