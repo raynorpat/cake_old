@@ -1,6 +1,6 @@
 // cmdlib.c
 
-#ifndef WIN32
+#ifndef _WIN32
 #define USEGETTIMEOFDAY 1
 #endif
 
@@ -9,7 +9,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifdef WIN32
+#ifdef _WIN32
 #include <limits.h>
 #include <direct.h>
 #include <windows.h>
@@ -85,7 +85,7 @@ I_DoubleTime
 */
 double I_DoubleTime (void)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	static DWORD starttime;
 	static qboolean first = true;
 	DWORD now;
@@ -137,7 +137,7 @@ double I_DoubleTime (void)
 /*
 void Q_getwd (char *out)
 {
-#ifdef WIN32
+#ifdef _WIN32
    _getcwd (out, 256);
    strcat (out, "\\");
 #else
@@ -156,7 +156,7 @@ void Q_getwd (char *out)
 
 void Q_mkdir (char *path)
 {
-#ifdef WIN32
+#ifdef _WIN32
   if (mkdir (path) != -1)
 #else
   if (mkdir (path, 0777) != -1)
