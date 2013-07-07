@@ -1084,10 +1084,7 @@ static void Sbar_DeathmatchOverlay (int start)
 				// draw pl
 				p = s->pl;
 				sprintf (num, "%3i", p);
-				if (p > 25)
-					Draw_Alt_String ( x+32, y, num);
-				else
-					R_DrawString ( x+32, y, num);
+				R_DrawString ( x+32, y, num);
 			}
 
 			if (s->spectator)

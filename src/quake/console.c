@@ -467,21 +467,12 @@ void Con_PrintToHistory(const char *txt)
 {
 	int		y, l;
 	unsigned char c;
-	unsigned short color;
 
 	if (con_mutex)
 		Thread_LockMutex(con_mutex);
 
-	color = ColorIndex(COLOR_WHITE);
-
 	while ((c = *((unsigned char *) txt)) != 0)
 	{
-		if ( Q_IsColorString( txt ) ) {
-			color = ColorIndex( *(txt+1) );
-			txt += 2;
-			continue;
-		}
-
 		// count word length
 		for (l=0 ; l< con_linewidth ; l++)
 			if ( txt[l] <= ' ')
@@ -518,9 +509,10 @@ void Con_PrintToHistory(const char *txt)
 			con_x = 0;
 			break;
 
-		default:	// display character and advance
+		default:
+			// display character and advance
 			y = con_current % con_totallines;
-			con_text[y*con_linewidth+con_x] = (color << 8) | c;
+			con_text[y*con_linewidth+con_x] = c;
 			con_x++;
 			if (con_x >= con_linewidth)
 				con_x = 0;
@@ -594,7 +586,7 @@ void Con_Print(const char *msg)
 			// reset the color
 			// FIXME: 1. perhaps we should use a terminal system 2. use a constant instead of 7!
 			line[index++] = Q_COLOR_ESCAPE;
-			line[index++] = COLOR_WHITE + '0';
+			line[index++] = 7 + '0';
 
 			// special color codes for chat messages must always come first
 			// for Con_PrintToHistory to work properly
@@ -832,8 +824,7 @@ void Con_DrawInput (void)
 		text += 1 + key_linepos - con_linewidth;
 
 	// draw input string
-	Draw_ColoredString(0, vid_conheight.value - 16, text, con_linewidth, 1.0, 1.0, 1.0, 1.0);
-	//R_DrawString(0, vid_conheight.value - 16, text);
+	Draw_ColoredString(0, vid_conheight.value - 16, text, con_linewidth, 1.0, 1.0, 1.0, 1.0, NULL, false);
 }
 
 
@@ -848,9 +839,10 @@ void Con_DrawNotify (void)
 {
 	int		y;
 	char	*text;
-	int		i;
+	int		i, stop;
 	float	time;
 	char	temptext[MAX_INPUTLINE];
+	int		colorindex = -1; //-1 for default
 
 	if (con_notify.integer < 0)
 		Cvar_SetValue(&con_notify, 0);
@@ -861,7 +853,10 @@ void Con_DrawNotify (void)
 		Thread_LockMutex(con_mutex);
 
 	y = vid_conheight.value;
-	for (i= con_current-con_notify.integer+1 ; i<=con_current ; i++)
+
+	// make a copy of con_current here so that we can't get in a runaway loop printing new messages while drawing the notify text
+	stop = con_current;
+	for (i= stop-con_notify.integer+1 ; i<=stop ; i++)
 	{
 		if (i < 0)
 			continue;
@@ -871,31 +866,30 @@ void Con_DrawNotify (void)
 		time = cl.time - time;
 		if (time > con_notifytime.value)
 			continue;
-		text = con_text + (i % con_totallines)*con_linewidth;
+		text = con_text + (i % con_totallines) * con_linewidth;
 
-		Draw_ColoredString(0, y, text, con_linewidth, 1.0, 1.0, 1.0, 1.0);
-		//R_DrawString (0, y, text);
+		Draw_ColoredString(0, y, text, con_linewidth, 1.0, 1.0, 1.0, 1.0, &colorindex, false);
 		y += 8;
 	}
 
 	if (key_dest == key_message)
 	{
+		int colorindex = -1;
+
 		if (chat_team)
-			sprintf(temptext, "say_team:%s%c", chat_buffer, (int) 10+((int)(curtime*con_cursorspeed)&1));
+			sprintf(temptext, "say_team:%s%c", chat_buffer, (int) 10+((int)(curtime * con_cursorspeed)&1));
 		else
-			sprintf(temptext, "say:%s%c", chat_buffer, (int) 10+((int)(curtime*con_cursorspeed)&1));
+			sprintf(temptext, "say:%s%c", chat_buffer, (int) 10+((int)(curtime * con_cursorspeed)&1));
 		
 		while (strlen(temptext) >= (size_t) con_linewidth)
 		{
-			Draw_ColoredString(0, y, temptext, con_linewidth, 1.0, 1.0, 1.0, 1.0);
-			//R_DrawString (0, y, temptext);
+			Draw_ColoredString(0, y, temptext, con_linewidth, 1.0, 1.0, 1.0, 1.0, &colorindex, false);
 			strcpy(temptext, &temptext[con_linewidth]);
 			y += 8;
 		}
 		if (strlen(temptext) > 0)
 		{
-			Draw_ColoredString(0, y, temptext, 0, 1.0, 1.0, 1.0, 1.0);
-			//R_DrawString (0, y, temptext);
+			Draw_ColoredString(0, y, temptext, 0, 1.0, 1.0, 1.0, 1.0, &colorindex, false);
 			y += 8;
 		}
 	}
@@ -917,6 +911,7 @@ void Con_DrawConsole (int lines)
 	int				i, j, y, rows;
 	char			*text;
 	float			alpha;
+	int				colorindex = -1;
 
 	if (lines <= 0)
 		return;
@@ -931,20 +926,22 @@ void Con_DrawConsole (int lines)
 		alpha = bound (0.0f, scr_conalpha.value, 1.0f);
 	R_DrawConsoleBackground (alpha);
 
+	// draw engine version
+	Draw_ColoredString (vid_conwidth.value - strlen(engineversion) * 8, vid_conheight.value - 8, engineversion, 0, 1, 0, 0, 1, NULL, true);
+
 	// draw the text
 	con_vislines = lines;
 
 	rows = (lines + 7) / 8;					// rows of text to draw
 	y = vid_conheight.value - rows * 8;		// may start slightly negative
-	rows -= 2;
+	rows -= 2;								// minus version and input line
 
 	for (i = con_current - rows + 1; i <= con_current; i++, y += 8)
 	{
 		j = max(i - con_backscroll, 0);
 		text = con_text + (j % con_totallines) * con_linewidth;
 
-		Draw_ColoredString( 0, y, text, con_linewidth, 1.0, 1.0, 1.0, 1.0 );
-		//R_DrawString (0, y, text);
+		Draw_ColoredString (0, y, text, con_linewidth, 1.0, 1.0, 1.0, 1.0, &colorindex, false);
 	}
 
 	// draw the input prompt, user text, and cursor if desired

@@ -603,6 +603,7 @@ void R_DrawColoredChar (int x, int y, int num, byte *color)
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
 	Draw_CharacterQuad (x, y, (char) num, color);
+	Draw_EndBatching ();
 }
 
 
@@ -656,6 +657,8 @@ void R_DrawColoredString (int x, int y, const char *str, byte *color)
 		str++;
 		x += 8;
 	}
+
+	Draw_EndBatching ();
 }
 
 

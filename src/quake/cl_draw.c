@@ -18,8 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-// cl_draw.h - 2d drawing functions which don't belong to refresh
-
+// cl_draw.c - 2d drawing functions which don't belong to refresh
 #include "quakedef.h"
 
 #define BYTE_CLAMPF(a) ((a)>1?255:((a)<0?0:(a) * 255.0f))
@@ -33,25 +32,27 @@ static void Draw_GetTextColor(float color[4], int colorindex, float r, float g, 
 }
 
 // color is read and changed in the end
-void Draw_ColoredString (float x, float y, const char *text, int maxlen, float basered, float basegreen, float baseblue, float basealpha)
+void Draw_ColoredString (float x, float y, const char *text, int maxlen, float basered, float basegreen, float baseblue, float basealpha, int *outcolor, qbool ignorecolorcodes)
 {
-	vec_t *color;
-	int i, len;
+	float color[4];
+	int i;
 	int colorindex;
-
-	// default to white
-	colorindex = 7;
-	color = g_color_table[colorindex];
-	Draw_GetTextColor(color, colorindex, basered, basegreen, baseblue, basealpha);
 
 	if (maxlen < 1)
 		maxlen = 1 << 30;
+
+	// default to white
+	if (!outcolor || *outcolor == -1)
+		colorindex = 7;
+	else
+		colorindex = *outcolor;
+	Draw_GetTextColor(color, colorindex, basered, basegreen, baseblue, basealpha);
 
 	for (i = 0; i < maxlen && text[i]; i++, x += 8)
 	{
 		if (text[i] == ' ')
 			continue;
-		if (text[i] == Q_COLOR_ESCAPE && i + 1 < maxlen)
+		if (text[i] == Q_COLOR_ESCAPE && !ignorecolorcodes && i + 1 < maxlen) 
 		{
 			if (text[i + 1] == Q_COLOR_ESCAPE)
 			{
@@ -59,9 +60,9 @@ void Draw_ColoredString (float x, float y, const char *text, int maxlen, float b
 				if (text[i] == ' ')
 					continue;
 			}
-			else if (text[i+1] >= '0' && text[i+1] <= '9')
+			else if (text[i + 1] >= '0' && text[i + 1] <= '9') // ^[0 - 9] found
 			{
-				colorindex = text[i+1] - '0';
+				colorindex = text[i + 1] - '0';
 				Draw_GetTextColor(color, colorindex, basered, basegreen, baseblue, basealpha);
 				i++;
 				x -= 8;
@@ -82,21 +83,9 @@ void Draw_ColoredString (float x, float y, const char *text, int maxlen, float b
 			R_DrawColoredChar(x, y, text[i], bcolor);
 		}
 	}
-}
 
-
-/*
-================
-Draw_Alt_String
-================
-*/
-void Draw_Alt_String (int x, int y, const char *str)
-{
-	while (*str) {
-		R_DrawChar (x, y, (*str) | 0x80);
-		str++;
-		x += 8;
-	}
+	if (outcolor)
+		*outcolor = colorindex;
 }
 
 
