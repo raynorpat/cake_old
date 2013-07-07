@@ -45,6 +45,57 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	QUAKE_GAME			// as opposed to utilities
 
+/* Preprocessor macros to identify platform
+    QUAKE_OS_NAME 	- "friendly" name of the OS, for humans to read
+    QUAKE_OS_STR	- "identifier" of the OS, more suited for code to use
+    QUAKE_ARCH_STR	- "identifier" of the processor architecture
+ */
+#if defined(__linux__)
+#define QUAKE_OS_NAME		"Linux"
+#define QUAKE_OS_STR		"linux"
+#elif defined(_WIN64)
+#define QUAKE_OS_NAME		"Windows64"
+#define QUAKE_OS_STR		"win64"
+#elif defined(_WIN32)
+#define QUAKE_OS_NAME		"Windows"
+#define QUAKE_OS_STR		"win32"
+#elif defined(__FreeBSD__)
+#define QUAKE_OS_NAME		"FreeBSD"
+#define QUAKE_OS_STR		"freebsd"
+#elif defined(__NetBSD__)
+#define QUAKE_OS_NAME		"NetBSD"
+#define QUAKE_OS_STR		"netbsd"
+#elif defined(__OpenBSD__)
+#define QUAKE_OS_NAME		"OpenBSD"
+#define QUAKE_OS_STR		"openbsd"
+#elif defined(TARGET_OS_IPHONE)
+#define QUAKE_OS_NAME		"iPhoneOS"
+#define QUAKE_OS_STR		"iphoneos"
+#elif defined(MACOSX)
+#define QUAKE_OS_NAME		"Mac OS X"
+#define QUAKE_OS_STR		"osx"
+#else
+#define QUAKE_OS_NAME		"Unknown"
+#define QUAKE_OS_STR		"unknown"
+#endif
+
+#if defined(__GNUC__)
+#if defined(__i386__)
+#define QUAKE_ARCH_STR		"686"
+#elif defined(__x86_64__)
+#define QUAKE_ARCH_STR		"x86_64"
+#elif defined(__powerpc__)
+#define QUAKE_ARCH_STR		"ppc"
+#endif
+#elif defined(_WIN64)
+#define QUAKE_ARCH_STR		"x86_64"
+#elif defined(_WIN32)
+#define QUAKE_ARCH_STR		"x86"
+#endif
+
+extern const char *buildstring;
+extern char engineversion[128];
+
 #define PROGRAM "Cake"
 
 typedef unsigned char 		byte;
