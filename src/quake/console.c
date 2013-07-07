@@ -850,7 +850,6 @@ void Con_DrawNotify (void)
 	int		i;
 	float	time;
 	char	temptext[MAX_INPUTLINE];
-	int		currentColor;
 
 	if (con_notify.integer < 0)
 		Cvar_SetValue(&con_notify, 0);
@@ -860,7 +859,7 @@ void Con_DrawNotify (void)
 	if (con_mutex)
 		Thread_LockMutex(con_mutex);
 
-	v = vid_conheight.value;
+	y = vid_conheight.value;
 	for (i= con_current-con_notify.integer+1 ; i<=con_current ; i++)
 	{
 		if (i < 0)
@@ -911,7 +910,7 @@ Draws console text and download bar if needed
 extern cvar_t scr_conalpha;
 void Con_DrawConsole (int lines)
 {
-	int				i, j, x, y, rows;
+	int				i, j, y, rows;
 	char			*text;
 	float			alpha;
 
