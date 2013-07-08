@@ -1,30 +1,30 @@
 {
 // maps will be loaded and saved from <basepath>/maps
-"basepath"                      "e:/qw/id1"
+"basepath"         		"e:/qw/id1"
 
-// you are using your local machine to bsp, set rshcmd to ""
+// if you are using your local machine to bsp, set rshcmd to ""
 // and remotebasebath to the same thing as basepath.
 // if you are using a remote unix host, remotebasepath
 // will usually be different.
-"rshcmd"                        ""
-"remotebasepath"    "e:/qw/id1"
+"rshcmd"         		""
+"remotebasepath"    	"e:/qw/id1"
 
 // the entity classes are found by parsing through
 // all the files in <entitypath>, looking for
 // /*QUAKED comments
-"entitypath"            "progs/*.qc"
+"entitypath"            "qc/src/*.qc"
 
 // the "textures" menu is filled with all of the directories
 // found under <texturepath>.  All texture references from maps
 // have <texturepath> implicitly prepended.
 // The textures directory can be duplicated on a local harddrive
 // for better performance.
-"texturepath"           "gfx/*.wad"
+"texturepath"           "wad/*.wad"
 
 // every five minutes, the editor will autosave a map if it is dirty.
 // this should be on a local drive, so multiple people editing
 // maps don't collide
-"autosave"                      "e:/qw/id1/maps/autosave.map"
+"autosave"              "e:/qw/id1/maps/autosave.map"
 
 // the "bsp" menu in QuakeEd is filled with the following bsp_* commands
 // when selected, the value string will be expanded then executed in the
@@ -33,33 +33,13 @@
 // $ will be replaced with <remotebasepath>/maps/<currentmap>
 // @ is changed to a quote(in case you need one in the command line)
 
-"bsp"                  								"! qbsp $"
-"bsp vis"                  							"! qbsp $ && ! vis $"
-"bsp vis light"                  						"! qbsp $ && ! vis $ && ! light $"
-"bsp vis q1rad"   		     						"! qbsp $ && ! vis $ && ! q1rad $"
-"bsp vis -fast"      								"! qbsp $ && ! vis -fast $"
-"bsp vis -fast light"        							"! qbsp $ && ! vis -fast $ && ! light $"
-"bsp vis -level 4 light"        						"! qbsp $ && ! vis -level 4 $ && ! light $"
-"bsp vis -level 4 light -extra" 						"! qbsp $ && ! vis -level 4 $ && ! light -extra $"
-"bsp vis -level 4 light -extra4" 						"! qbsp $ && ! vis -level 4 $ && ! light -extra4 $"
-"bsp vis -level 4 light -extra -soft" 						"! qbsp $ && ! vis -level 4 $ && ! light -extra -soft $"
-"bsp vis -level 4 light -extra4 -soft" 						"! qbsp $ && ! vis -level 4 $ && ! light -extra4 -soft $"
-"bsp vis -level 4 light -extra -soft -solidsky bspinfo -chk"			"! qbsp $ && ! vis -level 4 $ && ! light -extra -soft -solidsky $ && ! bspinfo -chk $"
-"bsp -transwater vis -level 4 light -extra -soft -solidsky bspinfo -chk"	"! qbsp -transwater $ && ! vis -level 4 $ && ! light -extra -soft -solidsky $ && ! bspinfo -chk $"
-"bsp vis -level 4 light -extra4 -soft -solidsky bspinfo -chk" 			"! qbsp $ && ! vis -level 4 $ && ! light -extra4 -soft -solidsky $ && ! bspinfo -chk $"
-"bsp -transwater vis -level 4 light -extra4 -soft -solidsky bspinfo -chk" 	"! qbsp -transwater $ && ! vis -level 4 $ && ! light -extra4 -soft -solidsky $ && ! bspinfo -chk $"
-"bsp vis -level 4 light -extra -solidsky" 					"! qbsp $ && ! vis -level 4 $ && ! light -extra -solidsky $"
-"bsp vis -level 4 light -extra4 -solidsky" 					"! qbsp $ && ! vis -level 4 $ && ! light -extra4 -solidsky $"
-"bsp vis -level 4 light -soft -solidsky" 					"! qbsp $ && ! vis -level 4 $ && ! light -soft -solidsky $"
-"bsp vis -level 4 light -solidsky" 						"! qbsp $ && ! vis -level 4 $ && ! light -solidsky $"
-"bsp vis -level 4 light -extra4 -oldlight -light 0"				"! qbsp $ && ! vis -level 4 $ && ! light -extra4 -oldlight -light 0 $"
-"bsp -oldaxis -oldleak vis -level 4 light -soft -gate 1 -extra4 -tyrlite95"	"! qbsp -oldaxis -oldleak $ && ! vis -level 4 $ && ! light -soft -gate 1 -extra4 -tyrlite95 $"
-"bsp vis -level 4 q1rad"        						"! qbsp $ && ! vis -level 4 $ && ! q1rad $"
-"bsp vis -level 4 q1rad -extra" 						"! qbsp $ && ! vis -level 4 $ && ! q1rad -extra $"
-"bsp vis -level 4 q1rad -extra -stifleq1lights 0.4" 				"! qbsp $ && ! vis -level 4 $ && ! q1rad -extra -stifleq1lights 0.4 $"
-"bsp vis -level 4 q1rad -extra -exportlit" 					"! qbsp $ && ! vis -level 4 $ && ! q1rad -extra -exportlit $"
-"bsp -transwater vis -level 4 q1rad -extra" 					"! qbsp -transwater $ && ! vis -level 4 $ && ! q1rad -extra $"
-"bsp -transwater vis -level 4 q1rad -extra -exportlit"				"! qbsp -transwater $ && ! vis -level 4 $ && ! q1rad -extra -exportlit $"
-"bsp vis -level 4 tyrlight -extra bspinfo -chk"					"! qbsp $ && ! vis -level 4 $ && ! tyrlight -extra $ && ! bspinfo -chk $"
-"bspinfo -chk"                   						"! bspinfo -chk $"
+"bsp"                  									"! hmap2 $"
+"bsp vis"                  								"! hmap2 $ && ! hmap2 -vis $"
+"bsp vis light"                  						"! hmap2 $ && ! hmap2 -vis $ && ! hmap2 -light $"
+"bsp vis -fast"      									"! hmap2 $ && ! hmap2 -vis -fast $"
+"bsp vis -fast light"        							"! hmap2 $ && ! hmap2 -vis -fast $ && ! hmap2 -light $"
+"bsp vis light -extra" 									"! hmap2 $ && ! hmap2 -vis $ && ! hmap2 -light -extra $"
+"bsp vis light -extra4x4" 								"! hmap2 $ && ! hmap2 -vis $ && ! hmap2 -light -extra4x4 $"
+"bsp vis light -extra8x8" 								"! hmap2 $ && ! hmap2 -vis $ && ! hmap2 -light -extra8x8 $"
+"bspinfo"                   							"! hmap2 -bspinfo $"
 }
