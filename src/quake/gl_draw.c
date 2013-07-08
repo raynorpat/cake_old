@@ -514,6 +514,21 @@ void Draw_EnableTexture (void)
 	GL_TexEnv (GL_TEXTURE0_ARB, GL_TEXTURE_2D, GL_MODULATE);
 }
 
+void Draw_DisableCharBlend (void)
+{
+	Draw_EndBatching ();
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDisable (GL_BLEND);
+}
+
+
+void Draw_EnableCharBlend (void)
+{
+	Draw_EndBatching ();
+	qglEnable (GL_BLEND);
+	qglBlendFunc (GL_ONE, GL_ONE);
+}
+
 
 void Draw_TestState (gltexture_t *texture)
 {
@@ -579,8 +594,11 @@ void R_DrawChar (int x, int y, int num)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
+	Draw_EnableCharBlend ();
 	
 	Draw_CharacterQuad (x, y, (char) num, (byte *) &rgba);
+
+	Draw_DisableCharBlend ();
 }
 
 
@@ -603,16 +621,11 @@ void R_DrawColoredChar (int x, int y, int num, byte *color)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
-
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_ONE, GL_ONE);
+	Draw_EnableCharBlend ();
 
 	Draw_CharacterQuad (x, y, (char) num, color);
-	
-	Draw_EndBatching ();
 
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglDisable (GL_BLEND);
+	Draw_DisableCharBlend ();
 }
 
 
@@ -631,6 +644,7 @@ void R_DrawString (int x, int y, const char *str)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
+	Draw_EnableCharBlend ();
 	
 	while (*str)
 	{
@@ -640,6 +654,8 @@ void R_DrawString (int x, int y, const char *str)
 		str++;
 		x += 8;
 	}
+
+	Draw_DisableCharBlend ();
 }
 
 
@@ -657,9 +673,7 @@ void R_DrawColoredString (int x, int y, const char *str, byte *color)
 
 	gl = (glpic_t *) charset->data;
 	Draw_TestState (gl->gltexture);
-
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_ONE, GL_ONE);
+	Draw_EnableCharBlend ();
 	
 	while (*str)
 	{
@@ -670,10 +684,7 @@ void R_DrawColoredString (int x, int y, const char *str, byte *color)
 		x += 8;
 	}
 
-	Draw_EndBatching ();
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglDisable (GL_BLEND);
+	Draw_DisableCharBlend ();
 }
 
 
