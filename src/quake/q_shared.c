@@ -23,30 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 byte scratchbuf[SCRATCHBUF_SIZE];
 
-vec4_t		colorBlack	= {0, 0, 0, 1};
-vec4_t		colorRed	= {1, 0, 0, 1};
-vec4_t		colorGreen	= {0, 1, 0, 1};
-vec4_t		colorBlue	= {0, 0, 1, 1};
-vec4_t		colorYellow	= {1, 1, 0, 1};
-vec4_t		colorMagenta= {1, 0, 1, 1};
-vec4_t		colorCyan	= {0, 1, 1, 1};
-vec4_t		colorWhite	= {1, 1, 1, 1};
-vec4_t		colorLtGrey	= {0.75, 0.75, 0.75, 1};
-vec4_t		colorMdGrey	= {0.5, 0.5, 0.5, 1};
-vec4_t		colorDkGrey	= {0.25, 0.25, 0.25, 1};
-
-vec4_t	g_color_table[8] =
-{
-	{0.0, 0.0, 0.0, 1.0},
-	{1.0, 0.0, 0.0, 1.0},
-	{0.0, 1.0, 0.0, 1.0},
-	{1.0, 1.0, 0.0, 1.0},
-	{0.0, 0.0, 1.0, 1.0},
-	{0.0, 1.0, 1.0, 1.0},
-	{1.0, 0.0, 1.0, 1.0},
-	{1.0, 1.0, 1.0, 1.0},
-};
-
 /*
 ============================================================================
 
@@ -471,7 +447,8 @@ void *SZ_GetSpace (sizebuf_t *buf, int length)
 		
 		if (length > buf->maxsize)
 			Sys_Error ("SZ_GetSpace: %i is > full buffer size", length);
-
+			
+		Sys_Printf ("SZ_GetSpace: overflow\n");	// because Com_Printf may be redirected
 		SZ_Clear (buf); 
 		buf->overflowed = true;
 	}

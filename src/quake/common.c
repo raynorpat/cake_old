@@ -34,6 +34,10 @@ cvar_t	registered = {"registered","0"};
 
 qbool	com_serveractive = false;
 
+void OnChange_logfile_var (cvar_t *var, char *string, qbool *cancel);
+cvar_t	logfile_var = {"logfile", "0", 0, OnChange_logfile_var};
+FILE	*logfile;
+
 gamemode_t gamemode;
 const char *gamename;
 const char *gamedirname1;
@@ -477,6 +481,10 @@ void COM_Init (void)
 {
 	Cvar_Register (&developer);
 	Cvar_Register (&registered);
+	Cvar_Register (&logfile_var);
+
+	if (COM_CheckParm("-condebug") || COM_CheckParm("-conlog"))
+		Cvar_SetValue (&logfile_var, 2);	// flush every write
 }
 
 
@@ -487,6 +495,8 @@ COM_Shutdown
 */
 void COM_Shutdown (void)
 {
+	if (logfile_var.value)
+		Cvar_SetValue (&logfile_var, 0);	// close log file
 }
 
 //======================================
@@ -1118,22 +1128,73 @@ void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf)
 
 //=====================================================================
 
+#define	MAXPRINTMSG	4096
+
+void (*rd_print) (char *) = NULL;
+
+void Com_BeginRedirect (void (*RedirectedPrint) (char *))
+{
+	rd_print = RedirectedPrint;
+}
+
+void Com_EndRedirect (void)
+{
+	rd_print = NULL;
+}
+
+void OnChange_logfile_var (cvar_t *var, char *string, qbool *cancel)
+{
+	if (!Q_atof(string) && logfile) {
+		// close logfile if it's opened
+		fclose (logfile);
+		logfile = NULL;
+	}
+}
+
 /*
 ================
 Com_Printf
 
-Prints to all appropriate console targets
+All console printing must go through this in order to be logged to disk
 ================
 */
 void Com_Printf (char *fmt, ...)
 {
 	va_list		argptr;
-	char		msg[MAX_INPUTLINE];
-
+	char		msg[MAXPRINTMSG];
+	
 	va_start (argptr, fmt);
-	Q_vsnprintf (msg, sizeof(msg), fmt, argptr);
+#ifdef _WIN32
+	_vsnprintf (msg, sizeof(msg) - 1, fmt, argptr);
+	msg[sizeof(msg) - 1] = '\0';
+#else
+	vsnprintf (msg, sizeof(msg), fmt, argptr);
+#endif // _WIN32
 	va_end (argptr);
 
+	if (rd_print)
+	{
+		// add to redirected message
+		rd_print (msg);
+		return;
+	}
+
+	// also echo to debugging console
+	Sys_Printf ("%s", msg);
+
+	if (logfile_var.value)
+	{
+		if (!logfile)
+			logfile = fopen (va("%s/qconsole.log", fs_gamedir), "w");
+		if (logfile)
+		{
+			fprintf (logfile, "%s", msg);
+			if (logfile_var.value >= 2)
+				fflush (logfile);
+		}
+	}
+
+	// write it to the scrollable buffer
 	Con_Print (msg);
 }
 
@@ -1147,14 +1208,19 @@ A Com_Printf that only shows up if the "developer" cvar is set
 void Com_DPrintf (char *fmt, ...)
 {
 	va_list		argptr;
-	char		msg[MAX_INPUTLINE];
+	char		msg[MAXPRINTMSG];
 		
-	if (!developer.integer)
-		return; // don't confuse non-developers with techie stuff...
+	if (!developer.value)
+		return;			// don't confuse non-developers with techie stuff...
 
-	va_start (argptr, fmt);
-	Q_vsnprintf (msg, sizeof(msg), fmt, argptr);
+	va_start (argptr,fmt);
+#ifdef _WIN32
+	_vsnprintf (msg, sizeof(msg) - 1, fmt, argptr);
+	msg[sizeof(msg) - 1] = '\0';
+#else
+	vsnprintf (msg, sizeof(msg), fmt, argptr);
+#endif // _WIN32
 	va_end (argptr);
 	
-	Con_Print (msg);
+	Com_Printf ("%s", msg);
 }

@@ -84,6 +84,8 @@ void Host_Error (char *error, ...)
 		Sys_Error ("Host_Error: recursively entered");
 	inerror = true;
 
+	Com_EndRedirect ();
+
 	SCR_EndLoadingPlaque ();
 
 	va_start (argptr,error);

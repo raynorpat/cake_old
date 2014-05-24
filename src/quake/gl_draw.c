@@ -659,36 +659,6 @@ void R_DrawString (int x, int y, const char *str)
 }
 
 
-/*
-================
-R_DrawColoredString
-================
-*/
-void R_DrawColoredString (int x, int y, const char *str, byte *color)
-{
-	glpic_t *gl;
-
-	if (y <= -8)
-		return;			// totally off screen
-
-	gl = (glpic_t *) charset->data;
-	Draw_TestState (gl->gltexture);
-	Draw_EnableCharBlend ();
-	
-	while (*str)
-	{
-		if (*str != 32) // don't waste verts on spaces
-			Draw_CharacterQuad (x, y, *str, color);
-
-		str++;
-		x += 8;
-	}
-
-	Draw_DisableCharBlend ();
-}
-
-
-
 void Draw_Texture (int x, int y, int w, int h, void *tex, byte *color)
 {
 	unsigned int defaultcolor = 0xffffffff;
