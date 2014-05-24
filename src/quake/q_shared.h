@@ -136,8 +136,6 @@ typedef int (*sortfunc_t) (const void *, const void *);
 
 //============================================================================
 
-#define MAX_INPUTLINE		16384
-
 #define	MAX_QPATH			64			// max length of a quake game pathname
 #define	MAX_OSPATH			128			// max length of a filesystem pathname
 
@@ -274,44 +272,6 @@ char *Q_strdup (const char *src);
 #define	MAX_NQMSGLEN	8000		// max length of a reliable message
 #define MAX_OVERALLMSGLEN	MAX_NQMSGLEN
 #define	MAX_NQDATAGRAM	1024		// max length of unreliable message
-
-//============================================================================
-
-extern	vec4_t		colorBlack;
-extern	vec4_t		colorRed;
-extern	vec4_t		colorGreen;
-extern	vec4_t		colorBlue;
-extern	vec4_t		colorYellow;
-extern	vec4_t		colorMagenta;
-extern	vec4_t		colorCyan;
-extern	vec4_t		colorWhite;
-extern	vec4_t		colorLtGrey;
-extern	vec4_t		colorMdGrey;
-extern	vec4_t		colorDkGrey;
-
-#define Q_COLOR_ESCAPE	'^'
-#define Q_IsColorString(p)	((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && isalnum(*((p)+1))) // ^[0-9a-zA-Z]
-
-#define COLOR_BLACK		'0'
-#define COLOR_RED		'1'
-#define COLOR_GREEN		'2'
-#define COLOR_YELLOW	'3'
-#define COLOR_BLUE		'4'
-#define COLOR_CYAN		'5'
-#define COLOR_MAGENTA	'6'
-#define COLOR_WHITE		'7'
-#define ColorIndex(c)	(((c) - '0') & 0x07)
-
-#define S_COLOR_BLACK	"^0"
-#define S_COLOR_RED		"^1"
-#define S_COLOR_GREEN	"^2"
-#define S_COLOR_YELLOW	"^3"
-#define S_COLOR_BLUE	"^4"
-#define S_COLOR_CYAN	"^5"
-#define S_COLOR_MAGENTA	"^6"
-#define S_COLOR_WHITE	"^7"
-
-extern vec4_t	g_color_table[8];
 
 //============================================================================
 

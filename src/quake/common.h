@@ -271,6 +271,8 @@ extern char com_modname[MAX_OSPATH];
 
 //============================================================================
 
+void Com_BeginRedirect (void (*RedirectedPrint) (char *));
+void Com_EndRedirect (void);
 void Com_Printf (char *fmt, ...);
 void Com_DPrintf (char *fmt, ...);
 
@@ -320,7 +322,7 @@ void CL_BeginLocalConnection (void);
 
 void Con_Init (void);
 void Con_Shutdown (void);
-void Con_Print (const char *txt);
+void Con_Print (char *txt);
 
 void Key_Init (void);
 void SCR_EndLoadingPlaque (void);

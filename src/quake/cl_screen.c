@@ -630,19 +630,34 @@ SCR_DrawConsole
 */
 void SCR_DrawConsole (void)
 {
+	float	alpha;
+
 	RB_SetCanvas (CANVAS_CONSOLE);
 
-	if (scr_con_current)
-	{
-		Con_DrawConsole (scr_con_current);
-	}
-	else
+	if (!scr_con_current)
 	{
 		// console is up, draw notify instead
-		con_vislines = 0;
 		if (key_dest == key_game || key_dest == key_message)
 			Con_DrawNotify (); // only draw notify in game
+		return;
 	}
+
+	// guard against going from one mode to another that's less than half the
+	// vertical resolution
+	if (scr_con_current > vid.height)
+		scr_con_current = vid.height;
+
+	// draw the background
+	if (scr_con_current == vid.height)
+		alpha = 1.0f; // non-transparent if full screen
+	else
+		alpha = bound (0.0f, scr_conalpha.value, 1.0f);
+
+	R_DrawConsoleBackground (alpha);
+	
+	// draw console text
+	if (key_dest != key_menu)
+		Con_DrawConsole (scr_con_current);
 }
 
 

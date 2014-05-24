@@ -646,24 +646,32 @@ void Key_Console (int key)
 
 		case K_PGUP:
 		case K_MWHEELUP:
-			con_backscroll += ((int) vid_conheight.integer >> 5);
-			if (con_backscroll > con_totallines - (vid_conheight.integer>>3) - 1)
-				con_backscroll = con_totallines - (vid_conheight.integer>>3) - 1;
+			if (keydown[K_CTRL] && key == K_PGUP)
+				Con_Scroll ((((int)scr_conlines>>3) - 4));
+			else
+				Con_Scroll (2);
 			return;
 
 		case K_MWHEELDOWN:
 		case K_PGDN:
-			con_backscroll -= ((int) vid_conheight.integer >> 5);
-			if (con_backscroll < 0)
-				con_backscroll = 0;
+			if (keydown[K_CTRL] && key == K_PGDN)
+				Con_Scroll (-(((int)scr_conlines>>3) - 4));
+			else
+				Con_Scroll (-2);
 			return;
 
 		case K_HOME:
-			con_backscroll = con_totallines - (vid_conheight.integer>>3) - 1;
+			if (keydown[K_CTRL])
+				Con_ScrollToTop ();
+			else
+				key_linepos = 1;
 			return;
 
 		case K_END:
-			con_backscroll = 0;
+			if (keydown[K_CTRL])
+				Con_ScrollToBottom ();
+			else
+				key_linepos = strlen(key_lines[edit_line]);
 			return;
 	}
 

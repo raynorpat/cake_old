@@ -389,6 +389,7 @@ void SVC_Status (void)
 	int		ping;
 	int		top, bottom;
 
+	SV_BeginRedirect (RD_PACKET);
 	Com_Printf ("%s\n", svs.info);
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -405,11 +406,13 @@ void SVC_Status (void)
 				ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
 		}
 	}
+	SV_EndRedirect ();
 }
 
 /*
 ===================
 SV_CheckLog
+
 ===================
 */
 #define	LOG_HIGHWATER	(MAX_DATAGRAM - 128)
@@ -756,12 +759,18 @@ void SVC_RemoteCommand (void)
 {
 	if (!Rcon_Validate ()) {
 		Com_Printf ("Bad rcon from %s:\n%s\n", NET_AdrToString (net_from), net_message.data+4);
+
+		SV_BeginRedirect (RD_PACKET);
 		Com_Printf ("Bad rcon_password\n");
 	}
 	else {
 		Com_Printf ("Rcon from %s:\n%s\n", NET_AdrToString (net_from), net_message.data+4);
+
+		SV_BeginRedirect (RD_PACKET);
 		Cmd_ExecuteString (Cmd_MakeArgs(2), true);
 	}
+
+	SV_EndRedirect ();
 }
 
 
