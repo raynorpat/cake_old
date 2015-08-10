@@ -219,8 +219,6 @@ void R_NewMap (struct model_s *worldmodel);
 
 void R_TakeVideoFrame(int width, int height, byte * captureBuffer, byte * encodeBuffer, qbool motionJpeg);
 
-void R_SetPalette (unsigned char *palette);
-
 // 2D drawing functions
 void R_DrawChar (int x, int y, int num);
 void R_DrawColoredChar (int x, int y, int num, byte *color);
@@ -230,7 +228,6 @@ void R_DrawAlphaPic (int x, int y, qpic_t *pic, float alpha);
 void R_DrawSubPic (int x, int y, qpic_t *pic, int srcx, int srcy, int width, int height, float scale);
 void R_DrawTransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom);
 void R_DrawFilledRect (int x, int y, int w, int h, int c, float alpha);
-void R_DrawStretchRaw (int x, int y, int w, int h, int cols, int rows, byte *data);
 void R_DrawCrosshair (int crossx, int crossy, int color);
 void R_DrawNetGraph (void);
 void R_DrawConsoleBackground (float alpha);

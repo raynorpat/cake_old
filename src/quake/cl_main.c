@@ -406,9 +406,6 @@ void CL_Disconnect (void)
 	// stop sounds (especially looping!)
 	S_StopAllSounds (true);
 
-	// reset game palette
-	R_SetPalette (NULL);
-	
 	Cmd_RemoveStuffedAliases ();
 
 	cl.paused = 0;
@@ -1209,9 +1206,6 @@ void CL_Frame (double time, qbool threaded_server)
 
 	// advance local effects for next frame
 	CL_RunDLights ();
-
-	// update cinematic
-	SCR_RunCinematic ();
 
 	if(CL_VideoRecording() && cl_aviFrameRate.value && cls.state == ca_active) {
 		// record video frame
