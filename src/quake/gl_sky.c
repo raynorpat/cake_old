@@ -913,7 +913,7 @@ void R_RenderModelSurfsSky (r_modelsurf_t **mslist, int numms)
 	if (Fog_GetDensity () > 0 && r_skyfog.value > 0)
 		R_RenderModelSurfsSkyPass (mslist, numms, SKY_FOG_LAYER);
 
-glsl_sky:;
+//glsl_sky:;
 	if (r_showtris.value)
 		R_RenderModelSurfsSkyPass (mslist, numms, SKY_SHOWTRIS);
 
