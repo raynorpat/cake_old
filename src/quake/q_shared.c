@@ -247,23 +247,6 @@ size_t strlcat (char *dst, const char *src, size_t size)
 #endif
 
 
-#ifdef _WIN32
-int snprintf(char *buffer, size_t count, char const *format, ...)
-{
-	int ret;
-	va_list		argptr;
-
-	if (!count)
-		return 0;
-	va_start(argptr, format);
-	ret = _vsnprintf(buffer, count, format, argptr);
-	buffer[count - 1] = 0;
-	va_end (argptr);
-	return ret;
-}
-#endif
-
-
 /*
 ==============
 Q_glob_match_after_star
